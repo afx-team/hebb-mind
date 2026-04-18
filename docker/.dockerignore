@@ -1,0 +1,14 @@
+.venv/
+.git/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+__pycache__/
+*.db
+*.sqlite
+docs/
+tests/
+examples/
+.claude/
+hippocampus.json
+.env

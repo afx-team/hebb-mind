@@ -1,0 +1,45 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+*.whl
+
+.venv/
+venv/
+env/
+
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+*.db
+*.sqlite
+*.sqlite3
+
+.env
+.env.local
+hippocampus.json
+eval/eval.json
+plan.md
+
+.DS_Store
+Thumbs.db
+
+*.log
+
+.claude/memory-bank.json
+knowledge_graph.json
+
+# eval/data/ tracked via Git LFS (see .gitattributes)
+# eval/reports/ tracked normally for open-source visibility
+
+# Model weights tracked via Git LFS (see .gitattributes)
+# models/ is NOT ignored — it's committed with LFS

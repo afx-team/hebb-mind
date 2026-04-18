@@ -1,0 +1,20 @@
+services:
+  hippocampus:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8321:8321"
+    volumes:
+      - hippocampus-/data
+    environment:
+      - HIPPOCAMPUS_LLM_API_KEY=${HIPPOCAMPUS_LLM_API_KEY}
+      - HIPPOCAMPUS_LLM_MODEL=${HIPPOCAMPUS_LLM_MODEL:-openai/gpt-4o-mini}
+      - HIPPOCAMPUS_LLM_BASE_URL=${HIPPOCAMPUS_LLM_BASE_URL:-}
+      - HIPPOCAMPUS_GITHUB_CLIENT_ID=${HIPPOCAMPUS_GITHUB_CLIENT_ID:-}
+      - HIPPOCAMPUS_GITHUB_CLIENT_SECRET=${HIPPOCAMPUS_GITHUB_CLIENT_SECRET:-}
+      - HIPPOCAMPUS_JWT_SECRET=${HIPPOCAMPUS_JWT_SECRET:-change-me-in-production}
+    restart: unless-stopped
+
+volumes:
+  hippocampus-data:
