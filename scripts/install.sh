@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -e
 
-PACKAGE="hippocampus-ai"
+PACKAGE="afx-hippocampus"
 MIN_PYTHON_MAJOR=3
 MIN_PYTHON_MINOR=10
 INTERACTIVE=false

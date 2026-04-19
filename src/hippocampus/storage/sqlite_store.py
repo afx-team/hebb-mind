@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 import aiosqlite
 import numpy as np
 
-from hippocampus.models.memory import Memory, MemoryCreate, MemoryUpdate
+from hippocampus.models.memory import Memory, MemoryCreate, MemoryMetadata, MemoryUpdate
 
 
 def _now_iso() -> str:
@@ -23,7 +23,7 @@ def _row_to_memory(row: aiosqlite.Row) -> Memory:
         content=row["content"],
         importance_score=row["importance_score"],
         tags=json.loads(row["tags"]),
-        metadata=json.loads(row["metadata"]),
+        metadata=MemoryMetadata(**json.loads(row["metadata"])),
         source=row["source"],
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
@@ -52,7 +52,7 @@ class SQLiteMemoryStore:
             (
                 memory_id, data.partition_id, data.content,
                 data.importance_score, json.dumps(data.tags),
-                json.dumps(data.metadata), data.source,
+                json.dumps(data.metadata.model_dump(exclude_none=True)), data.source,
                 now, now, now,
             ),
         )
@@ -133,7 +133,7 @@ class SQLiteMemoryStore:
             params.append(json.dumps(data.tags))
         if data.metadata is not None:
             updates.append("metadata = ?")
-            params.append(json.dumps(data.metadata))
+            params.append(json.dumps(data.metadata.model_dump(exclude_none=True)))
 
         if not updates:
             return existing

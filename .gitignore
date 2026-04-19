@@ -38,6 +38,11 @@ Thumbs.db
 .claude/memory-bank.json
 knowledge_graph.json
 
+# VitePress docs
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+
 # eval/data/ tracked via Git LFS (see .gitattributes)
 # eval/reports/ tracked normally for open-source visibility
 

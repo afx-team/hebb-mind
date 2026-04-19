@@ -7,6 +7,7 @@ import click
 from hippocampus import __version__
 from hippocampus.cli.commands.config import config_cmd
 from hippocampus.cli.commands.init import init_cmd
+from hippocampus.cli.commands.mcp_cmd import mcp_cmd
 from hippocampus.cli.commands.start import start_cmd
 from hippocampus.cli.commands.status import status_cmd
 from hippocampus.cli.commands.stop import restart_cmd, stop_cmd
@@ -25,3 +26,4 @@ main.add_command(stop_cmd, "stop")
 main.add_command(restart_cmd, "restart")
 main.add_command(status_cmd, "status")
 main.add_command(config_cmd, "config")
+main.add_command(mcp_cmd, "mcp")

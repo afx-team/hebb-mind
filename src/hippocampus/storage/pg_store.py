@@ -13,7 +13,7 @@ from hippocampus.constants import (
     DEFAULT_PARTITION_NAMES,
     SYSTEM_PARTITIONS,
 )
-from hippocampus.models.memory import Memory, MemoryCreate, MemoryUpdate
+from hippocampus.models.memory import Memory, MemoryCreate, MemoryMetadata, MemoryUpdate
 from hippocampus.models.partition import Partition, PartitionCreate, PartitionUpdate
 
 
@@ -28,7 +28,7 @@ def _record_to_memory(row: asyncpg.Record) -> Memory:
         content=row["content"],
         importance_score=row["importance_score"],
         tags=list(row["tags"]) if row["tags"] else [],
-        metadata=dict(row["metadata"]) if row["metadata"] else {},
+        metadata=MemoryMetadata(**(json.loads(row["metadata"]) if isinstance(row["metadata"], str) else (row["metadata"] or {}))),
         source=row["source"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
@@ -69,7 +69,7 @@ class PGMemoryStore:
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0)""",
                 memory_id, data.partition_id, data.content,
                 data.importance_score, data.tags,
-                json.dumps(data.metadata), data.source,
+                json.dumps(data.metadata.model_dump(exclude_none=True)), data.source,
                 now, now, now,
             )
             if embedding:
@@ -145,7 +145,7 @@ class PGMemoryStore:
             idx += 1
         if data.metadata is not None:
             sets.append(f"metadata = ${idx}")
-            params.append(json.dumps(data.metadata))
+            params.append(json.dumps(data.metadata.model_dump(exclude_none=True)))
             idx += 1
 
         if not sets:

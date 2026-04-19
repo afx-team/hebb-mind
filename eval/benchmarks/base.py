@@ -103,11 +103,21 @@ class BaseBenchmark:
             batch: list[dict] = []
             for turn in scenario.conversations:
                 content = self._format_turn(turn)
-                batch.append({
+                item: dict = {
                     "content": content[:10000],
                     "partition_id": PARTITION_ID,
                     "importance_score": 5.0,
-                })
+                }
+                metadata = {}
+                if turn.session_id is not None:
+                    metadata["session_id"] = str(turn.session_id)
+                if turn.turn_index is not None:
+                    metadata["turn"] = turn.turn_index
+                if turn.timestamp is not None:
+                    metadata["timestamp"] = turn.timestamp
+                if metadata:
+                    item["metadata"] = metadata
+                batch.append(item)
 
                 if len(batch) >= self.settings.batch_size:
                     await client.create_memories_batch(batch)

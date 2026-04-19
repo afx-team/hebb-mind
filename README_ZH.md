@@ -6,9 +6,9 @@
 
 <p align="center">
   <a href="https://github.com/afx-team/hippocampus/actions"><img src="https://github.com/afx-team/hippocampus/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://pypi.org/project/hippocampus-ai/"><img src="https://img.shields.io/pypi/v/hippocampus-ai" alt="PyPI"></a>
+  <a href="https://pypi.org/project/afx-hippocampus/"><img src="https://img.shields.io/pypi/v/afx-hippocampus" alt="PyPI"></a>
   <a href="https://github.com/afx-team/hippocampus/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
-  <img src="https://img.shields.io/pypi/pyversions/hippocampus-ai" alt="Python">
+  <img src="https://img.shields.io/pypi/pyversions/afx-hippocampus" alt="Python">
 </p>
 
 ---
@@ -61,7 +61,7 @@ Hippocampus 为你的 AI Agent 提供**类脑记忆系统**。正如人类大脑
 
 ```bash
 # 安装（需要 Python >= 3.12）
-pip install hippocampus-ai
+pip install afx-hippocampus
 
 # 初始化项目（创建 hippocampus.json + SQLite 数据库）
 hippocampus init
@@ -205,7 +205,7 @@ hippocampus config set storage_type sqlite
 **PostgreSQL + pgvector** — 生产级，连接池，原生向量类型。
 
 ```bash
-pip install hippocampus-ai[pg]
+pip install afx-hippocampus[pg]
 hippocampus config set storage_type postgresql
 hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
 ```

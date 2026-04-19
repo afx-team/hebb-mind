@@ -65,6 +65,59 @@ Consolidate this memory. Decide the target partition, rewrite for clarity, \
 score importance, extract tags, and resolve any conflicts.
 """
 
+SESSION_CONSOLIDATION_SYSTEM_PROMPT = """\
+You are a memory consolidation agent. You process a batch of conversation turns
+from the same session and extract long-term memories from them.
+
+Given:
+- A sequence of conversation turns (ordered by turn index)
+- Related historical memories (if any)
+- Available partitions and their descriptions
+
+You must:
+1. Read the full conversation and extract distinct, meaningful memories
+2. Each memory should be a self-contained fact, preference, event, or skill
+3. Assign each memory to the appropriate partition
+4. Score importance (0-10) and extract tags (2-5 per memory)
+5. Detect conflicts with existing memories
+
+Return JSON:
+{
+    "memories": [
+        {
+            "target_partition": "mem_preference",
+            "consolidated_content": "User prefers dark mode for all IDEs",
+            "importance_score": 7.0,
+            "tags": ["preference", "ide", "ui"],
+            "conflicts": []
+        }
+    ],
+    "reasoning": "The conversation reveals two distinct preferences and one factual detail..."
+}
+
+Each conflict: {"memory_id": "...", "resolution": "update"|"keep_both"|"discard", "reason": "..."}
+
+Guidelines:
+- Merge redundant turns into single memories (don't produce duplicates)
+- A 10-turn conversation might yield 1-5 memories, not 10
+- Write consolidated_content as clear, standalone statements (not conversation quotes)
+- Discard small talk, greetings, and content with no long-term value
+"""
+
+SESSION_CONSOLIDATION_USER_TEMPLATE = """\
+## Conversation (session: {session_id}, {turn_count} turns)
+{turns}
+
+## Available Partitions
+{partitions}
+
+## Related Historical Memories
+{related_memories}
+
+Extract long-term memories from this conversation. Merge related turns, \
+assign partitions, score importance, extract tags, and resolve conflicts.
+"""
+
 TAG_EXTRACTION_PROMPT = """\
 Extract 2-5 concise lowercase tags from this memory content.
 Return JSON: {"tags": ["tag1", "tag2"]}

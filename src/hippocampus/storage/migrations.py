@@ -33,6 +33,37 @@ async def get_connection(db_path: str, *, load_vec: bool = True) -> aiosqlite.Co
     return db
 
 
+async def _ensure_vec_table(db: aiosqlite.Connection, embedding_dim: int) -> None:
+    """Create or recreate vec0 table if dimension changed."""
+    dim = int(embedding_dim)
+    # Try creating the table first (fast path)
+    try:
+        await db.execute(
+            f"CREATE VIRTUAL TABLE IF NOT EXISTS memory_embeddings USING vec0("
+            f"memory_id TEXT PRIMARY KEY, embedding float[{dim}])"
+        )
+    except Exception:
+        # Table exists but may have different dimension — test with a probe
+        try:
+            import numpy as np
+
+            probe = np.zeros(dim, dtype=np.float32).tobytes()
+            await db.execute(
+                "INSERT INTO memory_embeddings(memory_id, embedding) VALUES ('__dim_probe__', ?)", (probe,)
+            )
+            await db.execute("DELETE FROM memory_embeddings WHERE memory_id = '__dim_probe__'")
+        except Exception:
+            # Dimension mismatch — recreate table (loses existing embeddings)
+            logger.warning(
+                "Embedding dimension changed to %d, recreating vec0 table (existing vectors will be lost)", dim
+            )
+            await db.execute("DROP TABLE IF EXISTS memory_embeddings")
+            await db.execute(
+                f"CREATE VIRTUAL TABLE memory_embeddings USING vec0("
+                f"memory_id TEXT PRIMARY KEY, embedding float[{dim}])"
+            )
+
+
 async def initialize_schema(
     db: aiosqlite.Connection, embedding_dim: int = 384, *, create_vec_table: bool = True
 ) -> None:
@@ -71,10 +102,8 @@ async def initialize_schema(
     # sqlite-vec virtual table (cannot be created via executescript)
     if create_vec_table:
         try:
-            await db.execute(
-                f"CREATE VIRTUAL TABLE IF NOT EXISTS memory_embeddings USING vec0("
-                f"memory_id TEXT PRIMARY KEY, embedding float[{int(embedding_dim)}])"
-            )
+            # Check if vec0 table exists with a different dimension
+            await _ensure_vec_table(db, embedding_dim)
         except Exception as e:
             logger.warning("Could not create vec0 table: %s", e)
             # Fallback: regular table so embedding INSERT/DELETE still works

@@ -1,0 +1,96 @@
+{
+  "benchmark_name": "longmemeval",
+  "dataset_name": "LongMemEval",
+  "timestamp": "2026-04-19T10:12:22.473601+00:00",
+  "total_questions": 3,
+  "correct": 2,
+  "accuracy": 0.6666666666666666,
+  "accuracy_by_category": {
+    "single-session-user": 0.6666666666666666
+  },
+  "avg_latency_ms": 142.91583333397284,
+  "retrieval_metrics": {
+    "avg_top1_relevance": 0.5364178446680713
+  },
+  "individual_results": [
+    {
+      "question_id": "longmemeval_e47becba",
+      "question": "What degree did I graduate with?",
+      "ground_truth": "Business Administration",
+      "category": "single-session-user",
+      "generated_answer": "Bachelor's degree in Business Administration.",
+      "is_correct": true,
+      "confidence": 0.9,
+      "relevance_scores": [
+        0.45213324265452615,
+        0.45120497636347834,
+        0.44563635797624357,
+        0.44560174930099566,
+        0.4443591010972406,
+        0.4433547301141566,
+        0.4399848649462904,
+        0.4396206141549569,
+        0.4392501807691379,
+        0.4382629993448474
+      ],
+      "latency_ms": 129.1328749503009
+    },
+    {
+      "question_id": "longmemeval_118b2229",
+      "question": "How long is my daily commute to work?",
+      "ground_truth": "45 minutes each way",
+      "category": "single-session-user",
+      "generated_answer": "Based on your memories, your daily commute takes **45 minutes each way** (90 minutes total).",
+      "is_correct": true,
+      "confidence": 1.0,
+      "relevance_scores": [
+        0.5203161665426963,
+        0.5053414082900888,
+        0.4976601346290227,
+        0.49760221520151193,
+        0.4945512514399784,
+        0.4848865157041729,
+        0.47541368987909227,
+        0.4724053980737867,
+        0.46929761231095257,
+        0.46696485381129377
+      ],
+      "latency_ms": 144.47687502251938
+    },
+    {
+      "question_id": "longmemeval_51a45a95",
+      "question": "Where did I redeem a $5 coupon on coffee creamer?",
+      "ground_truth": "Target",
+      "category": "single-session-user",
+      "generated_answer": "I don't know. The memories mention that you found the $5 coffee creamer coupon in your email inbox and redeemed it last Sunday, but they don't specify which store you redeemed it at.",
+      "is_correct": false,
+      "confidence": 1.0,
+      "relevance_scores": [
+        0.6368041248069913,
+        0.4973418919582301,
+        0.4870336967126331,
+        0.48541404124424103,
+        0.48415329555618386,
+        0.47894143572558506,
+        0.47742247882231575,
+        0.4755554008531485,
+        0.47485239348054764,
+        0.47386192411279626
+      ],
+      "latency_ms": 155.13775002909824
+    }
+  ],
+  "config": {
+    "llm_model": "openai/Kimi-K2.5",
+    "llm_thinking": true,
+    "llm_temperature": 1.0,
+    "llm_top_p": 0.95,
+    "mode": "raw",
+    "search_top_k": 10,
+    "concurrency": 2,
+    "weight_recency": 1.0,
+    "weight_importance": 1.0,
+    "weight_relevance": 2.0,
+    "num_scenarios": 3
+  }
+}

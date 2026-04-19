@@ -6,9 +6,9 @@
 
 <p align="center">
   <a href="https://github.com/afx-team/hippocampus/actions"><img src="https://github.com/afx-team/hippocampus/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://pypi.org/project/hippocampus-ai/"><img src="https://img.shields.io/pypi/v/hippocampus-ai" alt="PyPI"></a>
+  <a href="https://pypi.org/project/afx-hippocampus/"><img src="https://img.shields.io/pypi/v/afx-hippocampus" alt="PyPI"></a>
   <a href="https://github.com/afx-team/hippocampus/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
-  <img src="https://img.shields.io/pypi/pyversions/hippocampus-ai" alt="Python">
+  <img src="https://img.shields.io/pypi/pyversions/afx-hippocampus" alt="Python">
 </p>
 
 ---
@@ -62,7 +62,7 @@ Hippocampus gives your AI agents a **brain-like memory system**. Just like the h
 
 ```bash
 # Install (requires Python >= 3.12)
-pip install hippocampus-ai
+pip install afx-hippocampus
 
 # Initialize project (creates hippocampus.json + SQLite DB)
 hippocampus init
@@ -214,7 +214,7 @@ hippocampus config set db_path hippocampus.db
 **PostgreSQL + pgvector** — production-grade, connection pooling, native vector types.
 
 ```bash
-pip install hippocampus-ai[pg]
+pip install afx-hippocampus[pg]
 hippocampus config set storage_type postgresql
 hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
 ```

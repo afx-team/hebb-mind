@@ -9,7 +9,7 @@ Demonstrates:
 5. Delete custom partitions
 
 Prerequisites:
-    pip install hippocampus-ai
+    pip install afx-hippocampus
     hippocampus init && hippocampus start
 """
 

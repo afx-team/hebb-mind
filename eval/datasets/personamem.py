@@ -122,7 +122,8 @@ class PersonaMemAdapter:
             ctx_turns = contexts.get(ctx_id, [])
             # Use end_index from first question to trim context
             end_idx = max(q.get("end_index_in_shared_context", len(ctx_turns)) for q in q_items)
-            for t_idx, turn in enumerate(ctx_turns[:end_idx]):
+            actual_idx = 0
+            for turn in ctx_turns[:end_idx]:
                 if isinstance(turn, dict):
                     role = turn.get("role", "user")
                     content = turn.get("content", "")
@@ -134,9 +135,10 @@ class PersonaMemAdapter:
                             role=role,
                             content=content,
                             session_id="0",
-                            turn_index=t_idx,
+                            turn_index=actual_idx,
                         )
                     )
+                    actual_idx += 1
 
             # Build questions
             for q_idx, q in enumerate(q_items):

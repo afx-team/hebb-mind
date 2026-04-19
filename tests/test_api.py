@@ -27,6 +27,10 @@ class MockEmbedder:
         return [await self.embed(t) for t in texts]
 
 
+async def _mock_create_embedder(settings):
+    return MockEmbedder()
+
+
 @pytest.fixture
 def client(tmp_path: Path):
     """Create a test client with temporary DB and mocked embedder."""
@@ -38,7 +42,7 @@ def client(tmp_path: Path):
     }))
 
     with patch("hippocampus.config.loader.find_config_file", return_value=config_path), \
-         patch("hippocampus.server.app.LocalEmbedder", return_value=MockEmbedder()):
+         patch("hippocampus.embedding.factory.create_embedder", side_effect=_mock_create_embedder):
         from hippocampus.server.app import create_app
         app = create_app()
         with TestClient(app) as c:

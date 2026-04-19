@@ -24,10 +24,22 @@ def start_cmd(host: str | None, port: int | None, reload: bool) -> None:
     final_port = port or settings.port
 
     console.print(f"[bold green]Hippocampus v{__version__}[/]")
-    console.print(f"  Server:  http://{final_host}:{final_port}")
-    console.print(f"  Docs:    http://{final_host}:{final_port}/docs")
-    console.print(f"  Model:   {settings.llm_model}")
-    console.print(f"  DB:      {settings.db_path}")
+    console.print(f"  Server:     http://{final_host}:{final_port}")
+    console.print(f"  Docs:       http://{final_host}:{final_port}/docs")
+    console.print(f"  LLM:        {settings.llm_model or '[dim]not configured[/]'}")
+    console.print(f"  DB:         {settings.db_path}")
+
+    # Embedding status
+    if not settings.embedding_enabled:
+        console.print("  Embedding:  [yellow]disabled[/]")
+    elif settings.embedding_provider == "api":
+        console.print(f"  Embedding:  [cyan]{settings.embedding_model}[/] (API)")
+    else:
+        from hippocampus.embedding.local import is_model_cached
+        cached = is_model_cached(settings.embedding_model)
+        status = "[green]cached[/]" if cached else "[yellow]will download on startup[/]"
+        console.print(f"  Embedding:  [cyan]{settings.embedding_model}[/] ({status})")
+
     console.print()
 
     uvicorn.run(

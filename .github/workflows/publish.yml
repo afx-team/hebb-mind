@@ -1,0 +1,101 @@
+name: Publish to PyPI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pyproject.toml'
+
+permissions:
+  contents: write   # For creating git tags
+  id-token: write   # For Trusted Publisher
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract.outputs.version }}
+      should_publish: ${{ steps.check.outputs.should_publish }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from pyproject.toml
+        id: extract
+        run: |
+          VERSION=$(python -c "
+          import re
+          text = open('pyproject.toml').read()
+          m = re.search(r'^version\s*=\s*\"(.+?)\"', text, re.M)
+          print(m.group(1))
+          ")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Detected version: $VERSION"
+
+      - name: Check if version exists on PyPI
+        id: check
+        run: |
+          VERSION="${{ steps.extract.outputs.version }}"
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://pypi.org/pypi/afx-hippocampus/${VERSION}/json")
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "Version $VERSION already published, skipping."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Version $VERSION is new, will publish."
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: check-version
+    if: needs.check-version.outputs.should_publish == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Build package
+        run: python -m build
+
+      - name: Verify package
+        run: |
+          pip install twine
+          twine check dist/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: [check-version, build]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/afx-hippocampus/${{ needs.check-version.outputs.version }}/
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # Uses Trusted Publisher — no API token needed.
+        # Set up at: https://pypi.org/manage/project/afx-hippocampus/settings/publishing/
+
+  tag:
+    needs: [check-version, publish]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create git tag
+        run: |
+          VERSION="v${{ needs.check-version.outputs.version }}"
+          git tag "$VERSION"
+          git push origin "$VERSION"

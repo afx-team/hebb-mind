@@ -17,8 +17,11 @@ class Settings(BaseModel):
 
     # Embedding
     embedding_enabled: bool = Field(default=True, description="Set false to disable vector search")
-    embedding_model: str = Field(default="all-MiniLM-L6-v2")
-    embedding_dim: int = Field(default=384)
+    embedding_provider: str = Field(default="local", description="'local' (sentence-transformers) or 'api' (cloud)")
+    embedding_model: str = Field(default="all-MiniLM-L6-v2", description="Model name or litellm model ID")
+    embedding_dim: int = Field(default=384, description="Auto-detected at startup")
+    embedding_api_key: str | None = Field(default=None, description="API key for cloud embedding (falls back to llm_api_key)")
+    embedding_base_url: str | None = Field(default=None, description="API base URL for cloud embedding (falls back to llm_base_url)")
 
     # LLM
     llm_model: str | None = Field(default=None, description="LLM model identifier (e.g. openai/gpt-4o-mini)")
@@ -31,6 +34,8 @@ class Settings(BaseModel):
 
     # Scheduler
     consolidation_interval_seconds: int = Field(default=3600)
+    consolidation_concurrency: int = Field(default=5, description="Parallel consolidation tasks")
+    consolidation_max_tokens: int = Field(default=16000, description="Max tokens per consolidation LLM call (session chunk size)")
     forget_interval_seconds: int = Field(default=1800)
 
     # Forgetting

@@ -75,7 +75,7 @@ hippocampus/
 ### Naming Conventions
 
 - Package: `hippocampus`
-- PyPI: `hippocampus-memory` or `hippocampus-ai`
+- PyPI: `hippocampus-memory` or `afx-hippocampus`
 - Repo: `afx-team/hippocampus`
 - Imports: `from hippocampus import Memory, EpisodicMemory, SemanticMemory`
 

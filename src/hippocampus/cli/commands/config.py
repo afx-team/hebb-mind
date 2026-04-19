@@ -111,6 +111,6 @@ def _mask(key: str, value: object) -> str:
     if value is None:
         return "[dim]null[/]"
     s = str(value)
-    if key in ("llm_api_key", "pg_url") and len(s) > 8:
+    if key in ("llm_api_key", "pg_url", "embedding_api_key") and len(s) > 8:
         return s[:4] + "****" + s[-4:]
     return s

@@ -53,8 +53,16 @@ def stop_server(port: int) -> bool:
             os.kill(pid, signal.SIGTERM)
         except (ProcessLookupError, PermissionError):
             pass
-    # Wait for processes to exit
-    time.sleep(1)
+    time.sleep(2)
+    # Force kill any survivors
+    remaining = _find_pids_on_port(port)
+    for pid in remaining:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+    if remaining:
+        time.sleep(1)
     logger.info("Stopped server PIDs: %s", pids)
     return True
 
@@ -85,6 +93,14 @@ def clean_storage(project_root: Path | None = None) -> list[str]:
     return deleted
 
 
+def _find_python(project_root: Path) -> str:
+    """Find the best Python interpreter — prefer project venv."""
+    venv_python = project_root / ".venv" / "bin" / "python"
+    if venv_python.exists():
+        return str(venv_python)
+    return "python"
+
+
 def start_server(project_root: Path | None = None) -> subprocess.Popen:
     """Start hippocampus server as a background subprocess.
 
@@ -94,11 +110,18 @@ def start_server(project_root: Path | None = None) -> subprocess.Popen:
     cfg = _read_hippocampus_config(root)
     host = cfg.get("host", "0.0.0.0")
     port = cfg.get("port", 8321)
+    python = _find_python(root)
+
+    env = os.environ.copy()
+    env["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
+    env["HF_HUB_OFFLINE"] = "1"
+    env["TRANSFORMERS_OFFLINE"] = "1"
 
     proc = subprocess.Popen(
-        ["python", "-m", "uvicorn", "hippocampus.server.app:app",
+        [python, "-m", "uvicorn", "hippocampus.server.app:app",
          "--host", host, "--port", str(port)],
         cwd=str(root),
+        env=env,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
     )
@@ -106,10 +129,10 @@ def start_server(project_root: Path | None = None) -> subprocess.Popen:
     return proc
 
 
-async def wait_for_server(base_url: str, timeout: float = 60.0) -> None:
+async def wait_for_server(base_url: str, timeout: float = 120.0) -> None:
     """Poll /health and /api/v1/admin/stats until the server is fully ready."""
     deadline = time.monotonic() + timeout
-    async with httpx.AsyncClient(timeout=5.0) as c:
+    async with httpx.AsyncClient(timeout=5.0, trust_env=False) as c:
         health_ok = False
         while time.monotonic() < deadline:
             try:
@@ -135,7 +158,10 @@ class HippocampusClient:
 
     def __init__(self, base_url: str = "http://localhost:8321", timeout: float = 30.0):
         self.base_url = base_url.rstrip("/")
-        self._client = httpx.AsyncClient(base_url=self.base_url, timeout=timeout)
+        # trust_env=False bypasses system proxy — server is always local
+        self._client = httpx.AsyncClient(
+            base_url=self.base_url, timeout=timeout, trust_env=False,
+        )
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -155,8 +181,8 @@ class HippocampusClient:
         r.raise_for_status()
         return r.json()
 
-    async def get_stats(self) -> dict:
-        r = await self._client.get("/api/v1/admin/stats")
+    async def get_stats(self, timeout: float = 30.0) -> dict:
+        r = await self._client.get("/api/v1/admin/stats", timeout=timeout)
         r.raise_for_status()
         return r.json()
 
@@ -267,7 +293,15 @@ class HippocampusClient:
     # ------------------------------------------------------------------
 
     async def trigger_consolidation(self) -> dict:
-        r = await self._client.post("/api/v1/admin/consolidate")
+        """Trigger consolidation with a very long timeout.
+
+        Consolidation processes all memories synchronously, which can take a long time.
+        We use a 4-hour timeout to accommodate large datasets.
+        """
+        r = await self._client.post(
+            "/api/v1/admin/consolidate",
+            timeout=httpx.Timeout(connect=30.0, read=14400.0, write=30.0, pool=30.0),
+        )
         r.raise_for_status()
         return r.json()
 

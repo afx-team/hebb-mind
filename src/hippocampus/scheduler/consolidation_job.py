@@ -34,9 +34,10 @@ async def run_consolidation(
         partition_store=partition_store,
         knowledge_graph=knowledge_graph,
         embedder=embedder,
+        settings=settings,
     )
 
-    all_results = await agent.consolidate_batch()
+    all_results = await agent.consolidate_batch(concurrency=settings.consolidation_concurrency)
 
     succeeded = sum(1 for r in all_results if r.success)
     logger.info("Consolidation complete: %d/%d succeeded", succeeded, len(all_results))

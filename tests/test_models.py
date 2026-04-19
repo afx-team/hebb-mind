@@ -12,7 +12,8 @@ class TestMemoryModels:
         assert m.partition_id == "mem_hippocampus"
         assert m.importance_score == 5.0
         assert m.tags == []
-        assert m.metadata == {}
+        assert m.metadata.session_id is None
+        assert m.metadata.turn is None
 
     def test_memory_create_custom(self):
         m = MemoryCreate(

@@ -16,6 +16,22 @@ def _uuid() -> str:
     return str(uuid.uuid4())
 
 
+class MemoryMetadata(BaseModel):
+    """Structured metadata with reserved fields and extensible extras.
+
+    Reserved fields:
+        session_id: Conversation/session identifier for grouping memories.
+        turn: Turn index within a session (0-based).
+
+    Any additional fields are accepted and stored as-is.
+    """
+
+    session_id: str | None = Field(default=None, description="Conversation or session ID")
+    turn: int | None = Field(default=None, ge=0, description="Turn index within the session")
+
+    model_config = {"extra": "allow"}
+
+
 class MemoryCreate(BaseModel):
     """Request body for creating a memory."""
 
@@ -23,7 +39,7 @@ class MemoryCreate(BaseModel):
     partition_id: str = Field(default="mem_hippocampus")
     importance_score: float = Field(default=5.0, ge=0.0, le=10.0)
     tags: list[str] = Field(default_factory=list)
-    metadata: dict[str, str] = Field(default_factory=dict)
+    metadata: MemoryMetadata = Field(default_factory=MemoryMetadata)
     source: str | None = Field(default=None, description="Origin: 'api', 'agent', 'consolidation'")
 
 
@@ -33,7 +49,7 @@ class MemoryUpdate(BaseModel):
     content: str | None = None
     importance_score: float | None = Field(default=None, ge=0.0, le=10.0)
     tags: list[str] | None = None
-    metadata: dict[str, str] | None = None
+    metadata: MemoryMetadata | None = None
 
 
 class Memory(BaseModel):
@@ -44,7 +60,7 @@ class Memory(BaseModel):
     content: str = ""
     importance_score: float = 5.0
     tags: list[str] = Field(default_factory=list)
-    metadata: dict[str, str] = Field(default_factory=dict)
+    metadata: MemoryMetadata = Field(default_factory=MemoryMetadata)
     source: str | None = None
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)

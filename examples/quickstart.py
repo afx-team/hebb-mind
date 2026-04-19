@@ -7,7 +7,7 @@ Demonstrates the basic workflow:
 3. View partition stats
 
 Prerequisites:
-    pip install hippocampus-ai
+    pip install afx-hippocampus
     hippocampus init && hippocampus start
 """
 

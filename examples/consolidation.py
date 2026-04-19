@@ -7,7 +7,7 @@ Demonstrates the core hippocampus workflow:
 3. Observe the results
 
 Prerequisites:
-    pip install hippocampus-ai
+    pip install afx-hippocampus
     export HIPPOCAMPUS_LLM_API_KEY=your-key
     hippocampus init && hippocampus start
 """

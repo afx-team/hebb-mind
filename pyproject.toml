@@ -1,5 +1,5 @@
 [project]
-name = "hippocampus-ai"
+name = "afx-hippocampus"
 version = "0.1.0"
 description = "Neuroscience-inspired memory framework for AI agents / 海马体 — Agent 大脑记忆框架"
 readme = "README.md"
@@ -57,6 +57,7 @@ dev = [
 
 [project.scripts]
 hippocampus = "hippocampus.cli.main:main"
+hippocampus-mcp = "hippocampus.mcp.server:main"
 
 [project.urls]
 Homepage = "https://github.com/afx-team/hippocampus"
