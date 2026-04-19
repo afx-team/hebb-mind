@@ -21,6 +21,8 @@ htmlcov/
 coverage.xml
 
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
 
