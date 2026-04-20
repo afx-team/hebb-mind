@@ -2,38 +2,178 @@
 
 Agent memory framework — open-source project under [github.com/afx-team](https://github.com/afx-team).
 
+---
+
+## Priority Hierarchy
+
+When rules conflict, follow this priority order:
+1. **MUST** — Non-negotiable constraints (违反则输出无效)
+2. **SHOULD** — Strong recommendations (默认遵守，可明确说明理由后偏离)
+3. **MAY** — Optional suggestions (视具体情况采用)
+
+---
+
 ## Project Context
 
-This project builds an open-source agent memory system inspired by neuroscience (hippocampus = memory consolidation center). Currently in **research & design phase**.
+**Type**: Research & design phase → Production implementation
+**Domain**: Agent memory for LLMs (inspired by hippocampus = memory consolidation center)
+**Organization**: [github.com/afx-team](https://github.com/afx-team)
 
-## Team 
+### Current Phase Focus
+- [ ] Survey academic papers on agent memory
+- [ ] Analyze open-source memory implementations  
+- [ ] Design hippocampus architecture
+- [ ] Implement core components
 
-- **Organization**: github.com/afx-team
-- **Research focus**: Agent memory for LLMs — surveying academic papers, analyzing open-source projects, designing our own architecture
+---
 
-## Directory Structure
+## Directory Architecture
 
 ```
-docs/
-  papers/       # Academic paper notes and summaries
-  analysis/     # Open-source project analysis reports
-  design/       # Architecture and design documents
-  surveys/      # Research survey reports
-src/            # Source code (TBD)
-eval/           # 系统在开源测试数据集上的评测
-results
+hippocampus/
+├── docs/                 # VuePress site → GitHub Pages (PUBLIC-FACING)
+│   ├── .vuepress/        # VuePress configuration
+│   └── *.md              # Public documentation pages
+├── reports/              # Internal research outputs (NOT for publication)
+│   ├── papers/           # Academic paper notes and summaries
+│   ├── analysis/         # Open-source project analysis reports
+│   ├── design/           # Architecture and design documents
+│   └── surveys/          # Research survey reports
+├── src/                  # Source code (TBD)
+├── eval/                 # Benchmark evaluations on open datasets
+└── results/              # Evaluation outputs
 ```
 
-## Conventions
+**CRITICAL DISTINCTION**:
+- `docs/` = **Public website** (VuePress → GitHub Pages) — curated documentation for users
+- `reports/` = **Internal research** — raw notes, analysis, design drafts (not for publication)
 
-- Use mermaid diagrams for architecture visuals
-- Reference papers by `[Author et al., Year]` format
-- Keep analysis reports actionable — always end with "implications for hippocampus"
+**File Placement Rules**:
+| Content Type | Location | Visibility |
+|-------------|----------|------------|
+| User documentation | `docs/` | Public (GitHub Pages) |
+| Paper summaries | `reports/papers/` | Internal |
+| Project analysis | `reports/analysis/` | Internal |
+| Architecture design | `reports/design/` | Internal |
+| Research surveys | `reports/surveys/` | Internal |
 
-## Engineering Principles  
+**MUST NOT**:
+- Put research notes in `docs/` — they go in `reports/`
+- Put public docs in `reports/` — they go in `docs/`
+- Commit sensitive analysis to `docs/` (it will be published)
 
-1. Clear architecture — directory structure reflects architecture, modular design
-2. Global configuration, semantic naming
-3. Support for mainstream models
-4. Production-grade code quality
-5. Unit tests + end-to-end tests for core workflows
+---
+
+## Output Standards (MUST)
+
+### Document Formats
+
+| Document Type | Required Sections | File Naming |
+|--------------|-------------------|-------------|
+| Paper Note | Summary, Key Insights, Implications for Hippocampus | `[AuthorYear]-[topic].md` |
+| Analysis Report | Overview, Architecture, Strengths, Weaknesses, Implications | `[project-name]-analysis.md` |
+| Design Doc | Problem, Solution, Trade-offs, Implementation Plan | `[feature-name]-design.md` |
+
+### Code Standards (when implementing)
+
+```python
+# MUST: Type hints on all public functions
+def process_memory(memory: Memory) -> ProcessedMemory:
+    ...
+
+# MUST: Docstring with Args, Returns, Raises for public APIs
+def retrieve(query: str, k: int = 5) -> list[Memory]:
+    """Retrieve top-k relevant memories.
+    
+    Args:
+        query: Search query string
+        k: Number of results to return
+        
+    Returns:
+        List of Memory objects sorted by relevance
+    """
+    ...
+
+# MUST: Unit tests for core workflows
+def test_retrieve_returns_sorted_memories():
+    ...
+```
+
+---
+
+## Constraints (MUST NOT)
+
+- **DO NOT** use relative imports outside the same module
+- **DO NOT** hardcode API keys or secrets
+- **DO NOT** create files outside defined directory structure
+- **DO NOT** skip the "Implications for Hippocampus" section in analysis papers
+- **DO NOT** use Chinese and English interchangeably in the same document — be consistent
+
+---
+
+## Conventions (SHOULD)
+
+### Visual Documentation
+- Use **mermaid diagrams** for architecture, data flow, and component relationships
+- Example:
+  ```mermaid
+  graph LR
+    A[Input] --> B[Process] --> C[Output]
+  ```
+
+### Academic References
+- Format: `[Author et al., Year]` or `[Author, Year]` for single author
+- Example: "Memory consolidation (Wilson & McNaughton, 1994) shows that..."
+
+### Actionability Check
+- Every analysis document **SHOULD** end with actionable insights
+- Standard section: "## Implications for Hippocampus"
+
+---
+
+## Engineering Principles
+
+1. **Architecture Clarity** — Directory structure = module boundaries
+2. **Semantic Naming** — Names reveal intent, not implementation
+3. **Multi-Model Support** — Design for Claude, GPT, Llama compatibility
+4. **Test Coverage** — Unit tests for logic, E2E tests for workflows
+5. **Incremental Complexity** — Start simple, add abstraction when pattern repeats 3+ times
+
+---
+
+## Decision Guidelines
+
+### When to Create New Module
+- **YES** if: Component has independent lifecycle, clear API boundary, or >500 lines
+- **NO** if: Just organizing related functions — use a class or namespace instead
+
+### When to Add Abstraction Layer
+- **YES** if: Pattern appears 3+ times across codebase
+- **NO** if: Only used once or twice — wait for pattern to stabilize
+
+### When to Write Design Doc
+- **YES** if: Affects 2+ modules, introduces new dependency, or changes API contract
+- **NO** if: Local refactor, bug fix, or single-module improvement
+
+---
+
+## Quality Checklist
+
+Before marking any task complete, verify:
+
+- [ ] File placed in correct directory
+- [ ] Naming follows specified convention
+- [ ] Document has all required sections
+- [ ] Code has type hints and tests (if applicable)
+- [ ] Commit message explains "why" not "what"
+
+---
+
+## Quick Reference
+
+| Task | Location | Template |
+|------|----------|----------|
+| Public documentation | `docs/` | VuePress page format |
+| Paper summary | `reports/papers/` | See `reports/papers/.template.md` |
+| Project analysis | `reports/analysis/` | See `reports/analysis/.template.md` |
+| Architecture design | `reports/design/` | See `reports/design/.template.md` |

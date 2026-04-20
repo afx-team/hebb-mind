@@ -9,6 +9,43 @@ import aiosqlite
 logger = logging.getLogger(__name__)
 
 
+def _get_loadable_sqlite3():
+    """Return a sqlite3 module that supports extension loading.
+
+    The standard sqlite3 on some platforms (notably macOS python.org builds)
+    is compiled without extension loading support. We try pysqlite3 as a
+    fallback, which bundles a full SQLite and always supports extensions.
+    """
+    import sqlite3
+
+    # Fast path: check if the standard module supports extensions
+    test_conn = sqlite3.connect(":memory:")
+    if hasattr(test_conn, "enable_load_extension"):
+        test_conn.close()
+        return sqlite3
+    test_conn.close()
+
+    # Fallback: try pysqlite3-binary which always supports extensions
+    try:
+        import pysqlite3  # type: ignore[import-untyped]
+
+        test_conn = pysqlite3.connect(":memory:")
+        if hasattr(test_conn, "enable_load_extension"):
+            test_conn.close()
+            logger.info("Using pysqlite3 for sqlite-vec extension loading")
+            return pysqlite3
+        test_conn.close()
+    except ImportError:
+        pass
+
+    logger.warning(
+        "No SQLite with extension loading found. "
+        "Install pysqlite3-binary for vector search support: "
+        "pip install pysqlite3-binary"
+    )
+    return None
+
+
 async def get_connection(db_path: str, *, load_vec: bool = True) -> aiosqlite.Connection:
     """Open a connection with WAL mode, foreign keys, and sqlite-vec loaded."""
     db = await aiosqlite.connect(db_path)
@@ -20,13 +57,19 @@ async def get_connection(db_path: str, *, load_vec: bool = True) -> aiosqlite.Co
         try:
             import sqlite_vec
 
-            def _load_vec(conn):
-                conn.enable_load_extension(True)
-                sqlite_vec.load(conn)
-                conn.enable_load_extension(False)
+            sqlite3_mod = _get_loadable_sqlite3()
 
-            await db.execute("select 1")  # ensure connection is initialized
-            await db._execute(_load_vec, db._connection)
+            if sqlite3_mod is not None:
+
+                def _load_vec(conn):
+                    conn.enable_load_extension(True)
+                    sqlite_vec.load(conn)
+                    conn.enable_load_extension(False)
+
+                await db.execute("select 1")  # ensure connection is initialized
+                await db._execute(_load_vec, db._connection)
+            else:
+                logger.warning("sqlite-vec unavailable (no SQLite with extension loading), vector search disabled")
         except (AttributeError, ImportError, OSError) as e:
             logger.warning("sqlite-vec unavailable (%s), vector search disabled", e)
 

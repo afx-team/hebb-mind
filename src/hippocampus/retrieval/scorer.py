@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def compute_recency_score(
@@ -12,7 +12,7 @@ def compute_recency_score(
     decay_factor: float = 0.99,
 ) -> float:
     """Exponential decay based on hours since last access."""
-    now = now or datetime.now(datetime.UTC)
+    now = now or datetime.now(timezone.utc)
     hours = (now - last_accessed_at).total_seconds() / 3600.0
     return math.pow(decay_factor, max(hours, 0))
 

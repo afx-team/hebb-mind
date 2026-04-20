@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Neuroscience-inspired memory framework for AI agents / 海马体 — Agent 大脑记忆框架"
 readme = "README.md"
 license = {text = "Apache-2.0"}
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 authors = [
     { name = "afx-team", email = "afx-team@users.noreply.github.com" },
 ]
@@ -14,6 +14,8 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -40,6 +42,9 @@ dependencies = [
 pg = [
     "asyncpg>=0.29.0",
     "pgvector>=0.3.0",
+]
+vec = [
+    "pysqlite3-binary>=0.5.0",
 ]
 mcp = ["mcp>=1.0.0"]
 eval = [
@@ -73,7 +78,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py310"
 line-length = 120
 src = ["src"]
 
@@ -85,5 +90,5 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.10"
 strict = true

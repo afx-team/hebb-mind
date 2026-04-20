@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -87,7 +87,7 @@ class SchedulerManager:
                 if partition.id == PartitionType.HIPPOCAMPUS.value:
                     continue
                 memories = await self.memory_store.get_by_partition(partition.id)
-                now = datetime.now(datetime.UTC)
+                now = datetime.now(timezone.utc)
 
                 for memory in memories:
                     expires_at = compute_expires_at(

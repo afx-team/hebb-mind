@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 
 from hippocampus.embedding.base import EmbeddingProvider
 from hippocampus.graph.knowledge_graph import KnowledgeGraph
@@ -40,7 +40,7 @@ class MemorySearcher:
         self.graph = graph
 
     async def search(self, query: MemoryQuery) -> SearchResponse:
-        now = datetime.now(datetime.UTC)
+        now = datetime.now(timezone.utc)
         overfetch = query.top_k * 3
 
         # === Phase 1: Three-path parallel recall ===

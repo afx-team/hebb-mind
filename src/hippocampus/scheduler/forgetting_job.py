@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from hippocampus.models.memory import Memory
 
@@ -23,7 +23,7 @@ def compute_ttl_hours(
     Higher access_count and importance -> longer TTL.
     More time since last access -> shorter TTL (exponential decay).
     """
-    now = now or datetime.now(datetime.UTC)
+    now = now or datetime.now(timezone.utc)
     days_since = (now - last_accessed_at).total_seconds() / 86400.0
     importance_weight = importance_score / 5.0
     ttl = (

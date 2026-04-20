@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 import asyncpg
 
@@ -18,7 +18,7 @@ from hippocampus.models.partition import Partition, PartitionCreate, PartitionUp
 
 
 def _utcnow() -> datetime:
-    return datetime.now(datetime.UTC)
+    return datetime.now(timezone.utc)
 
 
 def _record_to_memory(row: asyncpg.Record) -> Memory:
