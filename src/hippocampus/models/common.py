@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Generic, TypeVar
-
 from pydantic import BaseModel
 
-T = TypeVar("T")
 
-
-class PaginatedResponse(BaseModel, Generic[T]):
+class PaginatedResponse[T](BaseModel):
     """Paginated list response."""
 
     items: list[T]
@@ -18,7 +14,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
     limit: int
 
 
-class APIResponse(BaseModel, Generic[T]):
+class APIResponse[T](BaseModel):
     """Generic API response wrapper."""
 
     success: bool = True

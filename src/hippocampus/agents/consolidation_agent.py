@@ -379,7 +379,7 @@ class ConsolidationAgent:
         return all_results
 
     async def _consolidate_one(
-        self, memory: "Memory", kg_lock: asyncio.Lock
+        self, memory: Memory, kg_lock: asyncio.Lock
     ) -> ConsolidationResult:
         """consolidate_memory variant that uses a lock for KG writes."""
         result = ConsolidationResult(original_memory_id=memory.id)

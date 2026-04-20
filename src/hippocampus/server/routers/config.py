@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from hippocampus.config.loader import find_config_file, load_settings, update_config_field
+from hippocampus.config.loader import load_settings, update_config_field
 from hippocampus.config.settings import Settings
 
 router = APIRouter()

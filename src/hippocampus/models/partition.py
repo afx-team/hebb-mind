@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
@@ -32,8 +32,8 @@ class Partition(BaseModel):
     description: str = ""
     enabled: bool = True
     is_system: bool = False
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
     memory_count: int = 0
 
     model_config = {"from_attributes": True}

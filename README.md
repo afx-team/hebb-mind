@@ -218,7 +218,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 - [x] CLI tooling + Docker deployment
 - [x] Built-in Web Console (memory CRUD, search, graph visualization)
 - [x] Evaluation benchmarks (LoCoMo, LongMemEval, ConvoMem, PersonaMem)
-- [ ] MCP server for Claude Code / OpenClaw integration
+- [x] MCP server for Claude Code / OpenClaw integration
 - [ ] Multi-agent shared memory
 - [ ] Emotional tagging and memory importance learning
 

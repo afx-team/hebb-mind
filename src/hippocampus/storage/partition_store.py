@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 import aiosqlite
 
@@ -15,7 +15,7 @@ from hippocampus.models.partition import Partition, PartitionCreate, PartitionUp
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(datetime.UTC).isoformat()
 
 
 def _row_to_partition(row: aiosqlite.Row) -> Partition:

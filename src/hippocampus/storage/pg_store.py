@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 import asyncpg
 
@@ -18,7 +18,7 @@ from hippocampus.models.partition import Partition, PartitionCreate, PartitionUp
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(datetime.UTC)
 
 
 def _record_to_memory(row: asyncpg.Record) -> Memory:
@@ -28,7 +28,9 @@ def _record_to_memory(row: asyncpg.Record) -> Memory:
         content=row["content"],
         importance_score=row["importance_score"],
         tags=list(row["tags"]) if row["tags"] else [],
-        metadata=MemoryMetadata(**(json.loads(row["metadata"]) if isinstance(row["metadata"], str) else (row["metadata"] or {}))),
+        metadata=MemoryMetadata(
+            **(json.loads(row["metadata"]) if isinstance(row["metadata"], str) else (row["metadata"] or {}))
+        ),
         source=row["source"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],

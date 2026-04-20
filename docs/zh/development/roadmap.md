@@ -21,7 +21,7 @@
 
 ### v0.2.0 — MCP 与多用户
 
-- [ ] MCP Server 集成，支持 Claude Desktop 等客户端
+- [x] MCP Server 集成，支持 Claude Desktop 等客户端
 - [ ] 多用户记忆隔离
 - [ ] 记忆导入导出（JSON/CSV）
 - [ ] 批量巩固性能优化

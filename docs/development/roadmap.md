@@ -13,10 +13,9 @@
 - [x] CLI tooling + Docker deployment
 - [x] Multi-model support (OpenAI, Anthropic, Qwen, GLM, Kimi via LiteLLM)
 - [x] Evaluation benchmarks (LoCoMo, LongMemEval, ConvoMem, PersonaMem)
+- [x] **MCP server integration** -- expose Hippocampus as an MCP server for Claude Code, OpenClaw, and other MCP-compatible tools
 
 ## Planned
-
-- [ ] **MCP server integration** -- expose Hippocampus as an MCP server for Claude Code, OpenClaw, and other MCP-compatible tools
 - [ ] **Multi-agent shared memory** -- enable multiple agents to share and collaborate through a common memory pool
 - [ ] **Emotional tagging** -- attach emotional context to memories for more nuanced retrieval and importance scoring
 

@@ -1,9 +1,9 @@
 """Memory partition types and system defaults."""
 
-from enum import Enum
+from enum import StrEnum
 
 
-class PartitionType(str, Enum):
+class PartitionType(StrEnum):
     HIPPOCAMPUS = "mem_hippocampus"
     SEMANTIC = "mem_semantic"
     EPISODIC = "mem_episodic"

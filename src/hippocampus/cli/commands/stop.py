@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import signal
-import sys
 
 import click
 import httpx

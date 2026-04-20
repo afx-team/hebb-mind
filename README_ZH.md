@@ -221,7 +221,7 @@ mypy src/hippocampus/
 - [x] CLI 工具 + Docker 部署
 - [x] 内置 Web 管理控制台
 - [x] 评估基准测试（LoCoMo、LongMemEval、ConvoMem、PersonaMem）
-- [ ] MCP Server 集成 Claude Code / OpenClaw
+- [x] MCP Server 集成 Claude Code / OpenClaw
 - [ ] 多 Agent 共享记忆
 - [ ] 情感标签与记忆重要性学习
 

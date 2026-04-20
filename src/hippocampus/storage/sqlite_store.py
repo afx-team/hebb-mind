@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 import aiosqlite
 import numpy as np
@@ -13,7 +13,7 @@ from hippocampus.models.memory import Memory, MemoryCreate, MemoryMetadata, Memo
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(datetime.UTC).isoformat()
 
 
 def _row_to_memory(row: aiosqlite.Row) -> Memory:
