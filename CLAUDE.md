@@ -1,6 +1,5 @@
 # Hippocampus
 
-
 Agent memory framework — open-source project under [github.com/afx-team](https://github.com/afx-team).
 
 ## Project Context
@@ -25,31 +24,8 @@ eval/           # 系统在开源测试数据集上的评测
 results
 ```
 
-## Available Skills
-
-- `/arxiv-search <query>` — Search arxiv papers
-- `/github-explore <owner/repo>` — Deep-dive into a GitHub repo
-- `/research-survey <topic>` — Comprehensive research survey
-- `/bench-compare <projects>` — Compare memory systems
-
-## Available Agents
-
-- `paper-researcher` — Academic paper research
-- `code-analyst` — Open-source code analysis
-- `architect` — System architecture design
-
-## MCP Tools
-
-- **context7** — Library documentation lookup
-- **github** — GitHub API access (needs GITHUB_TOKEN env var)
-- **filesystem** — Enhanced file operations
-- **memory** — Persistent memory bank
-- **fetch** — HTTP fetch for web resources
-- **sequential-thinking** — Structured reasoning
-
 ## Conventions
 
-- All research output goes in `docs/` with structured markdown
 - Use mermaid diagrams for architecture visuals
 - Reference papers by `[Author et al., Year]` format
 - Keep analysis reports actionable — always end with "implications for hippocampus"
