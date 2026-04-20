@@ -6,12 +6,14 @@ const GITHUB_REPO = 'https://github.com/afx-team/hippocampus'
 function guideSidebar(prefix = '') {
   return [
     {
-      text: prefix ? '快速上手' : 'Getting Started',
+      text: prefix ? '快速上手' : 'Quick Start',
+      link: `${prefix}/quick-start`,
+    },
+    {
+      text: prefix ? '指南' : 'Guide',
       items: [
-        { text: prefix ? '快速开始' : 'Quick Start', link: `${prefix}/guide/getting-started` },
         { text: prefix ? '安装' : 'Installation', link: `${prefix}/guide/installation` },
         { text: prefix ? '配置' : 'Configuration', link: `${prefix}/guide/configuration` },
-        { text: 'Docker', link: `${prefix}/guide/docker` },
       ],
     },
     {
@@ -33,12 +35,7 @@ function guideSidebar(prefix = '') {
         { text: 'Knowledge Graph', link: `${prefix}/api/graph` },
         { text: 'Admin', link: `${prefix}/api/admin` },
         { text: 'Config', link: `${prefix}/api/config` },
-      ],
-    },
-    {
-      text: 'CLI',
-      items: [
-        { text: prefix ? 'CLI 命令' : 'CLI Reference', link: `${prefix}/cli/` },
+        { text: 'CLI', link: `${prefix}/api/cli` },
       ],
     },
     {
@@ -47,22 +44,6 @@ function guideSidebar(prefix = '') {
         { text: prefix ? '存储后端' : 'Storage Backends', link: `${prefix}/advanced/storage-backends` },
         { text: prefix ? '多模型支持' : 'Multi-model', link: `${prefix}/advanced/multi-model` },
         { text: 'MCP Integration', link: `${prefix}/advanced/mcp-integration` },
-        { text: prefix ? '评估基准' : 'Evaluation', link: `${prefix}/advanced/evaluation` },
-      ],
-    },
-    {
-      text: prefix ? '开发' : 'Development',
-      items: [
-        { text: prefix ? '贡献指南' : 'Contributing', link: `${prefix}/development/contributing` },
-        { text: 'Changelog', link: `${prefix}/development/changelog` },
-        { text: prefix ? '路线图' : 'Roadmap', link: `${prefix}/development/roadmap` },
-      ],
-    },
-    {
-      text: prefix ? '研究' : 'Research',
-      items: [
-        { text: prefix ? '论文综述' : 'Papers Survey', link: `${prefix}/research/papers-survey` },
-        { text: prefix ? '开源项目分析' : 'Open-source Analysis', link: `${prefix}/research/github-projects` },
       ],
     },
   ]
@@ -81,8 +62,6 @@ export default defineConfig({
   /* localhost links are runtime references, not doc links */
   ignoreDeadLinks: [
     /localhost/,
-    /\.\.\/papers\//,
-    /\.\.\/analysis\//,
   ],
 
   head: [
@@ -96,9 +75,8 @@ export default defineConfig({
       lang: 'en',
       themeConfig: {
         nav: [
-          { text: 'Guide', link: '/guide/getting-started' },
+          { text: 'Quick Start', link: '/quick-start' },
           { text: 'API', link: '/api/memories' },
-          { text: 'CLI', link: '/cli/' },
         ],
         sidebar: guideSidebar(),
       },
@@ -110,9 +88,8 @@ export default defineConfig({
       description: '受神经科学启发的 AI Agent 记忆框架',
       themeConfig: {
         nav: [
-          { text: '指南', link: '/zh/guide/getting-started' },
+          { text: '快速上手', link: '/zh/quick-start' },
           { text: 'API', link: '/zh/api/memories' },
-          { text: 'CLI', link: '/zh/cli/' },
         ],
         sidebar: { '/zh/': guideSidebar('/zh') },
         outline: { label: '本页目录' },
@@ -138,7 +115,7 @@ export default defineConfig({
     },
 
     editLink: {
-      pattern: `${GITHUB_REPO}/edit/main/docs/:path`,
+      pattern: `${GITHUB_REPO}/edit/main/repo_pages/:path`,
       text: 'Edit this page on GitHub',
     },
 
@@ -147,7 +124,4 @@ export default defineConfig({
       copyright: 'Copyright 2026 afx-team',
     },
   },
-
-  /* hide research raw markdown from sidebar (they are internal notes) */
-  srcExclude: ['**/papers/**', '**/analysis/**', '**/design/**', '**/surveys/**'],
 })

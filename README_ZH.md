@@ -138,7 +138,7 @@ curl http://localhost:8321/api/v1/graph/neighbors/python?depth=2
 | **检索** | 三路混合搜索（向量 + 关键词 + 图谱），结合时效/重要性/相关性评分 | API 搜索 |
 | **遗忘** | 动态 TTL：`base × (1 + log(访问次数)) × 重要度 × exp(-衰减率 × 天数)` — 常用记忆存活，被忽略的自然消失 | 周期性 |
 
-> 详细说明：[记忆生命周期](docs/zh/concepts/memory-lifecycle.md) · [记忆巩固](docs/zh/concepts/consolidation.md) · [混合检索](docs/zh/concepts/hybrid-search.md) · [动态遗忘](docs/zh/concepts/forgetting.md)
+> 详细说明：[记忆生命周期](repo_pages/zh/concepts/memory-lifecycle.md) · [记忆巩固](repo_pages/zh/concepts/consolidation.md) · [混合检索](repo_pages/zh/concepts/hybrid-search.md) · [动态遗忘](repo_pages/zh/concepts/forgetting.md)
 
 ## 配置
 
@@ -175,7 +175,7 @@ hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
 ```
 </details>
 
-> 完整配置参考：[配置指南](docs/zh/guide/configuration.md)
+> 完整配置参考：[配置指南](repo_pages/zh/guide/configuration.md)
 
 ## 支持的模型
 
@@ -234,7 +234,7 @@ mypy src/hippocampus/
 - [CoALA](https://arxiv.org/abs/2309.02427) — 情景/语义/程序性分类体系
 - [Zep / Graphiti](https://github.com/getzep/graphiti) — 时序知识图谱
 
-详见 [docs/papers/](docs/papers/) 了解详细调研笔记。
+详见 [repo_pages/papers/](repo_pages/papers/) 了解详细调研笔记。
 
 ## 许可证
 

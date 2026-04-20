@@ -13,15 +13,6 @@ def mcp_cmd() -> None:
     This provides write_memory, search_memory, and consolidate tools
     for Claude Code, Cursor, and other MCP-compatible clients.
     """
-    try:
-        from hippocampus.mcp.server import main
+    from hippocampus.mcp.server import main
 
-        main()
-    except ImportError:
-        from rich.console import Console
-
-        Console().print(
-            "[red]MCP dependencies not installed.[/]\n"
-            "Install with: [cyan]pip install afx-hippocampus[mcp][/]"
-        )
-        raise SystemExit(1)
+    main()

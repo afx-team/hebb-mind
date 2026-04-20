@@ -3,10 +3,17 @@
 from __future__ import annotations
 
 import logging
+import sys
 
 import aiosqlite
 
 logger = logging.getLogger(__name__)
+
+_VEC_FIX_HINT = (
+    "Vector search requires SQLite extension loading, which is disabled "
+    "in some Python builds (notably macOS python.org installer). "
+    "Fix: pip install pysqlite3-binary"
+)
 
 
 def _get_loadable_sqlite3():
@@ -38,11 +45,7 @@ def _get_loadable_sqlite3():
     except ImportError:
         pass
 
-    logger.warning(
-        "No SQLite with extension loading found. "
-        "Install pysqlite3-binary for vector search support: "
-        "pip install pysqlite3-binary"
-    )
+    logger.warning("SQLite extension loading unavailable. %s", _VEC_FIX_HINT)
     return None
 
 
@@ -69,9 +72,9 @@ async def get_connection(db_path: str, *, load_vec: bool = True) -> aiosqlite.Co
                 await db.execute("select 1")  # ensure connection is initialized
                 await db._execute(_load_vec, db._connection)
             else:
-                logger.warning("sqlite-vec unavailable (no SQLite with extension loading), vector search disabled")
+                logger.warning("Vector search disabled. %s", _VEC_FIX_HINT)
         except (AttributeError, ImportError, OSError) as e:
-            logger.warning("sqlite-vec unavailable (%s), vector search disabled", e)
+            logger.warning("sqlite-vec unavailable (%s), vector search disabled. %s", e, _VEC_FIX_HINT)
 
     return db
 
@@ -148,7 +151,7 @@ async def initialize_schema(
             # Check if vec0 table exists with a different dimension
             await _ensure_vec_table(db, embedding_dim)
         except Exception as e:
-            logger.warning("Could not create vec0 table: %s", e)
+            logger.warning("Could not create vec0 table: %s. %s", e, _VEC_FIX_HINT)
             # Fallback: regular table so embedding INSERT/DELETE still works
             await db.execute(
                 "CREATE TABLE IF NOT EXISTS memory_embeddings ("

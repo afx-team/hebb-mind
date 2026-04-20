@@ -81,3 +81,64 @@ hippocampus config set storage_type postgresql
 hippocampus config set pg_url "postgresql://user:pass@localhost/hippocampus"
 hippocampus restart
 ```
+
+## Docker 部署
+
+使用官方 Docker 镜像进行容器化部署。
+
+### 快速启动
+
+```bash
+docker run -d \
+  -p 8321:8321 \
+  -v hippocampus-/data \
+  -e HIPPOCAMPUS_LLM_API_KEY=sk-your-key \
+  ghcr.io/afx-team/hippocampus:latest
+```
+
+### Docker Compose
+
+```yaml
+services:
+  hippocampus:
+    image: ghcr.io/afx-team/hippocampus:latest
+    ports:
+      - "8321:8321"
+    volumes:
+      - hippocampus-/data
+    environment:
+      - HIPPOCAMPUS_LLM_API_KEY=${LLM_API_KEY}
+      - HIPPOCAMPUS_LLM_MODEL=openai/gpt-4o-mini
+
+  # 可选：PostgreSQL 后端
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: hippocampus
+      POSTGRES_USER: hippocampus
+      POSTGRES_PASSWORD: hippocampus
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+
+volumes:
+  hippocampus-
+  pg-
+```
+
+### 环境变量
+
+| 变量 | 配置项 | 说明 |
+|------|--------|------|
+| `HIPPOCAMPUS_LLM_API_KEY` | `llm_api_key` | LLM 服务 API Key |
+| `HIPPOCAMPUS_LLM_MODEL` | `llm_model` | 模型标识（通过 LiteLLM） |
+| `HIPPOCAMPUS_LLM_BASE_URL` | `llm_base_url` | 自定义 API 端点 |
+| `HIPPOCAMPUS_STORAGE_TYPE` | `storage_type` | `sqlite` 或 `postgresql` |
+| `HIPPOCAMPUS_PG_URL` | `pg_url` | PostgreSQL 连接串 |
+| `HIPPOCAMPUS_PORT` | `port` | 服务端口（默认 8321） |
+
+### 生产环境建议
+
+- 生产环境使用 PostgreSQL 后端
+- 使用国产模型（通义千问、智谱 GLM、Kimi）时设置 `HIPPOCAMPUS_LLM_BASE_URL`
+- 挂载持久卷到 `/data` 以保留记忆数据
+- 使用 `--restart unless-stopped` 实现自动恢复

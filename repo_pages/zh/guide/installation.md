@@ -6,7 +6,7 @@
 pip install afx-hippocampus
 ```
 
-**前置条件：** Python >= 3.12。推荐使用 `venv` 或 `conda` 创建独立环境。
+**前置条件：** Python >= 3.10。推荐使用 `venv` 或 `conda` 创建独立环境。
 
 ## 可选扩展
 
@@ -15,14 +15,12 @@ Hippocampus 通过 pip extras 提供可选功能：
 | 扩展 | 安装命令 | 说明 |
 |------|---------|------|
 | `pg` | `pip install afx-hippocampus[pg]` | PostgreSQL + pgvector 存储后端 |
-| `eval` | `pip install afx-hippocampus[eval]` | 评估基准（datasets, pandas, scikit-learn） |
-| `mcp` | `pip install afx-hippocampus[mcp]` | MCP 协议集成 |
-| `dev` | `pip install afx-hippocampus[dev]` | 开发依赖（pytest, ruff, mypy） |
+| `dev` | `pip install afx-hippocampus[dev]` | 开发依赖（pytest, ruff, mypy, 评估基准工具） |
 
 安装全部扩展：
 
 ```bash
-pip install afx-hippocampus[pg,eval,mcp,dev]
+pip install afx-hippocampus[pg,dev]
 ```
 
 ## 从源码安装

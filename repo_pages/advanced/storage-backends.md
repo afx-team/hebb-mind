@@ -107,3 +107,64 @@ Switching between backends requires migrating your data. Currently, this must be
 2. Change the storage backend configuration
 3. Restart the server (schema is created automatically)
 4. Re-import memories via the batch API (`POST /api/v1/memories/batch`)
+
+## Docker Deployment
+
+For containerized deployments, use the official Docker image.
+
+### Quick Start
+
+```bash
+docker run -d \
+  -p 8321:8321 \
+  -v hippocampus-data:/data \
+  -e HIPPOCAMPUS_LLM_API_KEY=sk-your-key \
+  ghcr.io/afx-team/hippocampus:latest
+```
+
+### Docker Compose
+
+```yaml
+services:
+  hippocampus:
+    image: ghcr.io/afx-team/hippocampus:latest
+    ports:
+      - "8321:8321"
+    volumes:
+      - hippocampus-/data
+    environment:
+      - HIPPOCAMPUS_LLM_API_KEY=${LLM_API_KEY}
+      - HIPPOCAMPUS_LLM_MODEL=openai/gpt-4o-mini
+
+  # Optional: PostgreSQL backend
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: hippocampus
+      POSTGRES_USER: hippocampus
+      POSTGRES_PASSWORD: hippocampus
+    volumes:
+      - pg-/var/lib/postgresql/data
+
+volumes:
+  hippocampus-data:
+  pg-
+```
+
+### Environment Variables
+
+| Variable | Config Key | Description |
+|----------|-----------|-------------|
+| `HIPPOCAMPUS_LLM_API_KEY` | `llm_api_key` | LLM provider API key |
+| `HIPPOCAMPUS_LLM_MODEL` | `llm_model` | Model identifier (via LiteLLM) |
+| `HIPPOCAMPUS_LLM_BASE_URL` | `llm_base_url` | Custom API endpoint |
+| `HIPPOCAMPUS_STORAGE_TYPE` | `storage_type` | `sqlite` or `postgresql` |
+| `HIPPOCAMPUS_PG_URL` | `pg_url` | PostgreSQL connection string |
+| `HIPPOCAMPUS_PORT` | `port` | Server port (default 8321) |
+
+### Production Tips
+
+- Use PostgreSQL backend for production workloads
+- Set `HIPPOCAMPUS_LLM_BASE_URL` for Chinese model providers (Qwen, GLM, Kimi)
+- Mount a persistent volume for `/data` to preserve memories across restarts
+- Use `--restart unless-stopped` for automatic recovery

@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'docs/**'
+      - 'repo_pages/**'
   workflow_dispatch:
 
 permissions:
@@ -26,14 +26,14 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: docs/package-lock.json
+          cache-dependency-path: repo_pages/package-lock.json
 
       - name: Install and build
-        run: cd docs && npm ci && npm run docs:build
+        run: cd repo_pages && npm ci && npm run docs:build
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/.vitepress/dist
+          path: repo_pages/.vitepress/dist
 
   deploy:
     needs: build

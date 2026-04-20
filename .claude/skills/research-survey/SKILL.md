@@ -7,7 +7,7 @@ arguments:
     description: The research topic to survey
     required: true
   - name: output
-    description: Output file path for the survey report (default writes to docs/surveys/)
+    description: Output file path for the survey report (default writes to repo_pages/surveys/)
     required: false
 ---
 
@@ -27,5 +27,5 @@ Conduct a comprehensive research survey combining academic and open-source sourc
    - Industry Trends
    - Gap Analysis
    - Recommendations
-5. Write the report to `${output}` or `docs/surveys/${topic}-survey.md` if no output specified
+5. Write the report to `${output}` or `repo_pages/surveys/${topic}-survey.md` if no output specified
 6. Use markdown tables for comparisons, include all source links

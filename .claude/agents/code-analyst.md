@@ -27,7 +27,7 @@ You are a code analysis specialist focused on understanding open-source agent me
 2. Understand their architecture, design patterns, and implementation details
 3. Document key abstractions, data flows, and API designs
 4. Identify reusable patterns and potential improvements
-5. Write analysis reports to `docs/analysis/` directory
+5. Write analysis reports to `repo_pages/analysis/` directory
 
 ## Workflow
 

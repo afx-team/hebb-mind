@@ -31,7 +31,7 @@ When rules conflict, follow this priority order:
 
 ```
 hippocampus/
-├── docs/                 # VuePress site → GitHub Pages (PUBLIC-FACING)
+├── repo_pages/           # VuePress site → GitHub Pages (PUBLIC-FACING)
 │   ├── .vuepress/        # VuePress configuration
 │   └── *.md              # Public documentation pages
 ├── reports/              # Internal research outputs (NOT for publication)
@@ -45,22 +45,22 @@ hippocampus/
 ```
 
 **CRITICAL DISTINCTION**:
-- `docs/` = **Public website** (VuePress → GitHub Pages) — curated documentation for users
+- `repo_pages/` = **Public website** (VuePress → GitHub Pages) — curated documentation for users
 - `reports/` = **Internal research** — raw notes, analysis, design drafts (not for publication)
 
 **File Placement Rules**:
 | Content Type | Location | Visibility |
 |-------------|----------|------------|
-| User documentation | `docs/` | Public (GitHub Pages) |
+| User documentation | `repo_pages/` | Public (GitHub Pages) |
 | Paper summaries | `reports/papers/` | Internal |
 | Project analysis | `reports/analysis/` | Internal |
 | Architecture design | `reports/design/` | Internal |
 | Research surveys | `reports/surveys/` | Internal |
 
 **MUST NOT**:
-- Put research notes in `docs/` — they go in `reports/`
-- Put public docs in `reports/` — they go in `docs/`
-- Commit sensitive analysis to `docs/` (it will be published)
+- Put research notes in `repo_pages/` — they go in `reports/`
+- Put public docs in `reports/` — they go in `repo_pages/`
+- Commit sensitive analysis to `repo_pages/` (it will be published)
 
 ---
 
@@ -173,7 +173,7 @@ Before marking any task complete, verify:
 
 | Task | Location | Template |
 |------|----------|----------|
-| Public documentation | `docs/` | VuePress page format |
+| Public documentation | `repo_pages/` | VuePress page format |
 | Paper summary | `reports/papers/` | See `reports/papers/.template.md` |
 | Project analysis | `reports/analysis/` | See `reports/analysis/.template.md` |
 | Architecture design | `reports/design/` | See `reports/design/.template.md` |

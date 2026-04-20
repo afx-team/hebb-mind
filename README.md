@@ -135,7 +135,7 @@ Memories flow through four stages — inspired by how the human hippocampus cons
 | **Retrieve** | Three-path hybrid search (vector + keyword + graph) with recency/importance/relevance scoring | API search |
 | **Forget** | Dynamic TTL: `base × (1 + log(access)) × importance × exp(-decay × days)` — frequently used memories survive, neglected ones fade | Periodic |
 
-> Full details: [Memory Lifecycle](docs/concepts/memory-lifecycle.md) · [Consolidation](docs/concepts/consolidation.md) · [Hybrid Search](docs/concepts/hybrid-search.md) · [Forgetting](docs/concepts/forgetting.md)
+> Full details: [Memory Lifecycle](repo_pages/concepts/memory-lifecycle.md) · [Consolidation](repo_pages/concepts/consolidation.md) · [Hybrid Search](repo_pages/concepts/hybrid-search.md) · [Forgetting](repo_pages/concepts/forgetting.md)
 
 ## Configuration
 
@@ -172,7 +172,7 @@ hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
 ```
 </details>
 
-> Full config reference: [Configuration Guide](docs/guide/configuration.md)
+> Full config reference: [Configuration Guide](repo_pages/guide/configuration.md)
 
 ## Supported Models
 
@@ -231,7 +231,7 @@ This project draws on research from:
 - [CoALA](https://arxiv.org/abs/2309.02427) — episodic/semantic/procedural taxonomy
 - [Zep / Graphiti](https://github.com/getzep/graphiti) — temporal knowledge graphs
 
-See [docs/papers/](docs/papers/) for detailed survey notes.
+See [repo_pages/papers/](repo_pages/papers/) for detailed survey notes.
 
 ## License
 

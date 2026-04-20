@@ -2,12 +2,6 @@
 
 Hippocampus provides an MCP (Model Context Protocol) server that exposes memory operations as tools. Claude Code, Cursor, and other MCP-compatible clients can use it directly.
 
-## Installation
-
-```bash
-pip install afx-hippocampus[mcp]
-```
-
 ## Prerequisites
 
 The hippocampus service must be running:

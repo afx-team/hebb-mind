@@ -1,0 +1,96 @@
+# Quick Start
+
+Get Hippocampus up and running in under a minute.
+
+## 1. Install
+
+```bash
+pip install afx-hippocampus
+```
+
+Requires **Python >= 3.10**. No external database needed — SQLite is built in.
+
+## 2. Initialize
+
+```bash
+hippocampus init
+```
+
+This creates `hippocampus.json` (config) and `hippocampus.db` (database) in your current directory.
+
+## 3. Start
+
+```bash
+hippocampus start
+```
+
+Open [http://localhost:8321/](http://localhost:8321/) for the Web Console, or [http://localhost:8321/docs](http://localhost:8321/docs) for the API docs.
+
+## Store & Search
+
+Write a memory:
+
+```bash
+curl -X POST http://localhost:8321/api/v1/memories \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "User prefers dark mode and compact layout",
+    "tags": ["preference", "ui"],
+    "importance_score": 7.5
+  }'
+```
+
+Search memories:
+
+```bash
+curl -X POST http://localhost:8321/api/v1/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "UI preferences", "top_k": 5}'
+```
+
+## Enable Consolidation
+
+Memory consolidation (auto-classifying memories into partitions) requires an LLM:
+
+```bash
+hippocampus config set llm_api_key sk-your-key-here
+```
+
+Switch models via [LiteLLM](https://github.com/BerriAI/litellm):
+
+```bash
+hippocampus config set llm_model openai/gpt-4o          # OpenAI
+hippocampus config set llm_model anthropic/claude-3-haiku-20240307  # Anthropic
+hippocampus config set llm_base_url https://dashscope.aliyuncs.com/compatible-mode/v1  # Qwen/GLM/Kimi
+hippocampus config set llm_model openai/qwen-plus
+```
+
+Trigger consolidation manually:
+
+```bash
+curl -X POST http://localhost:8321/api/v1/admin/consolidate
+```
+
+## MCP Integration
+
+Use Hippocampus as an MCP tool in Claude Code, Cursor, or other MCP clients:
+
+```json
+{
+  "mcpServers": {
+    "hippocampus": {
+      "command": "hippocampus-mcp",
+      "cwd": "/path/to/your/project"
+    }
+  }
+}
+```
+
+See [MCP Integration](./advanced/mcp-integration.md) for full setup instructions.
+
+## Next Steps
+
+- [Installation](./guide/installation.md) — optional extras, from-source install
+- [Configuration](./guide/configuration.md) — full config reference
+- [Memory Lifecycle](./concepts/memory-lifecycle.md) — how memories flow through the system
+- [API Reference](./api/memories.md) — complete API documentation

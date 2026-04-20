@@ -2,12 +2,6 @@
 
 Hippocampus 提供 MCP (Model Context Protocol) 服务，将记忆操作暴露为工具。Claude Code、Cursor 等 MCP 客户端可以直接使用。
 
-## 安装
-
-```bash
-pip install afx-hippocampus[mcp]
-```
-
 ## 前提条件
 
 需要先启动 hippocampus 服务：

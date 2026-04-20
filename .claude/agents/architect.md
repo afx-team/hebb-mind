@@ -38,4 +38,4 @@ You are the system architect for the **hippocampus** project — an open-source 
 
 ## Output
 
-Write design documents to `docs/design/` directory. Use clear diagrams (mermaid) and interface definitions.
+Write design documents to `repo_pages/design/` directory. Use clear diagrams (mermaid) and interface definitions.

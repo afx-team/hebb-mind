@@ -6,7 +6,7 @@
 pip install afx-hippocampus
 ```
 
-Requires **Python >= 3.12**.
+Requires **Python >= 3.10**.
 
 ## Optional Extras
 
@@ -15,13 +15,12 @@ Hippocampus ships with optional dependency groups for different use cases:
 | Extra | Command | Description |
 |-------|---------|-------------|
 | PostgreSQL | `pip install afx-hippocampus[pg]` | PostgreSQL + pgvector storage backend |
-| Evaluation | `pip install afx-hippocampus[eval]` | Benchmark evaluation framework |
-| Development | `pip install afx-hippocampus[dev]` | Testing, linting, and type-checking tools |
+| Development | `pip install afx-hippocampus[dev]` | Testing, linting, type-checking, and benchmark evaluation tools |
 
 Install multiple extras at once:
 
 ```bash
-pip install afx-hippocampus[pg,eval]
+pip install afx-hippocampus[pg,dev]
 ```
 
 ## One-line Installer
@@ -72,4 +71,4 @@ hippocampus config set llm_api_key sk-your-key-here
 hippocampus start
 ```
 
-See the [Getting Started](./getting-started.md) guide for a complete walkthrough.
+See the [Quick Start](../quick-start.md) guide for a complete walkthrough.

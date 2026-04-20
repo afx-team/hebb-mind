@@ -41,9 +41,9 @@ Thumbs.db
 knowledge_graph.json
 
 # VitePress docs
-docs/node_modules/
-docs/.vitepress/dist/
-docs/.vitepress/cache/
+repo_pages/node_modules/
+repo_pages/.vitepress/dist/
+repo_pages/.vitepress/cache/
 
 # eval/data/ tracked via Git LFS (see .gitattributes)
 # eval/reports/ tracked normally for open-source visibility
