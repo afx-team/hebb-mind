@@ -151,9 +151,12 @@ class BaseBenchmark:
                     weight_relevance=self.settings.weight_relevance,
                 )
                 results_list = raw.get("results", raw) if isinstance(raw, dict) else raw
+                related_list: list[dict] = raw.get("related", []) if isinstance(raw, dict) else []
 
                 latency_ms = (time.monotonic() - t0) * 1000
                 memory_contents = [r["memory"]["content"] for r in results_list]
+                # Append graph-expanded related memories
+                memory_contents.extend(r["content"] for r in related_list if r.get("content"))
                 relevance_scores = [r.get("relevance_score", 0.0) for r in results_list]
 
                 generated = await judge.generate_answer(q.question, memory_contents)

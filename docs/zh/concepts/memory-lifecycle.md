@@ -4,35 +4,46 @@ Hippocampus 中的每条记忆都会经历四个阶段：**写入 → 巩固 →
 
 ## 架构概览
 
-```
-                        ┌──────────────────────────────┐
-                        │         HIPPOCAMPUS          │
-   写入记忆 ──────────► │        （工作记忆）           │
-   POST /memories       │   mem_hippocampus 分区       │
-                        └─────────────┬────────────────┘
-                                      │
-                                      ▼
-                        ┌──────────────────────────────┐
-                        │        巩固代理 (Agent)       │
-                        │  1. Agentic RAG 召回相关记忆  │
-                        │  2. LLM 分类 + 冲突解决      │
-                        │  3. 提取标签 → 知识图谱       │
-                        └─────────────┬────────────────┘
-                                      │
-                    ┌────────┬────────┼────────┬────────┐
-                    ▼        ▼        ▼        ▼        ▼
-              ┌─────────┐┌────────┐┌────────┐┌────────┐┌────────┐
-              │ 语义记忆 ││情景记忆││偏好记忆││程序记忆││ 自定义 │
-              │ semantic ││episodic││preferen││procedu ││ custom │
-              └─────────┘└────────┘└────────┘└────────┘└────────┘
-                    │        │        │        │        │
-                    └────────┴────────┼────────┴────────┘
-                                      ▼
-                        ┌──────────────────────────────┐
-                        │        遗忘任务 (Job)         │
-                        │  动态 TTL → 过期记忆自动删除   │
-                        └──────────────────────────────┘
-```
+<table style="width:100%; border:none; border-collapse:collapse;">
+<tr>
+<td align="center" colspan="5" style="padding:6px 14px; background:#1a1a2e; border-radius:8px; color:#e0e0e0; font-weight:600;">
+API &middot; MCP &middot; CLI
+</td>
+</tr>
+<tr><td align="center" colspan="5" style="font-size:18px; color:#555;">▼</td></tr>
+<tr>
+<td align="center" colspan="5" style="padding:10px 18px; background:#16213e; border-radius:8px;">
+<b style="color:#00d2ff; font-size:16px;">HIPPOCAMPUS</b><br/>
+<span style="color:#888; font-size:12px;">工作记忆收件箱</span>
+</td>
+</tr>
+<tr><td align="center" colspan="5" style="font-size:14px; color:#555; padding:4px 0;">▼&nbsp; 巩固代理 <span style="color:#666; font-size:11px;">(Agentic RAG &middot; 分类 &middot; 冲突解决 &middot; 标签提取)</span></td></tr>
+<tr>
+<td align="center" style="padding:8px 12px; background:#1b4332; border-radius:6px; min-width:100px;">
+<b style="color:#52b788;">语义</b><br/><span style="color:#888; font-size:11px;">知识/事实</span>
+</td>
+<td align="center" style="padding:8px 12px; background:#3c1642; border-radius:6px; min-width:100px;">
+<b style="color:#c77dff;">情景</b><br/><span style="color:#888; font-size:11px;">经历/事件</span>
+</td>
+<td align="center" style="padding:8px 12px; background:#6b2d5b; border-radius:6px; min-width:100px;">
+<b style="color:#ff6b6b;">偏好</b><br/><span style="color:#888; font-size:11px;">喜好/厌恶</span>
+</td>
+<td align="center" style="padding:8px 12px; background:#2d3a4a; border-radius:6px; min-width:100px;">
+<b style="color:#4ecdc4;">程序性</b><br/><span style="color:#888; font-size:11px;">技能/方法</span>
+</td>
+<td align="center" style="padding:8px 12px; background:#3d3d3d; border-radius:6px; min-width:100px;">
+<b style="color:#aaa;">自定义</b><br/><span style="color:#888; font-size:11px;">你的分区</span>
+</td>
+</tr>
+<tr><td align="center" colspan="5" style="font-size:14px; padding:6px 0;">
+<span style="color:#555;">▼</span>&nbsp;
+<span style="color:#666; font-size:12px;">混合检索</span>
+<span style="color:#555;">&nbsp;⟷&nbsp;</span>
+<span style="color:#666; font-size:12px;">知识图谱</span>
+<span style="color:#555;">&nbsp;⟷&nbsp;</span>
+<span style="color:#666; font-size:12px;">动态遗忘 (TTL)</span>
+</td></tr>
+</table>
 
 ## 阶段一：写入
 

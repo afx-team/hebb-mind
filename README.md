@@ -28,168 +28,124 @@ Hippocampus gives your AI agents a **brain-like memory system**. Just like the h
 
 ## Architecture
 
-```
-          Write memory
-               |
-               v
-    +---------------------+
-    |    HIPPOCAMPUS       |     Working memory inbox
-    |    (mem_hippocampus) |     All new memories land here
-    +---------------------+
-               |
-          Consolidation Agent (periodic)
-          - Recall related memories (Agentic RAG)
-          - Classify into partition
-          - Resolve conflicts
-          - Extract tags -> Knowledge Graph
-               |
-      +--------+--------+--------+--------+
-      v        v        v        v        v
-  SEMANTIC  EPISODIC  PREFERENCE PROCEDURAL CUSTOM
-   Facts    Events    Likes/     Skills     Your own
-            History   Dislikes   How-to     partitions
-      |        |        |        |        |
-      +--------+--------+--------+--------+
-               |
-          Forgetting Job (periodic)
-          TTL = base * (1 + log(access)) * importance * exp(-decay * days)
-               |
-               v
-          Expired memories removed
-```
+<div align="center">
+
+<table>
+<tr>
+<td align="center" colspan="5" style="padding:4px 12px; background:#1a1a2e; border-radius:8px; color:#e0e0e0; font-weight:600;">
+API / MCP / CLI
+</td>
+</tr>
+<tr><td align="center" colspan="5" style="font-size:18px; color:#555;">▼</td></tr>
+<tr>
+<td align="center" colspan="5" style="padding:8px 16px; background:#16213e; border-radius:8px;">
+<b style="color:#00d2ff; font-size:15px;">HIPPOCAMPUS</b><br/>
+<span style="color:#888; font-size:12px;">Working Memory Inbox</span>
+</td>
+</tr>
+<tr><td align="center" colspan="5" style="font-size:14px; color:#555;">▼&nbsp; Consolidation Agent <span style="color:#666; font-size:11px;">(Agentic RAG · Classify · Conflict Resolve · Tag Extract)</span></td></tr>
+<tr>
+<td align="center" style="padding:6px 10px; background:#1b4332; border-radius:6px; min-width:90px;">
+<b style="color:#52b788;">SEMANTIC</b><br/><span style="color:#888; font-size:11px;">Facts & Knowledge</span>
+</td>
+<td align="center" style="padding:6px 10px; background:#3c1642; border-radius:6px; min-width:90px;">
+<b style="color:#c77dff;">EPISODIC</b><br/><span style="color:#888; font-size:11px;">Events & History</span>
+</td>
+<td align="center" style="padding:6px 10px; background:#6b2d5b; border-radius:6px; min-width:90px;">
+<b style="color:#ff6b6b;">PREFERENCE</b><br/><span style="color:#888; font-size:11px;">Likes & Dislikes</span>
+</td>
+<td align="center" style="padding:6px 10px; background:#2d3a4a; border-radius:6px; min-width:90px;">
+<b style="color:#4ecdc4;">PROCEDURAL</b><br/><span style="color:#888; font-size:11px;">Skills & How-to</span>
+</td>
+<td align="center" style="padding:6px 10px; background:#3d3d3d; border-radius:6px; min-width:90px;">
+<b style="color:#aaa;">CUSTOM</b><br/><span style="color:#888; font-size:11px;">Your Partitions</span>
+</td>
+</tr>
+<tr><td align="center" colspan="5" style="font-size:14px; padding-top:4px;">
+<span style="color:#555;">▼</span>&nbsp;
+<span style="color:#666; font-size:12px;">Hybrid Retrieval</span>
+<span style="color:#555;">&nbsp;⟷&nbsp;</span>
+<span style="color:#666; font-size:12px;">Knowledge Graph</span>
+<span style="color:#555;">&nbsp;⟷&nbsp;</span>
+<span style="color:#666; font-size:12px;">Forgetting (Dynamic TTL)</span>
+</td></tr>
+</table>
+
+</div>
 
 ## Quick Start
 
 ```bash
-# Install (requires Python >= 3.12)
-pip install afx-hippocampus
-
-# Initialize project (creates hippocampus.json + SQLite DB)
-hippocampus init
-
-# Configure your LLM API key (required for memory consolidation)
-hippocampus config set llm_api_key sk-your-key-here
-
-# Start the server
-hippocampus start
+pip install afx-hippocampus      # Install
+hippocampus init                  # Initialize (creates hippocampus.json + SQLite DB)
+hippocampus config set llm_api_key sk-your-key-here  # Set LLM key
+hippocampus start                 # Start server → http://localhost:8321/
 ```
 
-Open http://localhost:8321/ for the **Web Console**, or http://localhost:8321/docs for the API documentation.
+Open http://localhost:8321/ for the **Web Console**, or http://localhost:8321/docs for the API docs.
 
-### Docker
+<details>
+<summary><b>Alternative install methods</b></summary>
+
+**Docker:**
 
 ```bash
-git clone https://github.com/afx-team/hippocampus.git
-cd hippocampus
+git clone https://github.com/afx-team/hippocampus.git && cd hippocampus
 docker compose -f docker/docker-compose.yml up
 ```
 
-### One-line Install
+**One-line install:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/afx-team/hippocampus/main/scripts/install.sh | sh
 ```
+</details>
 
-## API Usage
-
-### Store a memory
+<details>
+<summary><b>Try it in 30 seconds</b></summary>
 
 ```bash
+# Store a memory
 curl -X POST http://localhost:8321/api/v1/memories \
   -H "Content-Type: application/json" \
-  -d '{
-    "content": "User prefers dark mode and compact layout",
-    "tags": ["preference", "ui"],
-    "importance_score": 7.5
-  }'
-```
+  -d '{"content": "User prefers dark mode", "tags": ["preference", "ui"], "importance_score": 7.5}'
 
-### Search memories
-
-```bash
+# Search memories
 curl -X POST http://localhost:8321/api/v1/search \
   -H "Content-Type: application/json" \
   -d '{"query": "UI preferences", "top_k": 5}'
-```
 
-### Manage partitions
-
-```bash
-# List all partitions
-curl http://localhost:8321/api/v1/partitions
-
-# Create a custom partition
-curl -X POST http://localhost:8321/api/v1/partitions \
-  -H "Content-Type: application/json" \
-  -d '{"id": "mem_project", "name": "Project Context", "description": "Current project knowledge"}'
-```
-
-### Trigger consolidation manually
-
-```bash
+# Trigger consolidation manually
 curl -X POST http://localhost:8321/api/v1/admin/consolidate
-```
 
-### Explore the knowledge graph
-
-```bash
-# List all tags
+# Explore the knowledge graph
 curl http://localhost:8321/api/v1/graph/tags
-
-# Find tag neighbors
 curl http://localhost:8321/api/v1/graph/neighbors/python?depth=2
-
-# Find path between tags
-curl "http://localhost:8321/api/v1/graph/path?from=python&to=machine-learning"
 ```
+</details>
+
+## How It Works
+
+Memories flow through four stages — inspired by how the human hippocampus consolidates short-term experiences into long-term knowledge:
+
+| Stage | What Happens | Trigger |
+|-------|-------------|---------|
+| **Ingest** | New memories land in the working memory inbox (`mem_hippocampus`) | API write |
+| **Consolidate** | Agent classifies into partition, resolves conflicts, extracts tags → Knowledge Graph | Periodic / manual |
+| **Retrieve** | Three-path hybrid search (vector + keyword + graph) with recency/importance/relevance scoring | API search |
+| **Forget** | Dynamic TTL: `base × (1 + log(access)) × importance × exp(-decay × days)` — frequently used memories survive, neglected ones fade | Periodic |
+
+> Full details: [Memory Lifecycle](docs/concepts/memory-lifecycle.md) · [Consolidation](docs/concepts/consolidation.md) · [Hybrid Search](docs/concepts/hybrid-search.md) · [Forgetting](docs/concepts/forgetting.md)
 
 ## Configuration
 
-All configuration lives in a single file: **`hippocampus.json`**. No environment variables needed.
-
-### CLI Config Management
+All config lives in **`hippocampus.json`** — no environment variables needed.
 
 ```bash
-# View all settings
-hippocampus config list
-
-# Get a single value
-hippocampus config get llm_model
-
-# Set values (saved to hippocampus.json immediately)
-hippocampus config set llm_api_key sk-your-key-here
-hippocampus config set llm_model openai/gpt-4o
-hippocampus config set llm_base_url https://api.example.com/v1
-hippocampus config set port 9000
-hippocampus config set embedding_enabled false
+hippocampus config list                    # View all settings
+hippocampus config set llm_model openai/gpt-4o  # Change model
+hippocampus config set llm_base_url https://dashscope.aliyuncs.com/compatible-mode/v1  # Qwen/GLM/Kimi
 ```
-
-You can also edit `hippocampus.json` directly or use the **Settings page** in the Web Console.
-
-### hippocampus.json
-
-```json
-{
-  "storage_type": "sqlite",
-  "db_path": "hippocampus.db",
-  "embedding_enabled": true,
-  "embedding_model": "all-MiniLM-L6-v2",
-  "llm_model": "openai/gpt-4o-mini",
-  "llm_base_url": null,
-  "llm_api_key": "sk-your-key-here",
-  "host": "0.0.0.0",
-  "port": 8321,
-  "consolidation_interval_seconds": 3600,
-  "forget_interval_seconds": 1800,
-  "base_ttl_hours": 168,
-  "decay_factor": 0.693,
-  "weight_recency": 1.0,
-  "weight_importance": 1.0,
-  "weight_relevance": 1.0
-}
-```
-
-### Key Configuration Fields
 
 | Field | Default | Description |
 |-------|---------|-------------|
@@ -199,17 +155,13 @@ You can also edit `hippocampus.json` directly or use the **Settings page** in th
 | `storage_type` | `sqlite` | `sqlite` or `postgresql` |
 | `embedding_enabled` | `true` | Set `false` to disable vector search |
 | `port` | `8321` | Server port |
-| `consolidation_interval_seconds` | `3600` | How often consolidation runs (seconds) |
-| `base_ttl_hours` | `168` | Base memory TTL before decay (hours) |
+| `consolidation_interval_seconds` | `3600` | How often consolidation runs |
+| `base_ttl_hours` | `168` | Base memory TTL before decay |
 
-### Storage Backends
+<details>
+<summary><b>Storage backends</b></summary>
 
 **SQLite (default)** — zero-config, single file, great for personal use and development.
-
-```bash
-hippocampus config set storage_type sqlite
-hippocampus config set db_path hippocampus.db
-```
 
 **PostgreSQL + pgvector** — production-grade, connection pooling, native vector types.
 
@@ -218,43 +170,9 @@ pip install afx-hippocampus[pg]
 hippocampus config set storage_type postgresql
 hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
 ```
+</details>
 
-## Memory Lifecycle
-
-1. **Ingest** — New memories are written to the `mem_hippocampus` (working memory) partition via API.
-
-2. **Consolidate** — A periodic agent processes working memories:
-   - Uses **Agentic RAG** to recall related historical memories
-   - LLM classifies the memory into the right partition (semantic / episodic / preference / procedural)
-   - Conflicts with existing memories are detected and resolved
-   - Tags are extracted and added to the **knowledge graph**
-
-3. **Retrieve** — Search combines three signals:
-   - **Recency** — exponential decay since last access
-   - **Importance** — LLM-rated 0-10 score
-   - **Relevance** — vector cosine similarity (when enabled)
-
-4. **Forget** — A periodic job computes dynamic TTL for each memory:
-   ```
-   TTL = base_ttl * (1 + log(access_count)) * (importance / 5) * exp(-decay * days_since_access)
-   ```
-   Frequently accessed, high-importance memories live longer. Neglected memories fade away.
-
-## Project Structure
-
-```
-src/hippocampus/
-    config/       # Settings + config loading
-    models/       # Pydantic data models
-    storage/      # SQLite + PostgreSQL backends (protocol-based)
-    embedding/    # Sentence-transformers embedder (optional)
-    retrieval/    # Recency-importance-relevance scoring
-    graph/        # NetworkX tag knowledge graph
-    agents/       # LLM-powered consolidation + recall
-    scheduler/    # APScheduler consolidation + forgetting jobs
-    server/       # FastAPI REST API
-    cli/          # Click CLI (init / start / status)
-```
+> Full config reference: [Configuration Guide](docs/guide/configuration.md)
 
 ## Supported Models
 
