@@ -4,11 +4,11 @@ Hippocampus provides an MCP (Model Context Protocol) server that exposes memory 
 
 ## Prerequisites
 
-The hippocampus service must be running:
+The hippocampus service must be running. The MCP server will auto-start it if not detected:
 
 ```bash
 hippocampus init     # first time only
-hippocampus start
+hippocampus start    # or: hippocampus start -d (daemon mode)
 ```
 
 ## Available Tools
@@ -21,6 +21,10 @@ hippocampus start
 
 ## Configuration
 
+The MCP server automatically discovers the service address from `hippocampus.json`. For the common case (service running locally), no configuration is needed — just add the command.
+
+If the service runs on a remote host or non-default address, set `HIPPOCAMPUS_URL`:
+
 ### Claude Code
 
 Add to your project's `.mcp.json`:
@@ -29,21 +33,24 @@ Add to your project's `.mcp.json`:
 {
   "mcpServers": {
     "hippocampus": {
-      "command": "hippocampus-mcp",
-      "cwd": "/path/to/your/project"
+      "command": "hippocampus-mcp"
     }
   }
 }
 ```
 
-Or add globally in `~/.claude.json`:
+Or add globally in `~/.claude.json`.
+
+If the service runs on a non-default address, set the URL explicitly:
 
 ```json
 {
   "mcpServers": {
     "hippocampus": {
       "command": "hippocampus-mcp",
-      "cwd": "/path/to/your/project"
+      "env": {
+        "HIPPOCAMPUS_URL": "http://192.168.1.100:8321"
+      }
     }
   }
 }
@@ -51,14 +58,13 @@ Or add globally in `~/.claude.json`:
 
 ### Claude Desktop
 
-Add to `claude_desktop_config.json`:
+Add to `claude_desktop_config.json` (typically at `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
 ```json
 {
   "mcpServers": {
     "hippocampus": {
-      "command": "hippocampus-mcp",
-      "cwd": "/path/to/your/project"
+      "command": "hippocampus-mcp"
     }
   }
 }
@@ -66,22 +72,17 @@ Add to `claude_desktop_config.json`:
 
 ### Cursor
 
-Add to Cursor MCP settings:
+Open **Settings → Features → MCP** and add:
 
 ```json
 {
   "mcpServers": {
     "hippocampus": {
-      "command": "hippocampus-mcp",
-      "cwd": "/path/to/your/project"
+      "command": "hippocampus-mcp"
     }
   }
 }
 ```
-
-::: tip
-`cwd` must point to the directory containing `hippocampus.json`. The MCP server reads this config to find the running service's host and port.
-:::
 
 ## How It Works
 

@@ -1,6 +1,6 @@
 [project]
 name = "afx-hippocampus"
-version = "0.1.0"
+version = "0.1.1"
 description = "Neuroscience-inspired memory framework for AI agents / 海马体 — Agent 大脑记忆框架"
 readme = "README.md"
 license = {text = "Apache-2.0"}

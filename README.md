@@ -5,6 +5,7 @@
 </p>
 
 <p align="center">
+  <a href="https://afx-team.github.io/hippocampus/"><img src="https://img.shields.io/badge/docs-afx--team.github.io-blue" alt="Documentation"></a>
   <a href="https://github.com/afx-team/hippocampus/actions"><img src="https://github.com/afx-team/hippocampus/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://pypi.org/project/afx-hippocampus/"><img src="https://img.shields.io/pypi/v/afx-hippocampus" alt="PyPI"></a>
   <a href="https://github.com/afx-team/hippocampus/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
@@ -19,12 +20,13 @@ Hippocampus gives your AI agents a **brain-like memory system**. Just like the h
 
 | Feature | Mem0 | Letta | Zep | **Hippocampus** |
 |---------|------|-------|-----|-----------------|
-| Memory consolidation | - | - | - | Automatic |
-| Forgetting / decay | - | - | Implicit | Dynamic TTL formula |
-| Tag-based knowledge graph | - | - | Partial | Built-in |
-| Zero-config deployment | - | - | - | SQLite, one command |
-| Vector search optional | - | - | - | Progressive disclosure |
-| Multi-model (OpenAI/Claude/Qwen/GLM/Kimi) | Partial | Partial | Partial | Via LiteLLM |
+| Multi-model support | Yes | Yes | Yes | Via LiteLLM |
+| Knowledge graph | Partial | No | Yes | Tag-based |
+| Web management UI | Yes | Cloud only | Cloud only | Built-in SPA |
+| MCP Server | Yes | Consumer only | Yes | Built-in, auto-start |
+| Memory consolidation | ADD-only | Sleeptime Agent | Contradiction resolve | **Automatic + conflict resolve** |
+| Forgetting / decay | No | No | Temporal invalidation | **Dynamic TTL** |
+| Zero-config deploy | API key required | API key + DB | Postgres + Neo4j | **SQLite + local embed** |
 
 ## Architecture
 
@@ -135,7 +137,7 @@ Memories flow through four stages — inspired by how the human hippocampus cons
 | **Retrieve** | Three-path hybrid search (vector + keyword + graph) with recency/importance/relevance scoring | API search |
 | **Forget** | Dynamic TTL: `base × (1 + log(access)) × importance × exp(-decay × days)` — frequently used memories survive, neglected ones fade | Periodic |
 
-> Full details: [Memory Lifecycle](repo_pages/concepts/memory-lifecycle.md) · [Consolidation](repo_pages/concepts/consolidation.md) · [Hybrid Search](repo_pages/concepts/hybrid-search.md) · [Forgetting](repo_pages/concepts/forgetting.md)
+> Full details: [Memory Lifecycle](https://afx-team.github.io/hippocampus/concepts/memory-lifecycle.html) · [Consolidation](https://afx-team.github.io/hippocampus/concepts/consolidation.html) · [Hybrid Search](https://afx-team.github.io/hippocampus/concepts/hybrid-search.html) · [Forgetting](https://afx-team.github.io/hippocampus/concepts/forgetting.html)
 
 ## Configuration
 
@@ -172,7 +174,7 @@ hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
 ```
 </details>
 
-> Full config reference: [Configuration Guide](repo_pages/guide/configuration.md)
+> Full config reference: [Configuration Guide](https://afx-team.github.io/hippocampus/guide/configuration.html)
 
 ## Supported Models
 
@@ -231,7 +233,7 @@ This project draws on research from:
 - [CoALA](https://arxiv.org/abs/2309.02427) — episodic/semantic/procedural taxonomy
 - [Zep / Graphiti](https://github.com/getzep/graphiti) — temporal knowledge graphs
 
-See [repo_pages/papers/](repo_pages/papers/) for detailed survey notes.
+See [repo_pages/papers/](https://github.com/afx-team/hippocampus/tree/main/repo_pages/papers/) for detailed survey notes.
 
 ## License
 

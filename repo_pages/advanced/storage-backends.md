@@ -162,6 +162,92 @@ volumes:
 | `HIPPOCAMPUS_PG_URL` | `pg_url` | PostgreSQL connection string |
 | `HIPPOCAMPUS_PORT` | `port` | Server port (default 8321) |
 
+## Running as a Background Service
+
+`hippocampus start` runs in the foreground by default. For long-running deployments, use one of these approaches:
+
+### nohup (Quick)
+
+```bash
+nohup hippocampus start > hippocampus.log 2>&1 &
+```
+
+### systemd (Linux)
+
+Create `/etc/systemd/system/hippocampus.service`:
+
+```ini
+[Unit]
+Description=Hippocampus Memory Server
+After=network.target
+
+[Service]
+Type=simple
+User=your-user
+WorkingDirectory=/path/to/project
+ExecStart=/path/to/hippocampus start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl enable hippocampus   # auto-start on boot
+sudo systemctl start hippocampus    # start now
+sudo systemctl status hippocampus   # check status
+```
+
+### launchd (macOS)
+
+Create `~/Library/LaunchAgents/com.hippocampus.server.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.hippocampus.server</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/path/to/hippocampus</string>
+    <string>start</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/path/to/project</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/hippocampus.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/hippocampus.err</string>
+</dict>
+</plist>
+```
+
+Load and start:
+
+```bash
+launchctl load ~/Library/LaunchAgents/com.hippocampus.server.plist
+```
+
+Unload to stop:
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.hippocampus.server.plist
+```
+
+## Running as a Background Service
+
+For daemon mode and auto-start on boot, see [Quick Start → Keep It Running](../quick-start.md#keep-it-running).
+
 ### Production Tips
 
 - Use PostgreSQL backend for production workloads

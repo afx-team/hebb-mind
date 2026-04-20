@@ -4,7 +4,7 @@ import { useData } from 'vitepress'
 
 const { page, lang } = useData()
 
-const REPO_RAW = 'https://raw.githubusercontent.com/afx-team/hippocampus/main/docs/'
+const REPO_RAW = 'https://raw.githubusercontent.com/afx-team/hippocampus/main/repo_pages/'
 
 const state = ref<'idle' | 'loading' | 'copied' | 'error'>('idle')
 
@@ -14,7 +14,7 @@ const label = computed(() => {
     case 'loading': return zh ? '获取中...' : 'Loading...'
     case 'copied':  return zh ? '已复制!' : 'Copied!'
     case 'error':   return zh ? '复制失败' : 'Failed'
-    default:        return zh ? '复制为 Markdown (LLM)' : 'Copy as Markdown (LLM)'
+    default:        return zh ? '复制 Markdown' : 'Copy Markdown'
   }
 })
 
@@ -57,34 +57,54 @@ async function copy() {
 </script>
 
 <template>
-  <button
-    class="copy-md-btn"
-    :class="state"
-    :disabled="state === 'loading'"
-    @click="copy"
-    :title="label"
-  >
-    <svg v-if="state === 'idle'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-    <svg v-else-if="state === 'copied'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-    <svg v-else-if="state === 'loading'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
-    <span>{{ label }}</span>
-  </button>
+  <div class="copy-md-wrapper">
+    <button
+      class="copy-md-btn"
+      :class="state"
+      :disabled="state === 'loading'"
+      @click="copy"
+      :title="lang === 'zh-CN' ? '复制为 Markdown (供 LLM 使用)' : 'Copy as Markdown (for LLM)'"
+    >
+      <svg v-if="state === 'idle'" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      <svg v-else-if="state === 'copied'" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      <svg v-else-if="state === 'loading'" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+      <span>{{ label }}</span>
+    </button>
+  </div>
 </template>
 
 <style scoped>
+.copy-md-wrapper {
+  position: sticky;
+  top: 0;
+  z-index: 9;
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 0;
+  pointer-events: none;
+}
 .copy-md-btn {
+  pointer-events: auto;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
+  gap: 5px;
+  padding: 4px 12px;
   border: 1px solid var(--vp-c-divider);
   border-radius: 6px;
-  background: var(--vp-c-bg-soft);
-  color: var(--vp-c-text-2);
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
   transition: all 0.2s;
-  margin-top: 24px;
+  opacity: 0;
+  backdrop-filter: blur(8px);
+  /* Light mode: dark text on light bg; Dark mode: light text on dark bg */
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-2);
+}
+.copy-md-wrapper:hover .copy-md-btn,
+.copy-md-btn:focus,
+.copy-md-btn.copied,
+.copy-md-btn.error {
+  opacity: 1;
 }
 .copy-md-btn:hover {
   border-color: var(--vp-c-brand-1);
@@ -99,7 +119,7 @@ async function copy() {
   color: var(--vp-c-danger-1);
 }
 .copy-md-btn:disabled {
-  opacity: 0.7;
+  opacity: 0.7 !important;
   cursor: wait;
 }
 @keyframes spin { to { transform: rotate(360deg); } }

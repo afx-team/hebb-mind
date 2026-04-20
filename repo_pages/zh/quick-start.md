@@ -26,6 +26,28 @@ hippocampus start
 
 打开 [http://localhost:8321/](http://localhost:8321/) 进入 Web 控制台，或 [http://localhost:8321/docs](http://localhost:8321/docs) 查看 API 文档。
 
+## 保持运行
+
+`hippocampus start` 默认在前台运行。后台运行：
+
+```bash
+hippocampus start -d
+```
+
+开机自启：
+
+```bash
+hippocampus service install
+```
+
+自动生成系统服务配置（Linux 使用 systemd，macOS 使用 launchd）并启用。移除：
+
+```bash
+hippocampus service uninstall
+```
+
+Docker 部署方式见 [存储后端](./advanced/storage-backends.md#docker-deployment)。
+
 ## 写入与搜索
 
 写入一条记忆：
@@ -79,8 +101,7 @@ curl -X POST http://localhost:8321/api/v1/admin/consolidate
 {
   "mcpServers": {
     "hippocampus": {
-      "command": "hippocampus-mcp",
-      "cwd": "/path/to/your/project"
+      "command": "hippocampus-mcp"
     }
   }
 }

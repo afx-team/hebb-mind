@@ -136,6 +136,92 @@ volumes:
 | `HIPPOCAMPUS_PG_URL` | `pg_url` | PostgreSQL 连接串 |
 | `HIPPOCAMPUS_PORT` | `port` | 服务端口（默认 8321） |
 
+## 后台运行与开机自启
+
+`hippocampus start` 默认在前台运行。长时间运行可使用以下方式：
+
+### nohup（快速后台）
+
+```bash
+nohup hippocampus start > hippocampus.log 2>&1 &
+```
+
+### systemd（Linux）
+
+创建 `/etc/systemd/system/hippocampus.service`：
+
+```ini
+[Unit]
+Description=Hippocampus Memory Server
+After=network.target
+
+[Service]
+Type=simple
+User=your-user
+WorkingDirectory=/path/to/project
+ExecStart=/path/to/hippocampus start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+启用并启动：
+
+```bash
+sudo systemctl enable hippocampus   # 开机自启
+sudo systemctl start hippocampus    # 立即启动
+sudo systemctl status hippocampus   # 查看状态
+```
+
+### launchd（macOS）
+
+创建 `~/Library/LaunchAgents/com.hippocampus.server.plist`：
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.hippocampus.server</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/path/to/hippocampus</string>
+    <string>start</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/path/to/project</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/hippocampus.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/hippocampus.err</string>
+</dict>
+</plist>
+```
+
+加载并启动：
+
+```bash
+launchctl load ~/Library/LaunchAgents/com.hippocampus.server.plist
+```
+
+停止：
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.hippocampus.server.plist
+```
+
+## 后台运行与开机自启
+
+后台运行和开机自启见 [快速开始 → 保持运行](../quick-start.md#保持运行)。
+
 ### 生产环境建议
 
 - 生产环境使用 PostgreSQL 后端

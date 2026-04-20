@@ -4,11 +4,11 @@ Hippocampus 提供 MCP (Model Context Protocol) 服务，将记忆操作暴露�
 
 ## 前提条件
 
-需要先启动 hippocampus 服务：
+需要先启动 hippocampus 服务。MCP 服务启动时会自动拉起未运行的服务：
 
 ```bash
 hippocampus init     # 首次使用
-hippocampus start
+hippocampus start    # 或：hippocampus start -d（后台模式）
 ```
 
 ## 可用工具
@@ -21,6 +21,10 @@ hippocampus start
 
 ## 配置
 
+MCP 服务自动从 `hippocampus.json` 发现服务地址。大多数情况下无需任何配置，只需添加命令即可。
+
+如果服务运行在远程主机或非默认地址，可通过 `HIPPOCAMPUS_URL` 环境变量指定：
+
 ### Claude Code
 
 在项目目录下创建 `.mcp.json`：
@@ -29,25 +33,38 @@ hippocampus start
 {
   "mcpServers": {
     "hippocampus": {
-      "command": "hippocampus-mcp",
-      "cwd": "/path/to/your/project"
+      "command": "hippocampus-mcp"
     }
   }
 }
 ```
 
-或在全局配置 `~/.claude.json` 中添加。
+或在全局配置 `~/.claude.json` 中添加相同内容。
 
-### Claude Desktop
-
-在 `claude_desktop_config.json` 中添加：
+如果服务运行在非默认地址，可以显式指定：
 
 ```json
 {
   "mcpServers": {
     "hippocampus": {
       "command": "hippocampus-mcp",
-      "cwd": "/path/to/your/project"
+      "env": {
+        "HIPPOCAMPUS_URL": "http://192.168.1.100:8321"
+      }
+    }
+  }
+}
+```
+
+### Claude Desktop
+
+在 `claude_desktop_config.json`（macOS 通常位于 `~/Library/Application Support/Claude/claude_desktop_config.json`）中添加：
+
+```json
+{
+  "mcpServers": {
+    "hippocampus": {
+      "command": "hippocampus-mcp"
     }
   }
 }
@@ -55,11 +72,17 @@ hippocampus start
 
 ### Cursor
 
-在 Cursor MCP 设置中添加相同配置。
+打开 **Settings → Features → MCP**，添加：
 
-::: tip
-`cwd` 必须指向包含 `hippocampus.json` 的目录，MCP 服务通过该配置找到运行中的服务地址和端口。
-:::
+```json
+{
+  "mcpServers": {
+    "hippocampus": {
+      "command": "hippocampus-mcp"
+    }
+  }
+}
+```
 
 ## 工作原理
 

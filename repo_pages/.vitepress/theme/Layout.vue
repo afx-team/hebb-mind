@@ -8,7 +8,7 @@ const { frontmatter } = useData()
 
 <template>
   <DefaultTheme.Layout>
-    <template #doc-after>
+    <template #doc-before>
       <CopyMarkdown v-if="frontmatter.layout !== 'home'" />
     </template>
   </DefaultTheme.Layout>

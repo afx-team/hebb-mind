@@ -26,6 +26,28 @@ hippocampus start
 
 Open [http://localhost:8321/](http://localhost:8321/) for the Web Console, or [http://localhost:8321/docs](http://localhost:8321/docs) for the API docs.
 
+## Keep It Running
+
+`hippocampus start` runs in the foreground. To run in the background:
+
+```bash
+hippocampus start -d
+```
+
+To auto-start on boot:
+
+```bash
+hippocampus service install
+```
+
+This generates the appropriate config (systemd on Linux, launchd on macOS) and enables the service. To remove:
+
+```bash
+hippocampus service uninstall
+```
+
+For Docker deployment, see [Storage Backends](./advanced/storage-backends.md#docker-deployment).
+
 ## Store & Search
 
 Write a memory:
@@ -79,8 +101,7 @@ Use Hippocampus as an MCP tool in Claude Code, Cursor, or other MCP clients:
 {
   "mcpServers": {
     "hippocampus": {
-      "command": "hippocampus-mcp",
-      "cwd": "/path/to/your/project"
+      "command": "hippocampus-mcp"
     }
   }
 }

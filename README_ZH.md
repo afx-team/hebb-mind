@@ -5,6 +5,7 @@
 </p>
 
 <p align="center">
+  <a href="https://afx-team.github.io/hippocampus/zh/"><img src="https://img.shields.io/badge/docs-afx--team.github.io-blue" alt="Documentation"></a>
   <a href="https://github.com/afx-team/hippocampus/actions"><img src="https://github.com/afx-team/hippocampus/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://pypi.org/project/afx-hippocampus/"><img src="https://img.shields.io/pypi/v/afx-hippocampus" alt="PyPI"></a>
   <a href="https://github.com/afx-team/hippocampus/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
@@ -19,12 +20,13 @@ Hippocampus 为你的 AI Agent 提供**类脑记忆系统**。正如人类大脑
 
 | 特性 | Mem0 | Letta | Zep | **Hippocampus** |
 |------|------|-------|-----|-----------------|
-| 记忆巩固 | - | - | - | 自动化 |
-| 遗忘/衰减 | - | - | 隐式 | 动态 TTL 公式 |
-| 标签知识图谱 | - | - | 部分 | 内置 |
-| 零配置部署 | - | - | - | SQLite，一条命令 |
-| 向量搜索可选 | - | - | - | 渐进式 |
-| 多模型支持 (OpenAI/Claude/Qwen/GLM/Kimi) | 部分 | 部分 | 部分 | 通过 LiteLLM |
+| 多模型支持 | Yes | Yes | Yes | Via LiteLLM |
+| 知识图谱 | Partial | No | Yes | Tag-based |
+| Web 管理界面 | Yes | Cloud only | Cloud only | Built-in SPA |
+| MCP Server | Yes | Consumer only | Yes | Built-in, auto-start |
+| 记忆巩固 | ADD-only | Sleeptime Agent | Contradiction resolve | **Automatic + conflict resolve** |
+| 遗忘/衰减 | No | No | Temporal invalidation | **Dynamic TTL** |
+| 零配置部署 | API key required | API key + DB | Postgres + Neo4j | **SQLite + local embed** |
 
 ## 架构
 
@@ -138,7 +140,7 @@ curl http://localhost:8321/api/v1/graph/neighbors/python?depth=2
 | **检索** | 三路混合搜索（向量 + 关键词 + 图谱），结合时效/重要性/相关性评分 | API 搜索 |
 | **遗忘** | 动态 TTL：`base × (1 + log(访问次数)) × 重要度 × exp(-衰减率 × 天数)` — 常用记忆存活，被忽略的自然消失 | 周期性 |
 
-> 详细说明：[记忆生命周期](repo_pages/zh/concepts/memory-lifecycle.md) · [记忆巩固](repo_pages/zh/concepts/consolidation.md) · [混合检索](repo_pages/zh/concepts/hybrid-search.md) · [动态遗忘](repo_pages/zh/concepts/forgetting.md)
+> 详细说明：[记忆生命周期](https://afx-team.github.io/hippocampus/zh/concepts/memory-lifecycle.html) · [记忆巩固](https://afx-team.github.io/hippocampus/zh/concepts/consolidation.html) · [混合检索](https://afx-team.github.io/hippocampus/zh/concepts/hybrid-search.html) · [动态遗忘](https://afx-team.github.io/hippocampus/zh/concepts/forgetting.html)
 
 ## 配置
 
@@ -175,7 +177,7 @@ hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
 ```
 </details>
 
-> 完整配置参考：[配置指南](repo_pages/zh/guide/configuration.md)
+> 完整配置参考：[配置指南](https://afx-team.github.io/hippocampus/zh/guide/configuration.html)
 
 ## 支持的模型
 
@@ -234,7 +236,7 @@ mypy src/hippocampus/
 - [CoALA](https://arxiv.org/abs/2309.02427) — 情景/语义/程序性分类体系
 - [Zep / Graphiti](https://github.com/getzep/graphiti) — 时序知识图谱
 
-详见 [repo_pages/papers/](repo_pages/papers/) 了解详细调研笔记。
+详见 [repo_pages/papers/](https://github.com/afx-team/hippocampus/tree/main/repo_pages/papers/) 了解详细调研笔记。
 
 ## 许可证
 
