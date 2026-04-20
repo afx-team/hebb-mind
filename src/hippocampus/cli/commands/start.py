@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -115,7 +114,7 @@ def _start_daemon(host: str, port: int, reload: bool) -> None:
         console.print("[red]Server failed to start. Run without --daemon to see errors.[/]")
         raise SystemExit(1)
 
-    console.print(f"[yellow]Server is starting... Check status: hippocampus status[/]")
+    console.print("[yellow]Server is starting... Check status: hippocampus status[/]")
 
 
 def _run_foreground(host: str, port: int, reload: bool, settings: object) -> None:

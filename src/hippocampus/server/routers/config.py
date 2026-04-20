@@ -38,10 +38,20 @@ async def update_config(
     """
     # Fields that require restart to take effect
     restart_fields = {
-        "storage_type", "db_path", "pg_url", "pg_pool_min", "pg_pool_max",
-        "embedding_enabled", "embedding_provider", "embedding_model", "embedding_dim",
-        "embedding_api_key", "embedding_base_url",
-        "host", "port", "kg_path",
+        "storage_type",
+        "db_path",
+        "pg_url",
+        "pg_pool_min",
+        "pg_pool_max",
+        "embedding_enabled",
+        "embedding_provider",
+        "embedding_model",
+        "embedding_dim",
+        "embedding_api_key",
+        "embedding_base_url",
+        "host",
+        "port",
+        "kg_path",
     }
 
     try:
@@ -190,6 +200,7 @@ async def embedding_status() -> dict:
         result["base_url"] = settings.embedding_base_url or None
     else:
         from hippocampus.embedding.local import is_model_cached
+
         cached = is_model_cached(settings.embedding_model)
         result["status"] = "cached" if cached else "not_downloaded"
         result["cached"] = cached
@@ -210,10 +221,12 @@ async def get_config_fields() -> list[dict]:
         elif annotation is bool:
             type_name = "boolean"
 
-        fields.append({
-            "key": name,
-            "type": type_name,
-            "description": info.description or "",
-            "default": info.default,
-        })
+        fields.append(
+            {
+                "key": name,
+                "type": type_name,
+                "description": info.description or "",
+                "default": info.default,
+            }
+        )
     return fields

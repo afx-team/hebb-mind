@@ -39,9 +39,7 @@ class SQLiteMemoryStore:
     def __init__(self, db: aiosqlite.Connection) -> None:
         self.db = db
 
-    async def create(
-        self, data: MemoryCreate, embedding: list[float] | None = None
-    ) -> Memory:
+    async def create(self, data: MemoryCreate, embedding: list[float] | None = None) -> Memory:
         memory_id = str(uuid.uuid4())
         now = _now_iso()
         await self.db.execute(
@@ -50,10 +48,16 @@ class SQLiteMemoryStore:
                 created_at, updated_at, last_accessed_at, access_count)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)""",
             (
-                memory_id, data.partition_id, data.content,
-                data.importance_score, json.dumps(data.tags),
-                json.dumps(data.metadata.model_dump(exclude_none=True)), data.source,
-                now, now, now,
+                memory_id,
+                data.partition_id,
+                data.content,
+                data.importance_score,
+                json.dumps(data.tags),
+                json.dumps(data.metadata.model_dump(exclude_none=True)),
+                data.source,
+                now,
+                now,
+                now,
             ),
         )
         if embedding:

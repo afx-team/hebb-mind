@@ -1,7 +1,7 @@
 <p align="center">
-  <h1 align="center">Hippocampus 海马体</h1>
+  <h1 align="center"><a href="https://afx-team.github.io/hippocampus/">Hippocampus 海马体</a></h1>
   <p align="center">Neuroscience-inspired memory framework for AI agents</p>
-  <p align="center"><a href="README.md">English</a> | <a href="README_ZH.md">中文</a></p>
+  <p align="center"><a href="https://afx-team.github.io/hippocampus/">📖 Documentation</a> · <a href="README.md">English</a> | <a href="README_ZH.md">中文</a></p>
 </p>
 
 <p align="center">
@@ -224,16 +224,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 - [ ] Multi-agent shared memory
 - [ ] Emotional tagging and memory importance learning
 
-## Research
-
-This project draws on research from:
-
-- [Generative Agents](https://arxiv.org/abs/2304.03442) — recency-importance-relevance retrieval
-- [MemGPT / Letta](https://arxiv.org/abs/2310.08560) — agent-driven memory management
-- [CoALA](https://arxiv.org/abs/2309.02427) — episodic/semantic/procedural taxonomy
-- [Zep / Graphiti](https://github.com/getzep/graphiti) — temporal knowledge graphs
-
-See [repo_pages/papers/](https://github.com/afx-team/hippocampus/tree/main/repo_pages/papers/) for detailed survey notes.
 
 ## License
 

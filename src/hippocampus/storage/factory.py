@@ -64,8 +64,7 @@ async def _create_postgresql(settings: Settings) -> StorageContext:
         import asyncpg
     except ImportError:
         raise ImportError(
-            "PostgreSQL backend requires asyncpg and pgvector. "
-            "Install with: pip install afx-hippocampus[pg]"
+            "PostgreSQL backend requires asyncpg and pgvector. Install with: pip install afx-hippocampus[pg]"
         )
 
     from hippocampus.storage.pg_migrations import initialize_pg_schema

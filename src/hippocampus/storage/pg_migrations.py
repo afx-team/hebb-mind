@@ -41,9 +41,7 @@ async def initialize_pg_schema(pool: asyncpg.Pool, embedding_dim: int = 384) -> 
         """)
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_partition ON memories(partition_id)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at)")
-        await conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_memories_last_accessed ON memories(last_accessed_at)"
-        )
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_last_accessed ON memories(last_accessed_at)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_expires_at ON memories(expires_at)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_tags ON memories USING GIN(tags)")
 
@@ -64,12 +62,8 @@ async def initialize_pg_schema(pool: asyncpg.Pool, embedding_dim: int = 384) -> 
 
         # Full-text search: tsvector column + GIN index + auto-update trigger
         # Uses 'simple' config for cross-language compatibility (no zhparser needed)
-        await conn.execute(
-            "ALTER TABLE memories ADD COLUMN IF NOT EXISTS content_tsv tsvector"
-        )
-        await conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_memories_fts ON memories USING GIN(content_tsv)"
-        )
+        await conn.execute("ALTER TABLE memories ADD COLUMN IF NOT EXISTS content_tsv tsvector")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_fts ON memories USING GIN(content_tsv)")
         await conn.execute("""
             CREATE OR REPLACE FUNCTION memories_tsv_trigger() RETURNS trigger AS $$
             BEGIN NEW.content_tsv := to_tsvector('simple', NEW.content); RETURN NEW; END;
@@ -81,6 +75,4 @@ async def initialize_pg_schema(pool: asyncpg.Pool, embedding_dim: int = 384) -> 
             FOR EACH ROW EXECUTE FUNCTION memories_tsv_trigger()
         """)
         # Backfill existing rows
-        await conn.execute(
-            "UPDATE memories SET content_tsv = to_tsvector('simple', content) WHERE content_tsv IS NULL"
-        )
+        await conn.execute("UPDATE memories SET content_tsv = to_tsvector('simple', content) WHERE content_tsv IS NULL")

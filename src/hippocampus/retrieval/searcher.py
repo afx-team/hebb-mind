@@ -108,7 +108,9 @@ class MemorySearcher:
         if not embedding:
             return []
         return await self.store.search_by_vector(
-            query_embedding=embedding, top_k=top_k, partition_ids=partition_ids,
+            query_embedding=embedding,
+            top_k=top_k,
+            partition_ids=partition_ids,
         )
 
     # ------------------------------------------------------------------
@@ -119,16 +121,16 @@ class MemorySearcher:
         self, query: str, top_k: int, partition_ids: list[str] | None
     ) -> list[tuple[Memory, float]]:
         return await self.store.search_by_keyword(
-            query=query, top_k=top_k, partition_ids=partition_ids,
+            query=query,
+            top_k=top_k,
+            partition_ids=partition_ids,
         )
 
     # ------------------------------------------------------------------
     # Path 3: Graph retrieval (query → match tags → expand → memories)
     # ------------------------------------------------------------------
 
-    async def _graph_search(
-        self, query: str, top_k: int
-    ) -> list[tuple[Memory, float]]:
+    async def _graph_search(self, query: str, top_k: int) -> list[tuple[Memory, float]]:
         """Match query words against graph tags, expand 1 hop, collect memories."""
         if not self.graph:
             return []

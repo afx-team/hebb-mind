@@ -58,9 +58,7 @@ class PGMemoryStore:
     def __init__(self, pool: asyncpg.Pool) -> None:
         self.pool = pool
 
-    async def create(
-        self, data: MemoryCreate, embedding: list[float] | None = None
-    ) -> Memory:
+    async def create(self, data: MemoryCreate, embedding: list[float] | None = None) -> Memory:
         memory_id = str(uuid.uuid4())
         now = _utcnow()
         async with self.pool.acquire() as conn:
@@ -69,16 +67,23 @@ class PGMemoryStore:
                    (id, partition_id, content, importance_score, tags, metadata, source,
                     created_at, updated_at, last_accessed_at, access_count)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0)""",
-                memory_id, data.partition_id, data.content,
-                data.importance_score, data.tags,
-                json.dumps(data.metadata.model_dump(exclude_none=True)), data.source,
-                now, now, now,
+                memory_id,
+                data.partition_id,
+                data.content,
+                data.importance_score,
+                data.tags,
+                json.dumps(data.metadata.model_dump(exclude_none=True)),
+                data.source,
+                now,
+                now,
+                now,
             )
             if embedding:
                 pgvec = _to_pgvector(embedding)
                 await conn.execute(
                     "INSERT INTO memory_embeddings (memory_id, embedding) VALUES ($1, $2)",
-                    memory_id, pgvec,
+                    memory_id,
+                    pgvec,
                 )
         return await self.get(memory_id)  # type: ignore[return-value]
 
@@ -118,7 +123,9 @@ class PGMemoryStore:
 
             rows = await conn.fetch(
                 f"SELECT * FROM memories WHERE {where} ORDER BY created_at DESC LIMIT ${idx} OFFSET ${idx + 1}",
-                *params, limit, offset,
+                *params,
+                limit,
+                offset,
             )
 
         memories = [_record_to_memory(r) for r in rows]
@@ -288,14 +295,16 @@ class PGMemoryStore:
             await conn.execute(
                 """INSERT INTO memory_embeddings (memory_id, embedding) VALUES ($1, $2)
                    ON CONFLICT (memory_id) DO UPDATE SET embedding = EXCLUDED.embedding""",
-                memory_id, pgvec,
+                memory_id,
+                pgvec,
             )
 
     async def update_expiry(self, memory_id: str, expires_at: str) -> None:
         async with self.pool.acquire() as conn:
             await conn.execute(
                 "UPDATE memories SET expires_at = $1 WHERE id = $2",
-                datetime.fromisoformat(expires_at), memory_id,
+                datetime.fromisoformat(expires_at),
+                memory_id,
             )
 
 
@@ -305,15 +314,19 @@ class PGPartitionStore:
     def __init__(self, pool: asyncpg.Pool) -> None:
         self.pool = pool
 
-    async def create(
-        self, data: PartitionCreate, is_system: bool = False
-    ) -> Partition:
+    async def create(self, data: PartitionCreate, is_system: bool = False) -> Partition:
         now = _utcnow()
         async with self.pool.acquire() as conn:
             await conn.execute(
                 """INSERT INTO partitions (id, name, description, enabled, is_system, created_at, updated_at)
                    VALUES ($1, $2, $3, $4, $5, $6, $7)""",
-                data.id, data.name, data.description, data.enabled, is_system, now, now,
+                data.id,
+                data.name,
+                data.description,
+                data.enabled,
+                is_system,
+                now,
+                now,
             )
         return await self.get(data.id)  # type: ignore[return-value]
 
@@ -335,9 +348,7 @@ class PGPartitionStore:
 
     async def list(self) -> list[Partition]:
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch(
-                "SELECT * FROM partitions ORDER BY created_at"
-            )
+            rows = await conn.fetch("SELECT * FROM partitions ORDER BY created_at")
             partitions = []
             for row in rows:
                 p = _record_to_partition(row)
@@ -349,9 +360,7 @@ class PGPartitionStore:
                 partitions.append(p)
         return partitions
 
-    async def update(
-        self, partition_id: str, data: PartitionUpdate
-    ) -> Partition | None:
+    async def update(self, partition_id: str, data: PartitionUpdate) -> Partition | None:
         existing = await self.get(partition_id)
         if not existing:
             return None
@@ -411,8 +420,11 @@ class PGPartitionStore:
                        (id, name, description, enabled, is_system, created_at, updated_at)
                        VALUES ($1, $2, $3, TRUE, TRUE, $4, $5)
                        ON CONFLICT (id) DO NOTHING""",
-                    pt.value, DEFAULT_PARTITION_NAMES[pt], DEFAULT_PARTITION_DESCRIPTIONS[pt],
-                    now, now,
+                    pt.value,
+                    DEFAULT_PARTITION_NAMES[pt],
+                    DEFAULT_PARTITION_DESCRIPTIONS[pt],
+                    now,
+                    now,
                 )
 
 

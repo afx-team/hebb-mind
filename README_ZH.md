@@ -1,7 +1,7 @@
 <p align="center">
-  <h1 align="center">Hippocampus 海马体</h1>
+  <h1 align="center"><a href="https://afx-team.github.io/hippocampus/zh/">Hippocampus 海马体</a></h1>
   <p align="center">受神经科学启发的 AI Agent 记忆框架</p>
-  <p align="center"><a href="README.md">English</a> | <a href="README_ZH.md">中文</a></p>
+  <p align="center"><a href="https://afx-team.github.io/hippocampus/zh/">📖 文档</a> · <a href="README.md">English</a> | <a href="README_ZH.md">中文</a></p>
 </p>
 
 <p align="center">

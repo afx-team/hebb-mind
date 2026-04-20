@@ -80,9 +80,7 @@ async def _create_api_embedder(settings: Settings) -> EmbeddingProvider:
     return ApiEmbedder(model=model, api_key=api_key, base_url=base_url, dimension=dim)
 
 
-async def _detect_api_dimension(
-    model: str, api_key: str | None, base_url: str | None, fallback_dim: int
-) -> int:
+async def _detect_api_dimension(model: str, api_key: str | None, base_url: str | None, fallback_dim: int) -> int:
     """Detect embedding dimension: known table → probe API → fallback."""
     # 1. Check known models table
     if model in KNOWN_DIMS:

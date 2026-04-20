@@ -1,0 +1,23 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: ruff check src/
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      - id: ruff-format
+        name: ruff format check
+        entry: ruff format --check src/
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      - id: pytest
+        name: pytest
+        entry: pytest tests/ -q --tb=short
+        language: system
+        pass_filenames: false
+        types: [python]

@@ -96,9 +96,7 @@ class SchedulerManager:
                         decay_factor=self.settings.decay_factor,
                     )
                     # Update the stored expires_at for visibility
-                    await self.memory_store.update_expiry(
-                        memory.id, expires_at.isoformat()
-                    )
+                    await self.memory_store.update_expiry(memory.id, expires_at.isoformat())
                     if expires_at < now:
                         await self.memory_store.delete(memory.id)
                         self.knowledge_graph.remove_memory_from_tags(memory.id)

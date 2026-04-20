@@ -34,8 +34,4 @@ def compute_composite_score(
     total_weight = weight_recency + weight_importance + weight_relevance
     if total_weight == 0:
         return 0.0
-    return (
-        weight_recency * recency
-        + weight_importance * importance
-        + weight_relevance * relevance
-    ) / total_weight
+    return (weight_recency * recency + weight_importance * importance + weight_relevance * relevance) / total_weight

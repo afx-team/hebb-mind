@@ -73,16 +73,12 @@ class LocalEmbedder:
 
     async def embed(self, text: str) -> list[float]:
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None, partial(self._model.encode, text, normalize_embeddings=True)
-        )
+        result = await loop.run_in_executor(None, partial(self._model.encode, text, normalize_embeddings=True))
         return result.tolist()
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         loop = asyncio.get_event_loop()
-        results = await loop.run_in_executor(
-            None, partial(self._model.encode, texts, normalize_embeddings=True)
-        )
+        results = await loop.run_in_executor(None, partial(self._model.encode, texts, normalize_embeddings=True))
         return results.tolist()
 
 

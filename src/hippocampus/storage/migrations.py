@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import sys
 
 import aiosqlite
 
@@ -105,8 +104,7 @@ async def _ensure_vec_table(db: aiosqlite.Connection, embedding_dim: int) -> Non
             )
             await db.execute("DROP TABLE IF EXISTS memory_embeddings")
             await db.execute(
-                f"CREATE VIRTUAL TABLE memory_embeddings USING vec0("
-                f"memory_id TEXT PRIMARY KEY, embedding float[{dim}])"
+                f"CREATE VIRTUAL TABLE memory_embeddings USING vec0(memory_id TEXT PRIMARY KEY, embedding float[{dim}])"
             )
 
 
@@ -154,8 +152,7 @@ async def initialize_schema(
             logger.warning("Could not create vec0 table: %s. %s", e, _VEC_FIX_HINT)
             # Fallback: regular table so embedding INSERT/DELETE still works
             await db.execute(
-                "CREATE TABLE IF NOT EXISTS memory_embeddings ("
-                "memory_id TEXT PRIMARY KEY, embedding BLOB)"
+                "CREATE TABLE IF NOT EXISTS memory_embeddings (memory_id TEXT PRIMARY KEY, embedding BLOB)"
             )
 
     # FTS5 full-text search table for keyword matching

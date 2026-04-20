@@ -36,9 +36,7 @@ class SQLitePartitionStore:
     def __init__(self, db: aiosqlite.Connection) -> None:
         self.db = db
 
-    async def create(
-        self, data: PartitionCreate, is_system: bool = False
-    ) -> Partition:
+    async def create(self, data: PartitionCreate, is_system: bool = False) -> Partition:
         now = _now_iso()
         await self.db.execute(
             """INSERT INTO partitions (id, name, description, enabled, is_system, created_at, updated_at)
@@ -87,9 +85,7 @@ class SQLitePartitionStore:
             partitions.append(p)
         return partitions
 
-    async def update(
-        self, partition_id: str, data: PartitionUpdate
-    ) -> Partition | None:
+    async def update(self, partition_id: str, data: PartitionUpdate) -> Partition | None:
         existing = await self.get(partition_id)
         if not existing:
             return None

@@ -31,9 +31,12 @@ class KnowledgeGraph:
                 self.graph.add_node(node.id, **node.model_dump())
             for edge in state.edges:
                 self.graph.add_edge(
-                    edge.source, edge.target,
-                    relation=edge.relation, weight=edge.weight,
-                    source=edge.source, target=edge.target,
+                    edge.source,
+                    edge.target,
+                    relation=edge.relation,
+                    weight=edge.weight,
+                    source=edge.source,
+                    target=edge.target,
                 )
         except Exception:
             # Corrupt file — start fresh
@@ -44,23 +47,27 @@ class KnowledgeGraph:
         nodes = []
         for node_id in self.graph.nodes:
             data = self.graph.nodes[node_id]
-            nodes.append(TagNode(
-                id=data.get("id", node_id),
-                label=data.get("label", node_id),
-                description=data.get("description", ""),
-                memory_ids=data.get("memory_ids", []),
-                weight=data.get("weight", 1.0),
-            ))
+            nodes.append(
+                TagNode(
+                    id=data.get("id", node_id),
+                    label=data.get("label", node_id),
+                    description=data.get("description", ""),
+                    memory_ids=data.get("memory_ids", []),
+                    weight=data.get("weight", 1.0),
+                )
+            )
 
         edges = []
         for u, v in self.graph.edges:
             data = self.graph.edges[u, v]
-            edges.append(TagEdge(
-                source=u,
-                target=v,
-                relation=data.get("relation", "related"),
-                weight=data.get("weight", 1.0),
-            ))
+            edges.append(
+                TagEdge(
+                    source=u,
+                    target=v,
+                    relation=data.get("relation", "related"),
+                    weight=data.get("weight", 1.0),
+                )
+            )
 
         state = KnowledgeGraphState(nodes=nodes, edges=edges)
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -103,9 +110,12 @@ class KnowledgeGraph:
             self.graph.edges[source, target]["weight"] += 1.0
         else:
             self.graph.add_edge(
-                source, target,
-                relation=relation, weight=1.0,
-                source=source, target=target,
+                source,
+                target,
+                relation=relation,
+                weight=1.0,
+                source=source,
+                target=target,
             )
 
     def update_from_tags(self, tags: list[str], memory_id: str) -> None:
@@ -162,11 +172,14 @@ class KnowledgeGraph:
         for u, v in self.graph.edges:
             if u in visited and v in visited:
                 data = self.graph.edges[u, v]
-                edges.append(TagEdge(
-                    source=u, target=v,
-                    relation=data.get("relation", "related"),
-                    weight=data.get("weight", 1.0),
-                ))
+                edges.append(
+                    TagEdge(
+                        source=u,
+                        target=v,
+                        relation=data.get("relation", "related"),
+                        weight=data.get("weight", 1.0),
+                    )
+                )
 
         return GraphQueryResult(nodes=nodes, edges=edges)
 
@@ -187,11 +200,14 @@ class KnowledgeGraph:
         for i in range(len(path) - 1):
             if self.graph.has_edge(path[i], path[i + 1]):
                 data = self.graph.edges[path[i], path[i + 1]]
-                edges.append(TagEdge(
-                    source=path[i], target=path[i + 1],
-                    relation=data.get("relation", "related"),
-                    weight=data.get("weight", 1.0),
-                ))
+                edges.append(
+                    TagEdge(
+                        source=path[i],
+                        target=path[i + 1],
+                        relation=data.get("relation", "related"),
+                        weight=data.get("weight", 1.0),
+                    )
+                )
 
         return GraphQueryResult(nodes=nodes, edges=edges, paths=[path])
 
@@ -203,13 +219,15 @@ class KnowledgeGraph:
             data = self.graph.nodes[node_id]
             label = data.get("label", "")
             if query in node_id or query in label.lower():
-                results.append(TagNode(
-                    id=data.get("id", node_id),
-                    label=data.get("label", node_id),
-                    description=data.get("description", ""),
-                    memory_ids=data.get("memory_ids", []),
-                    weight=data.get("weight", 1.0),
-                ))
+                results.append(
+                    TagNode(
+                        id=data.get("id", node_id),
+                        label=data.get("label", node_id),
+                        description=data.get("description", ""),
+                        memory_ids=data.get("memory_ids", []),
+                        weight=data.get("weight", 1.0),
+                    )
+                )
         return results
 
     def get_all_tags(self) -> list[TagNode]:
@@ -222,9 +240,12 @@ class KnowledgeGraph:
         edges = []
         for u, v in self.graph.edges:
             data = self.graph.edges[u, v]
-            edges.append(TagEdge(
-                source=u, target=v,
-                relation=data.get("relation", "related"),
-                weight=data.get("weight", 1.0),
-            ))
+            edges.append(
+                TagEdge(
+                    source=u,
+                    target=v,
+                    relation=data.get("relation", "related"),
+                    weight=data.get("weight", 1.0),
+                )
+            )
         return KnowledgeGraphState(nodes=nodes, edges=edges)

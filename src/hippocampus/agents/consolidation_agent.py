@@ -82,19 +82,19 @@ class ConsolidationAgent:
 
             related_desc = "None found."
             if related:
-                related_desc = "\n".join(
-                    f"- [{m.id}] ({m.partition_id}): {m.content[:200]}"
-                    for m in related[:5]
-                )
+                related_desc = "\n".join(f"- [{m.id}] ({m.partition_id}): {m.content[:200]}" for m in related[:5])
 
             # Step 3: Ask LLM to consolidate
             messages = [
                 {"role": "system", "content": CONSOLIDATION_SYSTEM_PROMPT},
-                {"role": "user", "content": CONSOLIDATION_USER_TEMPLATE.format(
-                    content=memory.content,
-                    partitions=partition_desc,
-                    related_memories=related_desc,
-                )},
+                {
+                    "role": "user",
+                    "content": CONSOLIDATION_USER_TEMPLATE.format(
+                        content=memory.content,
+                        partitions=partition_desc,
+                        related_memories=related_desc,
+                    ),
+                },
             ]
             decision = await self.llm.complete_json(messages, temperature=0.3)
 
@@ -162,10 +162,12 @@ class ConsolidationAgent:
         If the session is too long, it is split into chunks by turn order.
         """
         # Sort by turn (None last), then by created_at
-        memories.sort(key=lambda m: (
-            m.metadata.turn if m.metadata.turn is not None else 999999,
-            m.created_at,
-        ))
+        memories.sort(
+            key=lambda m: (
+                m.metadata.turn if m.metadata.turn is not None else 999999,
+                m.created_at,
+            )
+        )
 
         # Split into chunks if too long
         chunks = self._split_into_chunks(memories)
@@ -173,7 +175,9 @@ class ConsolidationAgent:
             session_id = memories[0].metadata.session_id or "unknown"
             logger.info(
                 "Session %s too long (%d turns), split into %d chunks",
-                session_id, len(memories), len(chunks),
+                session_id,
+                len(memories),
+                len(chunks),
             )
 
         all_results: list[ConsolidationResult] = []
@@ -209,8 +213,7 @@ class ConsolidationAgent:
         try:
             # Build conversation turns text
             turns_text = "\n".join(
-                f"[Turn {m.metadata.turn if m.metadata.turn is not None else '?'}] {m.content}"
-                for m in memories
+                f"[Turn {m.metadata.turn if m.metadata.turn is not None else '?'}] {m.content}" for m in memories
             )
 
             # Recall related memories using the conversation as context
@@ -229,21 +232,21 @@ class ConsolidationAgent:
             )
             related_desc = "None found."
             if related:
-                related_desc = "\n".join(
-                    f"- [{m.id}] ({m.partition_id}): {m.content[:200]}"
-                    for m in related[:5]
-                )
+                related_desc = "\n".join(f"- [{m.id}] ({m.partition_id}): {m.content[:200]}" for m in related[:5])
 
             # Single LLM call for the entire session
             messages = [
                 {"role": "system", "content": SESSION_CONSOLIDATION_SYSTEM_PROMPT},
-                {"role": "user", "content": SESSION_CONSOLIDATION_USER_TEMPLATE.format(
-                    session_id=session_id,
-                    turn_count=len(memories),
-                    turns=turns_text,
-                    partitions=partition_desc,
-                    related_memories=related_desc,
-                )},
+                {
+                    "role": "user",
+                    "content": SESSION_CONSOLIDATION_USER_TEMPLATE.format(
+                        session_id=session_id,
+                        turn_count=len(memories),
+                        turns=turns_text,
+                        partitions=partition_desc,
+                        related_memories=related_desc,
+                    ),
+                },
             ]
             decision = await self.llm.complete_json(messages, temperature=0.3)
 
@@ -269,7 +272,8 @@ class ConsolidationAgent:
                     resolution = conflict.get("resolution", "keep_both")
                     if resolution == "update" and conflict_id:
                         await self.memory_store.update(
-                            conflict_id, MemoryUpdate(content=content),
+                            conflict_id,
+                            MemoryUpdate(content=content),
                         )
 
                 # Create consolidated memory
@@ -287,13 +291,15 @@ class ConsolidationAgent:
                 )
                 self.kg.update_from_tags(tags, new_memory.id)
 
-                results.append(ConsolidationResult(
-                    original_memory_id=f"session:{session_id}",
-                    target_partition=target_partition,
-                    new_memory_id=new_memory.id,
-                    tags_extracted=tags,
-                    success=True,
-                ))
+                results.append(
+                    ConsolidationResult(
+                        original_memory_id=f"session:{session_id}",
+                        target_partition=target_partition,
+                        new_memory_id=new_memory.id,
+                        tags_extracted=tags,
+                        success=True,
+                    )
+                )
 
             # Delete all source memories from hippocampus
             for m in memories:
@@ -301,16 +307,20 @@ class ConsolidationAgent:
 
             logger.info(
                 "Session %s: %d turns → %d memories",
-                session_id, len(memories), len(results),
+                session_id,
+                len(memories),
+                len(results),
             )
 
         except Exception as e:
             logger.error("Session consolidation failed for %s: %s", session_id, e, exc_info=True)
-            results.append(ConsolidationResult(
-                original_memory_id=f"session:{session_id}",
-                success=False,
-                error=str(e),
-            ))
+            results.append(
+                ConsolidationResult(
+                    original_memory_id=f"session:{session_id}",
+                    success=False,
+                    error=str(e),
+                )
+            )
 
         return results
 
@@ -320,9 +330,7 @@ class ConsolidationAgent:
         Groups memories by session_id (sorted by turn), consolidates each session
         in a single LLM call. Memories without session_id are processed individually.
         """
-        memories = await self.memory_store.get_by_partition(
-            PartitionType.HIPPOCAMPUS.value
-        )
+        memories = await self.memory_store.get_by_partition(PartitionType.HIPPOCAMPUS.value)
 
         # Group by session_id
         sessions: dict[str, list[Memory]] = {}
@@ -336,7 +344,8 @@ class ConsolidationAgent:
                 logger.warning(
                     "Memory %s has turn=%d but no session_id, consolidating individually. "
                     "Set session_id for session-level consolidation.",
-                    m.id, m.metadata.turn,
+                    m.id,
+                    m.metadata.turn,
                 )
                 standalone.append(m)
             else:
@@ -374,13 +383,14 @@ class ConsolidationAgent:
         succeeded = sum(1 for r in all_results if r.success)
         logger.info(
             "Consolidation complete: %d sessions + %d standalone → %d results (%d succeeded)",
-            session_count, standalone_count, len(all_results), succeeded,
+            session_count,
+            standalone_count,
+            len(all_results),
+            succeeded,
         )
         return all_results
 
-    async def _consolidate_one(
-        self, memory: Memory, kg_lock: asyncio.Lock
-    ) -> ConsolidationResult:
+    async def _consolidate_one(self, memory: Memory, kg_lock: asyncio.Lock) -> ConsolidationResult:
         """consolidate_memory variant that uses a lock for KG writes."""
         result = ConsolidationResult(original_memory_id=memory.id)
         try:
@@ -396,17 +406,17 @@ class ConsolidationAgent:
             )
             related_desc = "None found."
             if related:
-                related_desc = "\n".join(
-                    f"- [{m.id}] ({m.partition_id}): {m.content[:200]}"
-                    for m in related[:5]
-                )
+                related_desc = "\n".join(f"- [{m.id}] ({m.partition_id}): {m.content[:200]}" for m in related[:5])
             messages = [
                 {"role": "system", "content": CONSOLIDATION_SYSTEM_PROMPT},
-                {"role": "user", "content": CONSOLIDATION_USER_TEMPLATE.format(
-                    content=memory.content,
-                    partitions=partition_desc,
-                    related_memories=related_desc,
-                )},
+                {
+                    "role": "user",
+                    "content": CONSOLIDATION_USER_TEMPLATE.format(
+                        content=memory.content,
+                        partitions=partition_desc,
+                        related_memories=related_desc,
+                    ),
+                },
             ]
             decision = await self.llm.complete_json(messages, temperature=0.3)
 
@@ -421,7 +431,8 @@ class ConsolidationAgent:
                 resolution = conflict.get("resolution", "keep_both")
                 if resolution == "update" and conflict_id:
                     await self.memory_store.update(
-                        conflict_id, MemoryUpdate(content=consolidated_content),
+                        conflict_id,
+                        MemoryUpdate(content=consolidated_content),
                     )
                     result.conflicts_resolved += 1
                 elif resolution == "discard":

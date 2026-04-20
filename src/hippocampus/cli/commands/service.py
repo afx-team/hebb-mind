@@ -135,7 +135,7 @@ def service_uninstall() -> None:
 
 def _install_systemd() -> None:
     unit = _systemd_unit()
-    console.print(f"[bold]Installing systemd service...[/]")
+    console.print("[bold]Installing systemd service...[/]")
     console.print(f"  Unit file: {SYSTEMD_PATH}")
     console.print(f"  Working dir: {_working_dir()}")
     console.print(f"  Command: {_hippocampus_bin()} start")
@@ -197,7 +197,7 @@ def _uninstall_systemd() -> None:
 
 def _install_launchd() -> None:
     plist = _launchd_plist()
-    console.print(f"[bold]Installing launchd service...[/]")
+    console.print("[bold]Installing launchd service...[/]")
     console.print(f"  Plist: {LAUNCHD_PATH}")
     console.print(f"  Working dir: {_working_dir()}")
     console.print(f"  Command: {_hippocampus_bin()} start")
@@ -209,8 +209,8 @@ def _install_launchd() -> None:
     subprocess.run(["launchctl", "load", str(LAUNCHD_PATH)], check=True)
     console.print("[green]Service installed and started.[/]")
     console.print("  Logs:    [cmd]tail -f /tmp/hippocampus.log[/]")
-    console.print("  Stop:    [cmd]launchctl unload {}[/]".format(LAUNCHD_PATH))
-    console.print("  Restart: [cmd]launchctl unload {} && launchctl load {}[/]".format(LAUNCHD_PATH, LAUNCHD_PATH))
+    console.print(f"  Stop:    [cmd]launchctl unload {LAUNCHD_PATH}[/]")
+    console.print(f"  Restart: [cmd]launchctl unload {LAUNCHD_PATH} && launchctl load {LAUNCHD_PATH}[/]")
 
 
 def _uninstall_launchd() -> None:

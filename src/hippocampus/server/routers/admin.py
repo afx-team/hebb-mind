@@ -61,8 +61,7 @@ async def get_stats(
 ):
     partitions = await partition_store.list()
     partition_stats = [
-        {"id": p.id, "name": p.name, "memory_count": p.memory_count, "enabled": p.enabled}
-        for p in partitions
+        {"id": p.id, "name": p.name, "memory_count": p.memory_count, "enabled": p.enabled} for p in partitions
     ]
     graph_state = kg.export()
     return {
