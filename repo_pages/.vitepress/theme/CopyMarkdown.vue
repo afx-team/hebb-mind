@@ -94,11 +94,10 @@ async function copy() {
   font-size: 12px;
   cursor: pointer;
   transition: all 0.2s;
-  opacity: 0;
+  opacity: 0.8;
   backdrop-filter: blur(8px);
-  /* Light mode: dark text on light bg; Dark mode: light text on dark bg */
   background: var(--vp-c-bg-soft);
-  color: var(--vp-c-text-2);
+  color: var(--vp-c-text-1);
 }
 .copy-md-wrapper:hover .copy-md-btn,
 .copy-md-btn:focus,
