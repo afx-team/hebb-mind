@@ -3,7 +3,7 @@ name = "afx-hippocampus"
 version = "0.1.1"
 description = "Neuroscience-inspired memory framework for AI agents / 海马体 — Agent 大脑记忆框架"
 readme = "README.md"
-license = {text = "Apache-2.0"}
+license = {text = "MIT"}
 requires-python = ">=3.10"
 authors = [
     { name = "afx-team", email = "afx-team@users.noreply.github.com" },
@@ -12,7 +12,7 @@ keywords = ["agent", "memory", "llm", "ai", "hippocampus", "rag", "mcp"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",

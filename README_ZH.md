@@ -8,7 +8,7 @@
   <a href="https://afx-team.github.io/hippocampus/zh/"><img src="https://img.shields.io/badge/docs-afx--team.github.io-blue" alt="Documentation"></a>
   <a href="https://github.com/afx-team/hippocampus/actions"><img src="https://github.com/afx-team/hippocampus/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://pypi.org/project/afx-hippocampus/"><img src="https://img.shields.io/pypi/v/afx-hippocampus" alt="PyPI"></a>
-  <a href="https://github.com/afx-team/hippocampus/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
+  <a href="https://github.com/afx-team/hippocampus/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"></a>
   <img src="https://img.shields.io/pypi/pyversions/afx-hippocampus" alt="Python">
 </p>
 
@@ -240,7 +240,7 @@ mypy src/hippocampus/
 
 ## 许可证
 
-[Apache License 2.0](LICENSE)
+[MIT License](LICENSE)
 
 ---
 
