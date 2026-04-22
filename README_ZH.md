@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center"><a href="https://afx-team.github.io/hippocampus/zh/">Hippocampus 海马体</a></h1>
+  <h1 align="center"><a href="https://afx-team.github.io/hippocampus/zh/">海马体 Hippocampus</a></h1>
   <p align="center">受神经科学启发的 AI Agent 记忆框架</p>
   <p align="center"><a href="https://afx-team.github.io/hippocampus/zh/">📖 文档</a> · <a href="README.md">English</a> | <a href="README_ZH.md">中文</a></p>
 </p>
@@ -16,64 +16,51 @@
 
 Hippocampus 为你的 AI Agent 提供**类脑记忆系统**。正如人类大脑中的海马体将短期经验巩固为长期知识，本框架能自动组织、排序和遗忘记忆，让你的 Agent 始终保持敏锐。
 
-## 为什么选择 Hippocampus？
+## 目录
+
+- [背景与动机](#背景与动机)
+- [特性](#特性)
+- [快速开始](#快速开始)
+- [安装说明](#安装说明)
+- [使用方法](#使用方法)
+- [API 文档](#api-文档)
+- [配置](#配置)
+- [支持的模型](#支持的模型)
+- [贡献指南](#贡献指南)
+- [路线图](#路线图)
+- [致谢](#致谢)
+- [许可证](#许可证)
+
+## 背景与动机
+
+当前的 AI Agent 将每次对话视为无状态——每次会话后遗忘一切。虽然已有记忆解决方案，但都存在明显局限：
+
+- **Mem0** 仅添加记忆，从不巩固或解决冲突
+- **Letta** 需要独立的"睡眠代理"和外部数据库
+- **Zep** 依赖 PostgreSQL + Neo4j，部署复杂
+
+Hippocampus 借鉴神经科学，通过**零配置、自动化的记忆生命周期**解决这些问题。人类海马体不仅存储记忆——它还分类、巩固和修剪记忆。本框架将同样的智能带给 AI Agent。
 
 | 特性 | Mem0 | Letta | Zep | **Hippocampus** |
 |------|------|-------|-----|-----------------|
-| 多模型支持 | Yes | Yes | Yes | Via LiteLLM |
-| 知识图谱 | Partial | No | Yes | Tag-based |
-| Web 管理界面 | Yes | Cloud only | Cloud only | Built-in SPA |
-| MCP Server | Yes | Consumer only | Yes | Built-in, auto-start |
-| 记忆巩固 | ADD-only | Sleeptime Agent | Contradiction resolve | **Automatic + conflict resolve** |
-| 遗忘/衰减 | No | No | Temporal invalidation | **Dynamic TTL** |
-| 零配置部署 | API key required | API key + DB | Postgres + Neo4j | **SQLite + local embed** |
+| 多模型支持 | Yes | Yes | Yes | 通过 [LiteLLM](https://github.com/BerriAI/litellm) |
+| 知识图谱 | Partial | No | Yes | 基于标签 |
+| Web 管理界面 | Yes | Cloud only | Cloud only | 内置 SPA |
+| [MCP](https://modelcontextprotocol.io/) Server | Yes | Consumer only | Yes | 内置，自动启动 |
+| 记忆巩固 | 仅添加 | Sleeptime Agent | 冲突解决 | **自动 + 冲突解决** |
+| 遗忘/衰减 | No | No | 时间失效 | **动态 TTL** |
+| 零配置部署 | API key required | API key + DB | Postgres + Neo4j | **SQLite + 本地嵌入** |
 
-## 架构
+## 特性
 
-<div align="center">
-
-<table>
-<tr>
-<td align="center" colspan="5" style="padding:4px 12px; background:#1a1a2e; border-radius:8px; color:#e0e0e0; font-weight:600;">
-API · MCP · CLI
-</td>
-</tr>
-<tr><td align="center" colspan="5" style="font-size:18px; color:#555;">▼</td></tr>
-<tr>
-<td align="center" colspan="5" style="padding:8px 16px; background:#16213e; border-radius:8px;">
-<b style="color:#00d2ff; font-size:15px;">HIPPOCAMPUS</b><br/>
-<span style="color:#888; font-size:12px;">工作记忆收件箱</span>
-</td>
-</tr>
-<tr><td align="center" colspan="5" style="font-size:14px; color:#555;">▼&nbsp; 巩固代理 <span style="color:#666; font-size:11px;">(Agentic RAG · 分类 · 冲突解决 · 标签提取)</span></td></tr>
-<tr>
-<td align="center" style="padding:6px 10px; background:#1b4332; border-radius:6px; min-width:90px;">
-<b style="color:#52b788;">语义</b><br/><span style="color:#888; font-size:11px;">知识/事实</span>
-</td>
-<td align="center" style="padding:6px 10px; background:#3c1642; border-radius:6px; min-width:90px;">
-<b style="color:#c77dff;">情景</b><br/><span style="color:#888; font-size:11px;">经历/事件</span>
-</td>
-<td align="center" style="padding:6px 10px; background:#6b2d5b; border-radius:6px; min-width:90px;">
-<b style="color:#ff6b6b;">偏好</b><br/><span style="color:#888; font-size:11px;">喜好/厌恶</span>
-</td>
-<td align="center" style="padding:6px 10px; background:#2d3a4a; border-radius:6px; min-width:90px;">
-<b style="color:#4ecdc4;">程序性</b><br/><span style="color:#888; font-size:11px;">技能/方法</span>
-</td>
-<td align="center" style="padding:6px 10px; background:#3d3d3d; border-radius:6px; min-width:90px;">
-<b style="color:#aaa;">自定义</b><br/><span style="color:#888; font-size:11px;">你的分区</span>
-</td>
-</tr>
-<tr><td align="center" colspan="5" style="font-size:14px; padding-top:4px;">
-<span style="color:#555;">▼</span>&nbsp;
-<span style="color:#666; font-size:12px;">混合检索</span>
-<span style="color:#555;">&nbsp;⟷&nbsp;</span>
-<span style="color:#666; font-size:12px;">知识图谱</span>
-<span style="color:#555;">&nbsp;⟷&nbsp;</span>
-<span style="color:#666; font-size:12px;">动态遗忘 (TTL)</span>
-</td></tr>
-</table>
-
-</div>
+- **类脑记忆分区** — 语义、情景、偏好、程序性和自定义分区，基于认知科学（[CoALA 框架](https://arxiv.org/abs/2309.02427)）
+- **自动巩固** — Agentic RAG 管道自动分类、解决冲突、提取标签到知识图谱
+- **动态遗忘** — 基于 TTL 的衰减：常用记忆存活，被忽略的自然消失
+- **混合检索** — 三路搜索（向量 + 关键词 + 图谱），结合时效/重要性/相关性评分
+- **零配置设置** — SQLite + 本地嵌入，无需外部服务
+- **多模型支持** — 通过 LiteLLM 支持 OpenAI、Anthropic、通义千问、GLM、Kimi 等 100+ 提供商
+- **内置 Web 控制台** — 记忆增删改查、搜索和图谱可视化
+- **MCP Server** — 原生集成 Claude Code 及其他 MCP 兼容客户端
 
 ## 快速开始
 
@@ -86,17 +73,22 @@ hippocampus start                 # 启动服务 → http://localhost:8321/
 
 打开 http://localhost:8321/ 使用 **Web 管理控制台**，或访问 http://localhost:8321/docs 查看 API 文档。
 
-<details>
-<summary><b>其他安装方式</b></summary>
+## 安装说明
 
-**Docker 部署：**
+### pip（推荐）
+
+```bash
+pip install afx-hippocampus
+```
+
+### Docker 部署
 
 ```bash
 git clone https://github.com/afx-team/hippocampus.git && cd hippocampus
 docker compose -f docker/docker-compose.yml up
 ```
 
-**一键安装：**
+### 一键安装
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/afx-team/hippocampus/main/scripts/install.sh | sh
@@ -104,10 +96,18 @@ curl -fsSL https://raw.githubusercontent.com/afx-team/hippocampus/main/scripts/i
 # 交互模式（选择 PostgreSQL 后端等）
 curl -fsSL https://raw.githubusercontent.com/afx-team/hippocampus/main/scripts/install.sh | sh -s -- --interactive
 ```
-</details>
 
-<details>
-<summary><b>30 秒体验</b></summary>
+### PostgreSQL 后端（生产环境）
+
+```bash
+pip install afx-hippocampus[pg]
+hippocampus config set storage_type postgresql
+hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
+```
+
+## 使用方法
+
+### 存储和搜索记忆
 
 ```bash
 # 存储记忆
@@ -127,9 +127,8 @@ curl -X POST http://localhost:8321/api/v1/admin/consolidate
 curl http://localhost:8321/api/v1/graph/tags
 curl http://localhost:8321/api/v1/graph/neighbors/python?depth=2
 ```
-</details>
 
-## 工作原理
+### 工作原理
 
 记忆经历四个阶段 — 模拟人类海马体将短期经验巩固为长期知识的过程：
 
@@ -141,6 +140,25 @@ curl http://localhost:8321/api/v1/graph/neighbors/python?depth=2
 | **遗忘** | 动态 TTL：`base × (1 + log(访问次数)) × 重要度 × exp(-衰减率 × 天数)` — 常用记忆存活，被忽略的自然消失 | 周期性 |
 
 > 详细说明：[记忆生命周期](https://afx-team.github.io/hippocampus/zh/concepts/memory-lifecycle.html) · [记忆巩固](https://afx-team.github.io/hippocampus/zh/concepts/consolidation.html) · [混合检索](https://afx-team.github.io/hippocampus/zh/concepts/hybrid-search.html) · [动态遗忘](https://afx-team.github.io/hippocampus/zh/concepts/forgetting.html)
+
+## API 文档
+
+Hippocampus 提供 RESTful API 用于记忆管理：
+
+- **交互式文档**：http://localhost:8321/docs（Swagger UI）
+- **完整 API 参考**：[API 文档](https://afx-team.github.io/hippocampus/api/)
+
+主要端点：
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| `POST` | `/api/v1/memories` | 存储新记忆 |
+| `GET` | `/api/v1/memories/{id}` | 按 ID 获取记忆 |
+| `DELETE` | `/api/v1/memories/{id}` | 删除记忆 |
+| `POST` | `/api/v1/search` | 混合搜索 |
+| `POST` | `/api/v1/admin/consolidate` | 触发巩固 |
+| `GET` | `/api/v1/graph/tags` | 列出知识图谱标签 |
+| `GET` | `/api/v1/graph/neighbors/{tag}` | 探索标签关系 |
 
 ## 配置
 
@@ -154,7 +172,7 @@ hippocampus config set llm_base_url https://dashscope.aliyuncs.com/compatible-mo
 
 | 字段 | 默认值 | 说明 |
 |------|--------|------|
-| `llm_model` | `openai/gpt-4o-mini` | LLM 模型标识（通过 LiteLLM）|
+| `llm_model` | `openai/gpt-4o-mini` | LLM 模型标识（通过 [LiteLLM](https://github.com/BerriAI/litellm)）|
 | `llm_api_key` | `null` | LLM API 密钥（巩固功能必需）|
 | `llm_base_url` | `null` | 自定义 LLM API 端点（用于通义千问/GLM/Kimi）|
 | `storage_type` | `sqlite` | `sqlite` 或 `postgresql` |
@@ -162,20 +180,6 @@ hippocampus config set llm_base_url https://dashscope.aliyuncs.com/compatible-mo
 | `port` | `8321` | 服务端口 |
 | `consolidation_interval_seconds` | `3600` | 巩固任务执行间隔 |
 | `base_ttl_hours` | `168` | 基础记忆 TTL |
-
-<details>
-<summary><b>存储后端</b></summary>
-
-**SQLite（默认）** — 零配置，单文件，适合个人使用和开发。
-
-**PostgreSQL + pgvector** — 生产级，连接池，原生向量类型。
-
-```bash
-pip install afx-hippocampus[pg]
-hippocampus config set storage_type postgresql
-hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
-```
-</details>
 
 > 完整配置参考：[配置指南](https://afx-team.github.io/hippocampus/zh/guide/configuration.html)
 
@@ -191,7 +195,11 @@ hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
 | 智谱 GLM | `openai/glm-4` | `llm_api_key` + `llm_base_url` |
 | Kimi (Moonshot) | `openai/moonshot-v1-8k` | `llm_api_key` + `llm_base_url` |
 
-## 开发
+## 贡献指南
+
+欢迎贡献！详见 [CONTRIBUTING.md](CONTRIBUTING.md) 了解开发环境搭建、测试和 PR 流程。
+
+### 开发环境搭建
 
 ```bash
 git clone https://github.com/afx-team/hippocampus.git
@@ -209,8 +217,6 @@ ruff check src/
 mypy src/hippocampus/
 ```
 
-详见 [CONTRIBUTING.md](CONTRIBUTING.md) 了解贡献指南。
-
 ## 路线图
 
 - [x] 5 个类脑记忆分区的核心模型
@@ -227,23 +233,17 @@ mypy src/hippocampus/
 - [ ] 多 Agent 共享记忆
 - [ ] 情感标签与记忆重要性学习
 
-## 研究参考
+## 致谢
 
 本项目参考了以下研究：
 
-- [Generative Agents](https://arxiv.org/abs/2304.03442) — 时效-重要性-相关性检索
+- [Generative Agents](https://arxiv.org/abs/2304.03442) — 时效-重要性-相关性检索评分
 - [MemGPT / Letta](https://arxiv.org/abs/2310.08560) — Agent 驱动的记忆管理
 - [CoALA](https://arxiv.org/abs/2309.02427) — 情景/语义/程序性分类体系
 - [Zep / Graphiti](https://github.com/getzep/graphiti) — 时序知识图谱
 
-详见 [repo_pages/papers/](https://github.com/afx-team/hippocampus/tree/main/repo_pages/papers/) 了解详细调研笔记。
+详见[研究笔记](https://github.com/afx-team/hippocampus/tree/main/repo_pages/papers/)了解详细调研。
 
 ## 许可证
 
 [MIT License](LICENSE)
-
----
-
-<p align="center">
-  由 <a href="https://github.com/afx-team">afx-team</a> 构建
-</p>

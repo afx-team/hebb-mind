@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center"><a href="https://afx-team.github.io/hippocampus/">Hippocampus 海马体</a></h1>
+  <h1 align="center"><a href="https://afx-team.github.io/hippocampus/">Hippocampus</a></h1>
   <p align="center">Neuroscience-inspired memory framework for AI agents</p>
   <p align="center"><a href="https://afx-team.github.io/hippocampus/">📖 Documentation</a> · <a href="README.md">English</a> | <a href="README_ZH.md">中文</a></p>
 </p>
@@ -16,64 +16,51 @@
 
 Hippocampus gives your AI agents a **brain-like memory system**. Just like the human hippocampus consolidates short-term experiences into long-term knowledge, this framework automatically organizes, prioritizes, and forgets memories so your agents stay sharp.
 
-## Why Hippocampus?
+## Table of Contents
+
+- [Background & Motivation](#background--motivation)
+- [Features](#features)
+- [Quick Start](#quick-start)
+- [Installation](#installation)
+- [Usage](#usage)
+- [API Documentation](#api-documentation)
+- [Configuration](#configuration)
+- [Supported Models](#supported-models)
+- [Contributing](#contributing)
+- [Roadmap](#roadmap)
+- [Acknowledgments](#acknowledgments)
+- [License](#license)
+
+## Background & Motivation
+
+Current AI agents treat every conversation as stateless — they forget everything after each session. While existing memory solutions exist, they have significant limitations:
+
+- **Mem0** only adds memories, never consolidates or resolves conflicts
+- **Letta** requires a separate "sleeptime agent" and external databases
+- **Zep** depends on PostgreSQL + Neo4j, with complex setup
+
+Hippocampus addresses these gaps with a **zero-config, automatic memory lifecycle** inspired by neuroscience. The human hippocampus doesn't just store memories — it classifies, consolidates, and prunes them. This framework brings that same intelligence to AI agents.
 
 | Feature | Mem0 | Letta | Zep | **Hippocampus** |
 |---------|------|-------|-----|-----------------|
-| Multi-model support | Yes | Yes | Yes | Via LiteLLM |
+| Multi-model support | Yes | Yes | Yes | Via [LiteLLM](https://github.com/BerriAI/litellm) |
 | Knowledge graph | Partial | No | Yes | Tag-based |
 | Web management UI | Yes | Cloud only | Cloud only | Built-in SPA |
-| MCP Server | Yes | Consumer only | Yes | Built-in, auto-start |
+| [MCP](https://modelcontextprotocol.io/) Server | Yes | Consumer only | Yes | Built-in, auto-start |
 | Memory consolidation | ADD-only | Sleeptime Agent | Contradiction resolve | **Automatic + conflict resolve** |
 | Forgetting / decay | No | No | Temporal invalidation | **Dynamic TTL** |
 | Zero-config deploy | API key required | API key + DB | Postgres + Neo4j | **SQLite + local embed** |
 
-## Architecture
+## Features
 
-<div align="center">
-
-<table>
-<tr>
-<td align="center" colspan="5" style="padding:4px 12px; background:#1a1a2e; border-radius:8px; color:#e0e0e0; font-weight:600;">
-API / MCP / CLI
-</td>
-</tr>
-<tr><td align="center" colspan="5" style="font-size:18px; color:#555;">▼</td></tr>
-<tr>
-<td align="center" colspan="5" style="padding:8px 16px; background:#16213e; border-radius:8px;">
-<b style="color:#00d2ff; font-size:15px;">HIPPOCAMPUS</b><br/>
-<span style="color:#888; font-size:12px;">Working Memory Inbox</span>
-</td>
-</tr>
-<tr><td align="center" colspan="5" style="font-size:14px; color:#555;">▼&nbsp; Consolidation Agent <span style="color:#666; font-size:11px;">(Agentic RAG · Classify · Conflict Resolve · Tag Extract)</span></td></tr>
-<tr>
-<td align="center" style="padding:6px 10px; background:#1b4332; border-radius:6px; min-width:90px;">
-<b style="color:#52b788;">SEMANTIC</b><br/><span style="color:#888; font-size:11px;">Facts & Knowledge</span>
-</td>
-<td align="center" style="padding:6px 10px; background:#3c1642; border-radius:6px; min-width:90px;">
-<b style="color:#c77dff;">EPISODIC</b><br/><span style="color:#888; font-size:11px;">Events & History</span>
-</td>
-<td align="center" style="padding:6px 10px; background:#6b2d5b; border-radius:6px; min-width:90px;">
-<b style="color:#ff6b6b;">PREFERENCE</b><br/><span style="color:#888; font-size:11px;">Likes & Dislikes</span>
-</td>
-<td align="center" style="padding:6px 10px; background:#2d3a4a; border-radius:6px; min-width:90px;">
-<b style="color:#4ecdc4;">PROCEDURAL</b><br/><span style="color:#888; font-size:11px;">Skills & How-to</span>
-</td>
-<td align="center" style="padding:6px 10px; background:#3d3d3d; border-radius:6px; min-width:90px;">
-<b style="color:#aaa;">CUSTOM</b><br/><span style="color:#888; font-size:11px;">Your Partitions</span>
-</td>
-</tr>
-<tr><td align="center" colspan="5" style="font-size:14px; padding-top:4px;">
-<span style="color:#555;">▼</span>&nbsp;
-<span style="color:#666; font-size:12px;">Hybrid Retrieval</span>
-<span style="color:#555;">&nbsp;⟷&nbsp;</span>
-<span style="color:#666; font-size:12px;">Knowledge Graph</span>
-<span style="color:#555;">&nbsp;⟷&nbsp;</span>
-<span style="color:#666; font-size:12px;">Forgetting (Dynamic TTL)</span>
-</td></tr>
-</table>
-
-</div>
+- **Brain-inspired memory partitions** — Semantic, Episodic, Preference, Procedural, and Custom partitions modeled after cognitive science ([CoALA framework](https://arxiv.org/abs/2309.02427))
+- **Automatic consolidation** — Agentic RAG pipeline classifies, resolves conflicts, and extracts tags into a knowledge graph
+- **Dynamic forgetting** — TTL-based decay: frequently used memories survive, neglected ones fade
+- **Hybrid retrieval** — Three-path search (vector + keyword + graph) with recency/importance/relevance scoring
+- **Zero-config setup** — SQLite + local embedding, no external services required
+- **Multi-model support** — Works with OpenAI, Anthropic, Qwen, GLM, Kimi, and 100+ providers via LiteLLM
+- **Built-in Web Console** — Memory CRUD, search, and graph visualization in a single-page app
+- **MCP Server** — Native integration with Claude Code and other MCP-compatible clients
 
 ## Quick Start
 
@@ -86,25 +73,38 @@ hippocampus start                 # Start server → http://localhost:8321/
 
 Open http://localhost:8321/ for the **Web Console**, or http://localhost:8321/docs for the API docs.
 
-<details>
-<summary><b>Alternative install methods</b></summary>
+## Installation
 
-**Docker:**
+### pip (recommended)
+
+```bash
+pip install afx-hippocampus
+```
+
+### Docker
 
 ```bash
 git clone https://github.com/afx-team/hippocampus.git && cd hippocampus
 docker compose -f docker/docker-compose.yml up
 ```
 
-**One-line install:**
+### One-line install
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/afx-team/hippocampus/main/scripts/install.sh | sh
 ```
-</details>
 
-<details>
-<summary><b>Try it in 30 seconds</b></summary>
+### PostgreSQL backend (production)
+
+```bash
+pip install afx-hippocampus[pg]
+hippocampus config set storage_type postgresql
+hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
+```
+
+## Usage
+
+### Store and search memories
 
 ```bash
 # Store a memory
@@ -124,9 +124,8 @@ curl -X POST http://localhost:8321/api/v1/admin/consolidate
 curl http://localhost:8321/api/v1/graph/tags
 curl http://localhost:8321/api/v1/graph/neighbors/python?depth=2
 ```
-</details>
 
-## How It Works
+### How it works
 
 Memories flow through four stages — inspired by how the human hippocampus consolidates short-term experiences into long-term knowledge:
 
@@ -138,6 +137,25 @@ Memories flow through four stages — inspired by how the human hippocampus cons
 | **Forget** | Dynamic TTL: `base × (1 + log(access)) × importance × exp(-decay × days)` — frequently used memories survive, neglected ones fade | Periodic |
 
 > Full details: [Memory Lifecycle](https://afx-team.github.io/hippocampus/concepts/memory-lifecycle.html) · [Consolidation](https://afx-team.github.io/hippocampus/concepts/consolidation.html) · [Hybrid Search](https://afx-team.github.io/hippocampus/concepts/hybrid-search.html) · [Forgetting](https://afx-team.github.io/hippocampus/concepts/forgetting.html)
+
+## API Documentation
+
+Hippocampus provides a RESTful API for memory management:
+
+- **Interactive docs**: http://localhost:8321/docs (Swagger UI)
+- **Full API reference**: [API Documentation](https://afx-team.github.io/hippocampus/api/)
+
+Key endpoints:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/memories` | Store a new memory |
+| `GET` | `/api/v1/memories/{id}` | Get memory by ID |
+| `DELETE` | `/api/v1/memories/{id}` | Delete a memory |
+| `POST` | `/api/v1/search` | Hybrid search |
+| `POST` | `/api/v1/admin/consolidate` | Trigger consolidation |
+| `GET` | `/api/v1/graph/tags` | List knowledge graph tags |
+| `GET` | `/api/v1/graph/neighbors/{tag}` | Explore tag relationships |
 
 ## Configuration
 
@@ -151,7 +169,7 @@ hippocampus config set llm_base_url https://dashscope.aliyuncs.com/compatible-mo
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `llm_model` | `openai/gpt-4o-mini` | LLM model identifier (via LiteLLM) |
+| `llm_model` | `openai/gpt-4o-mini` | LLM model identifier (via [LiteLLM](https://github.com/BerriAI/litellm)) |
 | `llm_api_key` | `null` | LLM provider API key (required for consolidation) |
 | `llm_base_url` | `null` | Custom LLM API endpoint (for Qwen/GLM/Kimi) |
 | `storage_type` | `sqlite` | `sqlite` or `postgresql` |
@@ -160,35 +178,25 @@ hippocampus config set llm_base_url https://dashscope.aliyuncs.com/compatible-mo
 | `consolidation_interval_seconds` | `3600` | How often consolidation runs |
 | `base_ttl_hours` | `168` | Base memory TTL before decay |
 
-<details>
-<summary><b>Storage backends</b></summary>
-
-**SQLite (default)** — zero-config, single file, great for personal use and development.
-
-**PostgreSQL + pgvector** — production-grade, connection pooling, native vector types.
-
-```bash
-pip install afx-hippocampus[pg]
-hippocampus config set storage_type postgresql
-hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
-```
-</details>
-
 > Full config reference: [Configuration Guide](https://afx-team.github.io/hippocampus/guide/configuration.html)
 
 ## Supported Models
 
 Via [LiteLLM](https://github.com/BerriAI/litellm), Hippocampus works with any major LLM provider:
 
-| Provider | Model Example | Env Var |
-|----------|--------------|---------|
-| OpenAI | `openai/gpt-4o-mini` | `OPENAI_API_KEY` |
-| Anthropic | `anthropic/claude-3-haiku-20240307` | `ANTHROPIC_API_KEY` |
-| Qwen (Alibaba) | `openai/qwen-plus` | `HIPPOCAMPUS_LLM_API_KEY` + `HIPPOCAMPUS_LLM_BASE_URL` |
-| GLM (Zhipu) | `openai/glm-4` | `HIPPOCAMPUS_LLM_API_KEY` + `HIPPOCAMPUS_LLM_BASE_URL` |
-| Kimi (Moonshot) | `openai/moonshot-v1-8k` | `HIPPOCAMPUS_LLM_API_KEY` + `HIPPOCAMPUS_LLM_BASE_URL` |
+| Provider | Model Example | Config |
+|----------|--------------|--------|
+| OpenAI | `openai/gpt-4o-mini` | `llm_api_key` |
+| Anthropic | `anthropic/claude-3-haiku-20240307` | `llm_api_key` |
+| Qwen (Alibaba) | `openai/qwen-plus` | `llm_api_key` + `llm_base_url` |
+| GLM (Zhipu) | `openai/glm-4` | `llm_api_key` + `llm_base_url` |
+| Kimi (Moonshot) | `openai/moonshot-v1-8k` | `llm_api_key` + `llm_base_url` |
 
-## Development
+## Contributing
+
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines including development setup, testing, and pull request process.
+
+### Development setup
 
 ```bash
 git clone https://github.com/afx-team/hippocampus.git
@@ -206,8 +214,6 @@ ruff check src/
 mypy src/hippocampus/
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
-
 ## Roadmap
 
 - [x] Core memory model with 5 brain-inspired partitions
@@ -224,13 +230,17 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 - [ ] Multi-agent shared memory
 - [ ] Emotional tagging and memory importance learning
 
+## Acknowledgments
+
+This project builds on research from:
+
+- [Generative Agents](https://arxiv.org/abs/2304.03442) — Recency-importance-relevance retrieval scoring
+- [MemGPT / Letta](https://arxiv.org/abs/2310.08560) — Agent-driven memory management
+- [CoALA](https://arxiv.org/abs/2309.02427) — Episodic/semantic/procedural taxonomy
+- [Zep / Graphiti](https://github.com/getzep/graphiti) — Temporal knowledge graph
+
+See [research notes](https://github.com/afx-team/hippocampus/tree/main/repo_pages/papers/) for detailed survey.
 
 ## License
 
 [MIT License](LICENSE)
-
----
-
-<p align="center">
-  Built by <a href="https://github.com/afx-team">afx-team</a>
-</p>
