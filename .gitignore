@@ -50,3 +50,4 @@ repo_pages/.vitepress/cache/
 
 # Model weights tracked via Git LFS (see .gitattributes)
 # models/ is NOT ignored — it's committed with LFS
+.research/

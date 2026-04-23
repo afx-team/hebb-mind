@@ -141,6 +141,55 @@ curl http://localhost:8321/api/v1/graph/neighbors/python?depth=2
 
 > 详细说明：[记忆生命周期](https://afx-team.github.io/hippocampus/zh/concepts/memory-lifecycle.html) · [记忆巩固](https://afx-team.github.io/hippocampus/zh/concepts/consolidation.html) · [混合检索](https://afx-team.github.io/hippocampus/zh/concepts/hybrid-search.html) · [动态遗忘](https://afx-team.github.io/hippocampus/zh/concepts/forgetting.html)
 
+### 架构
+
+```mermaid
+flowchart TB
+    subgraph Interface["接口层"]
+        direction LR
+        A1["REST API"]
+        A2["MCP Server"]
+        A3["CLI"]
+        A4["Web Console"]
+    end
+
+    subgraph Core["Hippocampus 核心"]
+        B1["工作记忆收件箱"]
+        B2["巩固代理"]
+        B3["回忆代理 · Agentic RAG"]
+        B4["调度器 · APScheduler"]
+    end
+
+    subgraph Engine["处理引擎"]
+        direction LR
+        C1["混合检索\n向量 · 全文 · 图谱"]
+        C2["知识图谱\n标签图谱 · NetworkX"]
+        C3["评分引擎\n时效性 · 重要性 · 相关性"]
+        C4["动态遗忘\n艾宾浩斯 TTL 衰减"]
+    end
+
+    subgraph Infra["基础设施"]
+        direction LR
+        D1["存储\nSQLite + sqlite-vec\nPostgreSQL + pgvector"]
+        D2["嵌入\n本地 · sentence-transformers\nAPI · LiteLLM"]
+        D3["LLM\n100+ 提供商\nvia LiteLLM"]
+    end
+
+    subgraph Parts["记忆分区"]
+        direction LR
+        E1["语义"]
+        E2["情景"]
+        E3["偏好"]
+        E4["程序性"]
+        E5["自定义"]
+    end
+
+    Interface --> Core
+    Core --> Engine
+    Engine --> Infra
+    Infra --> Parts
+```
+
 ## API 文档
 
 Hippocampus 提供 RESTful API 用于记忆管理：

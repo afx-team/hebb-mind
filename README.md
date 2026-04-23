@@ -138,6 +138,55 @@ Memories flow through four stages — inspired by how the human hippocampus cons
 
 > Full details: [Memory Lifecycle](https://afx-team.github.io/hippocampus/concepts/memory-lifecycle.html) · [Consolidation](https://afx-team.github.io/hippocampus/concepts/consolidation.html) · [Hybrid Search](https://afx-team.github.io/hippocampus/concepts/hybrid-search.html) · [Forgetting](https://afx-team.github.io/hippocampus/concepts/forgetting.html)
 
+### Architecture
+
+```mermaid
+flowchart TB
+    subgraph Interface["Interface Layer"]
+        direction LR
+        A1["REST API"]
+        A2["MCP Server"]
+        A3["CLI"]
+        A4["Web Console"]
+    end
+
+    subgraph Core["Hippocampus Core"]
+        B1["Working Memory Inbox"]
+        B2["Consolidation Agent"]
+        B3["Recall Agent · Agentic RAG"]
+        B4["Scheduler · APScheduler"]
+    end
+
+    subgraph Engine["Processing Engine"]
+        direction LR
+        C1["Hybrid Retrieval\nVector · FTS · Graph"]
+        C2["Knowledge Graph\nTag-based · NetworkX"]
+        C3["Scoring\nRecency · Importance · Relevance"]
+        C4["Dynamic Forgetting\nEbbinghaus TTL Decay"]
+    end
+
+    subgraph Infra["Infrastructure"]
+        direction LR
+        D1["Storage\nSQLite + sqlite-vec\nPostgreSQL + pgvector"]
+        D2["Embedding\nLocal · sentence-transformers\nAPI · LiteLLM"]
+        D3["LLM\n100+ providers\nvia LiteLLM"]
+    end
+
+    subgraph Parts["Memory Partitions"]
+        direction LR
+        E1["Semantic"]
+        E2["Episodic"]
+        E3["Preference"]
+        E4["Procedural"]
+        E5["Custom"]
+    end
+
+    Interface --> Core
+    Core --> Engine
+    Engine --> Infra
+    Infra --> Parts
+```
+
 ## API Documentation
 
 Hippocampus provides a RESTful API for memory management:

@@ -34,17 +34,7 @@ features:
     details: Built-in dark-themed dashboard for memory CRUD, semantic search, partition management, and graph visualization.
 ---
 
-<div class="hippo-home">
-
-<!-- ─────────────── Quick Install ─────────────── -->
-<div class="hippo-install">
-  <div class="hippo-install-label">Install in 10 seconds</div>
-  <div class="hippo-install-cmd">
-    <code>pip install afx-hippocampus && hippocampus init && hippocampus start</code>
-    <button class="hippo-copy" onclick="navigator.clipboard.writeText('pip install afx-hippocampus && hippocampus init && hippocampus start');this.innerHTML='<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;20 6 9 17 4 12&quot;/></svg>';setTimeout(()=>{this.innerHTML='<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><rect x=&quot;9&quot; y=&quot;9&quot; width=&quot;13&quot; height=&quot;13&quot; rx=&quot;2&quot;/><path d=&quot;M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1&quot;/></svg>'},1200)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
-  </div>
-  <div class="hippo-install-hint">Open <a href="http://localhost:8321/">http://localhost:8321/</a> — that's it.</div>
-</div>
+<div class="hippo-home hippo-snap">
 
 <!-- ─────────────── Memory Lifecycle ─────────────── -->
 <div class="hippo-section">
@@ -76,34 +66,16 @@ features:
     <div class="hippo-stage-desc">Dynamic TTL — used memories live, neglected fade</div>
   </div>
 </div>
-</div>
 
-<!-- ─────────────── Partitions ─────────────── -->
-<div class="hippo-section">
-<h2>Brain-Inspired Partitions</h2>
-<p class="hippo-section-sub">Memories are automatically sorted into neuroscience-based categories.</p>
 
-<div class="hippo-partitions">
-  <div class="hippo-partition" style="--part-color: #52b788; --part-bg: #1b4332;">
-    <div class="hippo-partition-icon">📚</div>
-    <div class="hippo-partition-name">Semantic</div>
-    <div class="hippo-partition-desc">Facts & Knowledge</div>
+<!-- ─────────────── Quick Install ─────────────── -->
+<div class="hippo-install">
+  <div class="hippo-install-label">Install in 10 seconds</div>
+  <div class="hippo-install-cmd">
+    <code>pip install afx-hippocampus && hippocampus init && hippocampus start</code>
+    <button class="hippo-copy" onclick="navigator.clipboard.writeText('pip install afx-hippocampus && hippocampus init && hippocampus start');this.innerHTML='<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;20 6 9 17 4 12&quot;/></svg>';setTimeout(()=>{this.innerHTML='<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><rect x=&quot;9&quot; y=&quot;9&quot; width=&quot;13&quot; height=&quot;13&quot; rx=&quot;2&quot;/><path d=&quot;M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1&quot;/></svg>'},1200)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
   </div>
-  <div class="hippo-partition" style="--part-color: #c77dff; --part-bg: #3c1642;">
-    <div class="hippo-partition-icon">🎬</div>
-    <div class="hippo-partition-name">Episodic</div>
-    <div class="hippo-partition-desc">Events & History</div>
-  </div>
-  <div class="hippo-partition" style="--part-color: #ff6b6b; --part-bg: #6b2d5b;">
-    <div class="hippo-partition-icon">❤️</div>
-    <div class="hippo-partition-name">Preference</div>
-    <div class="hippo-partition-desc">Likes & Dislikes</div>
-  </div>
-  <div class="hippo-partition" style="--part-color: #4ecdc4; --part-bg: #2d3a4a;">
-    <div class="hippo-partition-icon">🔧</div>
-    <div class="hippo-partition-name">Procedural</div>
-    <div class="hippo-partition-desc">Skills & How-to</div>
-  </div>
+  <div class="hippo-install-hint">Open <a href="http://localhost:8321/">http://localhost:8321/</a> — that's it.</div>
 </div>
 </div>
 
@@ -112,30 +84,77 @@ features:
 <h2>Architecture</h2>
 
 <div class="hippo-arch">
-  <div class="hippo-arch-row">
-    <span class="hippo-arch-chip">API</span>
-    <span class="hippo-arch-chip">MCP</span>
+  <div class="hippo-arch-layer-label">Interface Layer</div>
+  <div class="hippo-arch-row hippo-arch-row-stretch">
+    <span class="hippo-arch-chip">REST API</span>
+    <span class="hippo-arch-chip">MCP Server</span>
     <span class="hippo-arch-chip">CLI</span>
     <span class="hippo-arch-chip">Web Console</span>
   </div>
   <div class="hippo-arch-connector">▼</div>
   <div class="hippo-arch-core">
-    <span class="hippo-arch-core-label">HIPPOCAMPUS</span>
-    <span class="hippo-arch-core-sub">Working Memory Inbox · Consolidation Agent</span>
+    <span class="hippo-arch-core-label">HIPPOCAMPUS CORE</span>
+    <span class="hippo-arch-core-sub">Working Memory Inbox · Consolidation Agent · Recall Agent (Agentic RAG) · Scheduler</span>
   </div>
   <div class="hippo-arch-connector">▼</div>
+  <div class="hippo-arch-layer-label">Processing Engine</div>
   <div class="hippo-arch-row">
-    <span class="hippo-arch-chip">Hybrid Retrieval</span>
-    <span class="hippo-arch-chip">Knowledge Graph</span>
-    <span class="hippo-arch-chip">Dynamic Forgetting</span>
+    <div class="hippo-arch-chip-stack">
+      <span class="hippo-arch-chip">Hybrid Retrieval</span>
+      <span class="hippo-arch-chip-hint">Vector · FTS · Graph</span>
+    </div>
+    <div class="hippo-arch-chip-stack">
+      <span class="hippo-arch-chip">Knowledge Graph</span>
+      <span class="hippo-arch-chip-hint">Tag-based · NetworkX</span>
+    </div>
+    <div class="hippo-arch-chip-stack">
+      <span class="hippo-arch-chip">Scoring</span>
+      <span class="hippo-arch-chip-hint">Recency · Importance · Relevance</span>
+    </div>
+    <div class="hippo-arch-chip-stack">
+      <span class="hippo-arch-chip">Dynamic Forgetting</span>
+      <span class="hippo-arch-chip-hint">Ebbinghaus TTL Decay</span>
+    </div>
   </div>
   <div class="hippo-arch-connector">▼</div>
+  <div class="hippo-arch-layer-label">Infrastructure</div>
   <div class="hippo-arch-row">
-    <span class="hippo-arch-chip" style="--chip-color: #52b788; --chip-bg: #1b4332;">Semantic</span>
-    <span class="hippo-arch-chip" style="--chip-color: #c77dff; --chip-bg: #3c1642;">Episodic</span>
-    <span class="hippo-arch-chip" style="--chip-color: #ff6b6b; --chip-bg: #6b2d5b;">Preference</span>
-    <span class="hippo-arch-chip" style="--chip-color: #4ecdc4; --chip-bg: #2d3a4a;">Procedural</span>
-    <span class="hippo-arch-chip" style="--chip-color: #aaa; --chip-bg: #3d3d3d;">Custom</span>
+    <div class="hippo-arch-chip-stack">
+      <span class="hippo-arch-chip" style="--chip-color: #58a6ff; --chip-bg: #1a3a5c;">Storage</span>
+      <span class="hippo-arch-chip-hint">SQLite + sqlite-vec · PostgreSQL + pgvector</span>
+    </div>
+    <div class="hippo-arch-chip-stack">
+      <span class="hippo-arch-chip" style="--chip-color: #58a6ff; --chip-bg: #1a3a5c;">Embedding</span>
+      <span class="hippo-arch-chip-hint">Local (sentence-transformers) · API</span>
+    </div>
+    <div class="hippo-arch-chip-stack">
+      <span class="hippo-arch-chip" style="--chip-color: #58a6ff; --chip-bg: #1a3a5c;">LLM</span>
+      <span class="hippo-arch-chip-hint">100+ providers via LiteLLM</span>
+    </div>
+  </div>
+  <div class="hippo-arch-connector">▼</div>
+  <div class="hippo-arch-layer-label">Memory Partitions</div>
+  <div class="hippo-partitions">
+    <div class="hippo-partition" style="--part-color: #52b788; --part-bg: #1b4332;">
+      <div class="hippo-partition-icon">📚</div>
+      <div class="hippo-partition-name">Semantic</div>
+      <div class="hippo-partition-desc">Facts & Knowledge</div>
+    </div>
+    <div class="hippo-partition" style="--part-color: #c77dff; --part-bg: #3c1642;">
+      <div class="hippo-partition-icon">🎬</div>
+      <div class="hippo-partition-name">Episodic</div>
+      <div class="hippo-partition-desc">Events & History</div>
+    </div>
+    <div class="hippo-partition" style="--part-color: #ff6b6b; --part-bg: #6b2d5b;">
+      <div class="hippo-partition-icon">❤️</div>
+      <div class="hippo-partition-name">Preference</div>
+      <div class="hippo-partition-desc">Likes & Dislikes</div>
+    </div>
+    <div class="hippo-partition" style="--part-color: #4ecdc4; --part-bg: #2d3a4a;">
+      <div class="hippo-partition-icon">🔧</div>
+      <div class="hippo-partition-name">Procedural</div>
+      <div class="hippo-partition-desc">Skills & How-to</div>
+    </div>
   </div>
 </div>
 </div>
@@ -169,12 +188,29 @@ features:
 </div>
 
 <style>
-.hippo-home { max-width: 1100px; margin: 0 auto; padding: 0 32px 80px; }
+.hippo-home { max-width: 1100px; margin: 0 auto; padding: 0 32px 0; }
+
+/* ── Scroll Snap ── */
+.hippo-snap > .hippo-section { scroll-snap-align: start; }
+
+/* ── Fade-in animation ── */
+@keyframes hippoFadeUp {
+  from { opacity: 0; transform: translateY(40px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.hippo-section > * { opacity: 0; }
+.hippo-section.is-visible > * {
+  animation: hippoFadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.hippo-section.is-visible > *:nth-child(1) { animation-delay: 0s; }
+.hippo-section.is-visible > *:nth-child(2) { animation-delay: 0.12s; }
+.hippo-section.is-visible > *:nth-child(3) { animation-delay: 0.24s; }
+.hippo-section.is-visible > *:nth-child(4) { animation-delay: 0.36s; }
 
 /* ── Install banner ── */
 .hippo-install {
   text-align: center;
-  margin: 48px 0 64px;
+  margin: 48px 0 0;
   padding: 28px 32px;
   border-radius: 12px;
   background: linear-gradient(135deg, rgba(88,166,255,0.08) 0%, rgba(188,140,255,0.08) 100%);
@@ -199,19 +235,23 @@ features:
 .hippo-install-hint a { color: var(--vp-c-brand-1); text-decoration: underline; }
 
 /* ── Sections ── */
-.hippo-section { margin: 64px 0; }
-.hippo-section h2 { text-align: center; margin-bottom: 8px; }
+.hippo-section {
+  min-height: 100vh; margin: 0;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 60px 0; box-sizing: border-box;
+}
+.hippo-section h2 { text-align: center; margin-bottom: 8px; border-top: none; padding-top: 0; }
 .hippo-section-sub { text-align: center; color: var(--vp-c-text-2); margin-bottom: 36px; font-size: 15px; }
 
 /* ── Lifecycle flow ── */
 .hippo-lifecycle {
-  display: flex; align-items: center; justify-content: center;
-  gap: 8px; flex-wrap: wrap;
+  display: flex; align-items: stretch; justify-content: center;
+  gap: 8px; flex-wrap: nowrap;
 }
 .hippo-stage {
-  text-align: center; padding: 24px 20px; border-radius: 12px;
+  text-align: center; padding: 24px 16px; border-radius: 12px;
   background: var(--vp-c-bg-soft);
-  flex: 1; min-width: 160px; max-width: 220px;
+  flex: 1; min-width: 0;
   transition: transform 0.25s;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
@@ -219,44 +259,46 @@ features:
 .hippo-stage-icon { font-size: 28px; margin-bottom: 8px; }
 .hippo-stage-name { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
 .hippo-stage-desc { font-size: 13px; color: var(--vp-c-text-3); line-height: 1.4; }
-.hippo-arrow { color: var(--vp-c-brand-1); font-size: 20px; font-weight: 700; }
+.hippo-arrow { color: var(--vp-c-brand-1); font-size: 20px; font-weight: 700; display: flex; align-items: center; flex-shrink: 0; }
 
 /* ── Partitions grid ── */
 .hippo-partitions {
   display: grid; grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
+  gap: 12px; width: 100%;
 }
 .hippo-partition {
-  text-align: center; padding: 28px 24px; border-radius: 12px;
+  text-align: center; padding: 24px 16px; border-radius: 12px;
   background: var(--part-bg); border: 1px solid rgba(255,255,255,0.06);
   transition: transform 0.25s, box-shadow 0.25s;
 }
 .hippo-partition:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
-.hippo-partition-icon { font-size: 32px; margin-bottom: 10px; }
-.hippo-partition-name { font-weight: 700; font-size: 16px; color: var(--part-color); margin-bottom: 4px; }
-.hippo-partition-desc { font-size: 13px; color: rgba(255,255,255,0.55); }
+.hippo-partition-icon { font-size: 28px; margin-bottom: 8px; }
+.hippo-partition-name { font-weight: 700; font-size: 15px; color: var(--part-color); margin-bottom: 4px; }
+.hippo-partition-desc { font-size: 12px; color: rgba(255,255,255,0.55); }
 
 /* ── Architecture diagram ── */
 .hippo-arch {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  display: flex; flex-direction: column; align-items: stretch; gap: 0;
 }
 .hippo-arch-row {
-  display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;
+  display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;
+  width: 100%;
 }
 .hippo-arch-chip {
-  padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 500;
+  padding: 8px 20px; border-radius: 6px; font-size: 13px; font-weight: 500;
   background: var(--vp-c-bg-soft); border: 1px solid var(--vp-c-divider);
   color: var(--chip-color, var(--vp-c-text-1));
-  white-space: nowrap;
+  white-space: nowrap; text-align: center;
 }
 .hippo-arch-chip[style*="--chip-bg"] {
   background: var(--chip-bg); border-color: rgba(255,255,255,0.06);
 }
-.hippo-arch-connector { color: var(--vp-c-text-3); font-size: 16px; }
+.hippo-arch-connector { color: var(--vp-c-text-3); font-size: 14px; text-align: center; line-height: 1; padding: 2px 0; }
 .hippo-arch-core {
   text-align: center; padding: 16px 32px; border-radius: 10px;
   background: linear-gradient(135deg, rgba(88,166,255,0.12) 0%, rgba(188,140,255,0.12) 100%);
   border: 1px solid rgba(124,106,246,0.3);
+  width: 100%;
 }
 .hippo-arch-core-label {
   display: block; font-size: 18px; font-weight: 700;
@@ -265,14 +307,23 @@ features:
   background-clip: text;
 }
 .hippo-arch-core-sub { display: block; font-size: 13px; color: var(--vp-c-text-3); margin-top: 4px; }
+.hippo-arch-layer-label {
+  font-size: 11px; color: var(--vp-c-text-3); text-transform: uppercase;
+  letter-spacing: 1.5px; text-align: center; padding: 2px 0 4px;
+}
+.hippo-arch-chip-stack { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; min-width: 0; }
+.hippo-arch-chip-stack .hippo-arch-chip { width: 100%; }
+.hippo-arch-chip-hint { font-size: 11px; color: var(--vp-c-text-3); text-align: center; }
+.hippo-arch-row-stretch { justify-content: stretch; }
+.hippo-arch-row-stretch .hippo-arch-chip { flex: 1; text-align: center; white-space: nowrap; }
 
 /* ── Comparison table ── */
-.hippo-section-compare { margin-bottom: 24px; }
+/* last section no extra bottom */
 .hippo-compare { display: flex; justify-content: center; }
-.hippo-compare-table { overflow-x: auto; }
-.hippo-compare-table table { width: auto; border-collapse: collapse; font-size: 14px; }
+.hippo-compare-table { overflow-x: auto; width: 100%; }
+.hippo-compare-table table { display: table; width: 100%; border-collapse: collapse; font-size: 14px; }
 .hippo-compare-table th, .hippo-compare-table td {
-  padding: 12px 20px; text-align: center;
+  padding: 12px 16px; text-align: center;
 }
 .hippo-compare-table thead tr { border-bottom: 2px solid var(--vp-c-divider); }
 .hippo-compare-table tbody tr + tr { border-top: 1px solid var(--vp-c-divider); }
@@ -290,9 +341,48 @@ features:
 .hippo-divider-row td::after { content: ''; display: block; border-top: 1px dashed var(--vp-c-divider); }
 
 /* ── Responsive ── */
-@media (max-width: 640px) {
-  .hippo-lifecycle { flex-direction: column; }
-  .hippo-arrow { transform: rotate(90deg); }
-  .hippo-stage { max-width: 100%; }
+@media (max-width: 768px) {
+  .hippo-home { padding: 0 20px 32px; }
+  .hippo-lifecycle { flex-wrap: wrap; }
+  .hippo-stage { min-width: calc(50% - 20px); flex: 1 1 calc(50% - 20px); }
+  .hippo-arrow { display: none; }
+  .hippo-partitions { grid-template-columns: repeat(2, 1fr); }
+  .hippo-arch-chip-stack { min-width: calc(50% - 12px); flex: 1 1 calc(50% - 12px); }
+  .hippo-arch-row-stretch .hippo-arch-chip { min-width: calc(50% - 12px); flex: 1 1 calc(50% - 12px); }
+  .hippo-install-cmd { flex-wrap: wrap; justify-content: center; }
+  .hippo-install-cmd code { font-size: 13px; padding: 10px 14px; word-break: break-all; white-space: normal; }
+  .hippo-compare-table th, .hippo-compare-table td { padding: 10px 10px; font-size: 13px; }
+}
+@media (max-width: 480px) {
+  .hippo-stage { min-width: 100%; }
+  .hippo-partitions { grid-template-columns: repeat(2, 1fr); }
+  .hippo-arch-chip-stack { min-width: 100%; }
+  .hippo-arch-row-stretch .hippo-arch-chip { min-width: calc(50% - 12px); }
+  .hippo-section { padding: 40px 0; }
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .hippo-section > * { opacity: 1; }
+  .hippo-section.is-visible > * { animation: none; }
+  .hippo-snap { scroll-snap-type: none; }
 }
 </style>
+
+<script setup>
+import { onMounted } from 'vue'
+onMounted(() => {
+  const sections = document.querySelectorAll('.hippo-section')
+  if (!sections.length) return
+  // Fade-in on scroll
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) e.target.classList.add('is-visible')
+    })
+  }, { threshold: 0.08, rootMargin: '0px 0px -60px 0px' })
+  sections.forEach(s => io.observe(s))
+  // Scroll snap on the actual scroll container
+  const scroller = document.documentElement
+  scroller.style.scrollSnapType = 'y proximity'
+})
+</script>
