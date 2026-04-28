@@ -5,8 +5,10 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from hippocampus.embedding.base import EmbeddingProvider
+from hippocampus.ingest.normalizer import normalize
 from hippocampus.models.common import PaginatedResponse
-from hippocampus.models.memory import Memory, MemoryCreate, MemoryUpdate
+from hippocampus.models.ingest import IngestRequest, IngestResponse
+from hippocampus.models.memory import Memory, MemoryCreate, MemoryMetadata, MemoryUpdate
 from hippocampus.server.dependencies import (
     get_embedder,
     get_memory_store,
@@ -97,3 +99,44 @@ async def delete_memory(
     deleted = await store.delete(memory_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Memory not found")
+
+
+@router.post("/ingest", response_model=IngestResponse, status_code=201)
+async def ingest_conversation(
+    data: IngestRequest,
+    store: MemoryStore = Depends(get_memory_store),
+    embedder: EmbeddingProvider = Depends(get_embedder),
+):
+    """Ingest a conversation export: auto-detect format, normalize, and store as memories."""
+    result = normalize(data.content, format_hint=data.format_hint)
+
+    items: list[MemoryCreate] = []
+    for turn in result.turns:
+        formatted = f"[{turn.role}]: {turn.content}"
+        metadata = MemoryMetadata(
+            session_id=turn.session_id,
+            turn=turn.turn_index,
+        )
+        items.append(
+            MemoryCreate(
+                content=formatted[:10000],
+                partition_id=data.partition_id,
+                importance_score=data.importance_score,
+                metadata=metadata,
+                source=data.source,
+            )
+        )
+
+    # Batch embed and store
+    if items:
+        texts = [item.content for item in items]
+        embeddings = await embedder.embed_batch(texts)
+        for item, emb in zip(items, embeddings):
+            await store.create(item, embedding=emb)
+
+    return IngestResponse(
+        format_detected=result.format_detected,
+        turns_parsed=result.turn_count,
+        memories_created=len(items),
+        warnings=result.warnings,
+    )

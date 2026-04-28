@@ -3,18 +3,14 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from hippocampus.config.settings import Settings
 from hippocampus.embedding.local import NoopEmbedder
 from hippocampus.graph.knowledge_graph import KnowledgeGraph
-from hippocampus.models.memory import MemoryCreate
-from hippocampus.scheduler.forgetting_job import compute_expires_at, compute_ttl_hours
+from hippocampus.models.memory import Memory, MemoryCreate
+from hippocampus.scheduler.forgetting_job import compute_expires_at
 from hippocampus.scheduler.manager import SchedulerManager
-from hippocampus.models.memory import Memory
 
 
 class TestSchedulerManager:
@@ -65,12 +61,18 @@ class TestForgettingJob:
     def test_high_importance_memory_expires_later(self):
         now = datetime.now(timezone.utc)
         low = Memory(
-            id="low", content="x",
-            last_accessed_at=now, access_count=1, importance_score=2.0,
+            id="low",
+            content="x",
+            last_accessed_at=now,
+            access_count=1,
+            importance_score=2.0,
         )
         high = Memory(
-            id="high", content="x",
-            last_accessed_at=now, access_count=1, importance_score=9.0,
+            id="high",
+            content="x",
+            last_accessed_at=now,
+            access_count=1,
+            importance_score=9.0,
         )
         exp_low = compute_expires_at(low, 168.0, 0.693)
         exp_high = compute_expires_at(high, 168.0, 0.693)

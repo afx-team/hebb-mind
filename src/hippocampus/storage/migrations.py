@@ -80,32 +80,31 @@ async def get_connection(db_path: str, *, load_vec: bool = True) -> aiosqlite.Co
 
 async def _ensure_vec_table(db: aiosqlite.Connection, embedding_dim: int) -> None:
     """Create or recreate vec0 table if dimension changed."""
+    import numpy as np
+
     dim = int(embedding_dim)
-    # Try creating the table first (fast path)
+    # Try creating the table first (fast path for fresh DB)
     try:
         await db.execute(
             f"CREATE VIRTUAL TABLE IF NOT EXISTS memory_embeddings USING vec0("
             f"memory_id TEXT PRIMARY KEY, embedding float[{dim}])"
         )
     except Exception:
-        # Table exists but may have different dimension — test with a probe
-        try:
-            import numpy as np
+        pass
 
-            probe = np.zeros(dim, dtype=np.float32).tobytes()
-            await db.execute(
-                "INSERT INTO memory_embeddings(memory_id, embedding) VALUES ('__dim_probe__', ?)", (probe,)
-            )
-            await db.execute("DELETE FROM memory_embeddings WHERE memory_id = '__dim_probe__'")
-        except Exception:
-            # Dimension mismatch — recreate table (loses existing embeddings)
-            logger.warning(
-                "Embedding dimension changed to %d, recreating vec0 table (existing vectors will be lost)", dim
-            )
-            await db.execute("DROP TABLE IF EXISTS memory_embeddings")
-            await db.execute(
-                f"CREATE VIRTUAL TABLE memory_embeddings USING vec0(memory_id TEXT PRIMARY KEY, embedding float[{dim}])"
-            )
+    # Always probe to verify the dimension matches — CREATE IF NOT EXISTS
+    # succeeds silently even when the existing table has a different dimension.
+    try:
+        probe = np.zeros(dim, dtype=np.float32).tobytes()
+        await db.execute("INSERT INTO memory_embeddings(memory_id, embedding) VALUES ('__dim_probe__', ?)", (probe,))
+        await db.execute("DELETE FROM memory_embeddings WHERE memory_id = '__dim_probe__'")
+    except Exception:
+        # Dimension mismatch — recreate table (loses existing embeddings)
+        logger.warning("Embedding dimension changed to %d, recreating vec0 table (existing vectors will be lost)", dim)
+        await db.execute("DROP TABLE IF EXISTS memory_embeddings")
+        await db.execute(
+            f"CREATE VIRTUAL TABLE memory_embeddings USING vec0(memory_id TEXT PRIMARY KEY, embedding float[{dim}])"
+        )
 
 
 async def initialize_schema(

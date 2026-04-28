@@ -2,9 +2,9 @@
 
 import pytest
 
+from hippocampus.constants import PartitionType
 from hippocampus.models.memory import MemoryCreate, MemoryUpdate
 from hippocampus.models.partition import PartitionCreate, PartitionUpdate
-from hippocampus.constants import PartitionType
 
 
 class TestPartitionStore:

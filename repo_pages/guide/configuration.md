@@ -32,6 +32,7 @@ Below is a complete `hippocampus.json` with all available fields:
   "embedding_enabled": true,
   "embedding_model": "all-MiniLM-L6-v2",
   "embedding_dim": 384,
+  "hf_endpoint": null,
   "llm_model": "openai/gpt-4o-mini",
   "llm_base_url": null,
   "llm_api_key": "sk-xxx",
@@ -60,6 +61,7 @@ Below is a complete `hippocampus.json` with all available fields:
 | `embedding_enabled` | `true` | Enable vector embeddings for similarity search |
 | `embedding_model` | `all-MiniLM-L6-v2` | Sentence-transformers model for embeddings |
 | `embedding_dim` | `384` | Embedding vector dimension (must match model) |
+| `hf_endpoint` | `null` | HuggingFace mirror endpoint (e.g. `https://hf-mirror.com`) |
 | `llm_model` | `openai/gpt-4o-mini` | LLM model identifier via LiteLLM |
 | `llm_base_url` | `null` | Custom LLM API endpoint (for Qwen, GLM, Kimi) |
 | `llm_api_key` | `null` | LLM provider API key (required for consolidation) |

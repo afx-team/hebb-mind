@@ -55,7 +55,7 @@ def _create_local_embedder(settings: Settings) -> EmbeddingProvider:
     """Create a local sentence-transformers embedder."""
     try:
         logger.info("Loading local embedding model: %s", settings.embedding_model)
-        embedder = LocalEmbedder(settings.embedding_model)
+        embedder = LocalEmbedder(settings.embedding_model, hf_endpoint=settings.hf_endpoint)
         return embedder
     except Exception:
         logger.warning("Failed to load local embedding model, vector search disabled", exc_info=True)

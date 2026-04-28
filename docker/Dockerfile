@@ -11,7 +11,8 @@ COPY src/ src/
 
 RUN pip install --no-cache-dir .
 
-# Pre-download embedding model
+# Pre-download embedding model (use mirror for faster download in China)
+ENV HF_ENDPOINT=https://hf-mirror.com
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
 
 VOLUME /data

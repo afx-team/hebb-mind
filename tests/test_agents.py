@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
+from hippocampus.agents.consolidation_agent import ConsolidationAgent
 from hippocampus.agents.llm_client import LLMClient
 from hippocampus.agents.recall_agent import RecallAgent
-from hippocampus.agents.consolidation_agent import ConsolidationAgent
-from hippocampus.config.settings import Settings
 from hippocampus.embedding.local import NoopEmbedder
 from hippocampus.graph.knowledge_graph import KnowledgeGraph
-from hippocampus.models.memory import Memory, MemoryCreate
+from hippocampus.models.memory import MemoryCreate
 from hippocampus.retrieval.searcher import MemorySearcher
 
 
@@ -30,13 +28,9 @@ def noop_embedder():
 
 class TestRecallAgent:
     @pytest.mark.asyncio
-    async def test_recall_generates_queries_and_searches(
-        self, mock_llm, memory_store, noop_embedder
-    ):
+    async def test_recall_generates_queries_and_searches(self, mock_llm, memory_store, noop_embedder):
         """RecallAgent should ask LLM for queries, then search with each."""
-        mock_llm.complete_json.return_value = {
-            "queries": ["dark mode preference", "UI settings"]
-        }
+        mock_llm.complete_json.return_value = {"queries": ["dark mode preference", "UI settings"]}
         searcher = MemorySearcher(store=memory_store, embedder=noop_embedder)
         agent = RecallAgent(llm=mock_llm, searcher=searcher)
 
@@ -56,9 +50,7 @@ class TestRecallAgent:
         assert isinstance(results, list)
 
     @pytest.mark.asyncio
-    async def test_recall_excludes_hippocampus_partition(
-        self, mock_llm, memory_store, noop_embedder
-    ):
+    async def test_recall_excludes_hippocampus_partition(self, mock_llm, memory_store, noop_embedder):
         """Recalled memories should not include hippocampus partition."""
         # Create memories in different partitions
         await memory_store.create(
@@ -89,9 +81,7 @@ class TestRecallAgent:
 
 class TestConsolidationAgent:
     @pytest.mark.asyncio
-    async def test_consolidate_memory(
-        self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path
-    ):
+    async def test_consolidate_memory(self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path):
         """Consolidation should move memory from hippocampus to target partition."""
         kg = KnowledgeGraph(tmp_path / "kg.json")
 
@@ -148,9 +138,7 @@ class TestConsolidationAgent:
         assert kg.get_tag("ui") is not None
 
     @pytest.mark.asyncio
-    async def test_consolidate_batch_empty(
-        self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path
-    ):
+    async def test_consolidate_batch_empty(self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path):
         """Batch consolidation with no hippocampus memories returns empty list."""
         kg = KnowledgeGraph(tmp_path / "kg.json")
 
@@ -188,9 +176,7 @@ class TestConsolidationAgent:
                 "consolidated_content": "redundant",
                 "importance_score": 3.0,
                 "tags": ["test"],
-                "conflicts": [
-                    {"memory_id": "some-old-id", "resolution": "discard", "reason": "duplicate"}
-                ],
+                "conflicts": [{"memory_id": "some-old-id", "resolution": "discard", "reason": "duplicate"}],
             },
         ]
 

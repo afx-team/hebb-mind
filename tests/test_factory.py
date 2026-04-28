@@ -17,6 +17,7 @@ class TestStorageFactory:
         assert ctx.partition_store is not None
         # Verify it's actually SQLite
         from hippocampus.storage.sqlite_store import SQLiteMemoryStore
+
         assert isinstance(ctx.memory_store, SQLiteMemoryStore)
         await ctx.close()
 
@@ -37,7 +38,6 @@ class TestStorageFactory:
         """PG backend raises ImportError when asyncpg is not installed."""
         settings = Settings(storage_type="postgresql", pg_url="postgresql://localhost/test")
         import hippocampus.storage.factory as factory_mod
-        original = factory_mod._create_postgresql
 
         async def _mock_pg(s):
             raise ImportError("asyncpg not installed")

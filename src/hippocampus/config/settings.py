@@ -26,6 +26,9 @@ class Settings(BaseModel):
     embedding_base_url: str | None = Field(
         default=None, description="API base URL for cloud embedding (falls back to llm_base_url)"
     )
+    hf_endpoint: str | None = Field(
+        default=None, description="HuggingFace mirror endpoint (e.g. https://hf-mirror.com)"
+    )
 
     # LLM
     llm_model: str | None = Field(default=None, description="LLM model identifier (e.g. openai/gpt-4o-mini)")

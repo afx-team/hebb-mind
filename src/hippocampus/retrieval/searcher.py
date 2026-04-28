@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from hippocampus.embedding.base import EmbeddingProvider
 from hippocampus.graph.knowledge_graph import KnowledgeGraph
 from hippocampus.models.memory import Memory, MemoryQuery, MemorySearchResult, SearchResponse
+from hippocampus.retrieval.query_sanitizer import sanitize_query
 from hippocampus.retrieval.scorer import (
     compute_composite_score,
     compute_importance_score,
@@ -40,6 +41,11 @@ class MemorySearcher:
         self.graph = graph
 
     async def search(self, query: MemoryQuery) -> SearchResponse:
+        # Sanitize LLM-generated queries (XML tags, tool artifacts, etc.)
+        sanitized = sanitize_query(query.query)
+        if sanitized != query.query:
+            query = query.model_copy(update={"query": sanitized})
+
         now = datetime.now(timezone.utc)
         overfetch = query.top_k * 3
 

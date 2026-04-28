@@ -41,7 +41,7 @@ const OTHER_GROUPS = [
 const RESTART_KEYS = new Set([
   'storage_type', 'db_path', 'pg_url', 'pg_pool_min', 'pg_pool_max',
   'embedding_enabled', 'embedding_provider', 'embedding_model', 'embedding_dim',
-  'embedding_api_key', 'embedding_base_url',
+  'embedding_api_key', 'embedding_base_url', 'hf_endpoint',
   'consolidation_interval_seconds', 'consolidation_concurrency', 'consolidation_max_tokens',
   'forget_interval_seconds',
   'host', 'port', 'kg_path',
@@ -349,6 +349,16 @@ function buildEmbeddingSection(config) {
           </div>
         </div>
       </div>
+      <div class="setting-row">
+        <div class="setting-label">
+          <span class="setting-key">hf_endpoint</span>
+          <span class="text-muted text-sm" style="display:block;font-family:var(--font);margin-top:2px">HuggingFace mirror for faster model downloads in China</span>
+        </div>
+        <div class="setting-input-wrap">
+          <input class="form-input setting-input" id="emb-hf-endpoint" type="text"
+                 value="${esc(config.hf_endpoint || '')}" placeholder="https://hf-mirror.com">
+        </div>
+      </div>
       <div style="display:flex;gap:8px;margin-top:16px;align-items:center;">
         <button class="btn btn-primary" id="emb-test">Test Embedding</button>
         <button class="btn" id="emb-save">Save</button>
@@ -468,6 +478,7 @@ function buildEmbeddingSection(config) {
       const model = modelInput.value.trim();
       const base_url = baseUrlInput.value.trim();
       const api_key = apiKeyInput.value.trim();
+      const hf_endpoint = section.querySelector('#emb-hf-endpoint').value.trim();
 
       await api.updateConfig('embedding_enabled', String(enabled));
       await api.updateConfig('embedding_provider', provider);
@@ -476,6 +487,7 @@ function buildEmbeddingSection(config) {
       if (api_key && !api_key.includes('****')) {
         await api.updateConfig('embedding_api_key', api_key);
       }
+      await api.updateConfig('hf_endpoint', hf_endpoint || 'null');
       success('Embedding configuration saved (restart to apply)');
     } catch (e) {
       error(e.message);

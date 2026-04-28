@@ -29,40 +29,58 @@ class LocalEmbedder:
     in ~/.cache/huggingface/.
     """
 
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2") -> None:
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2", hf_endpoint: str | None = None) -> None:
         import os
 
-        from sentence_transformers import SentenceTransformer
+        # Set HuggingFace mirror endpoint if configured
+        if hf_endpoint:
+            os.environ["HF_ENDPOINT"] = hf_endpoint
+            logger.info("Using HuggingFace mirror: %s", hf_endpoint)
 
         # Prefer local model from project models/ directory
         local_path = Path(__file__).resolve().parent.parent.parent.parent / "models" / model_name
+
+        # Check cache in offline mode to avoid network hangs.
+        # Must set env var BEFORE importing sentence_transformers/huggingface_hub
+        # because the library reads HF_HUB_OFFLINE at import time.
+        old_offline = os.environ.get("HF_HUB_OFFLINE")
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        cached = is_model_cached(model_name)
+
         if local_path.is_dir():
             logger.info("Loading local embedding model: %s", local_path)
             load_target = str(local_path)
-        elif is_model_cached(model_name):
+            use_offline = True
+        elif cached:
             logger.info("Loading cached embedding model: %s", model_name)
             load_target = model_name
+            use_offline = True
         else:
             logger.info("Downloading embedding model: %s (first time, may take a while)", model_name)
             load_target = model_name
+            use_offline = False
 
-        # Suppress stdout/stderr for local/cached loads
-        if local_path.is_dir() or is_model_cached(model_name):
-            devnull = os.open(os.devnull, os.O_WRONLY)
-            old_stdout_fd = os.dup(1)
-            old_stderr_fd = os.dup(2)
-            os.dup2(devnull, 1)
-            os.dup2(devnull, 2)
-            try:
-                self._model = SentenceTransformer(load_target)
-            finally:
-                os.dup2(old_stdout_fd, 1)
-                os.dup2(old_stderr_fd, 2)
-                os.close(old_stdout_fd)
-                os.close(old_stderr_fd)
-                os.close(devnull)
-        else:
+        # Restore original offline setting if we need to download
+        if not use_offline:
+            if old_offline is None:
+                os.environ.pop("HF_HUB_OFFLINE", None)
+            else:
+                os.environ["HF_HUB_OFFLINE"] = old_offline
+
+        # Import after env var is set — huggingface_hub caches offline
+        # mode at import time.
+        from sentence_transformers import SentenceTransformer
+
+        try:
             self._model = SentenceTransformer(load_target)
+        finally:
+            # Restore env for non-offline case is already done above;
+            # for offline case, restore now.
+            if use_offline:
+                if old_offline is None:
+                    os.environ.pop("HF_HUB_OFFLINE", None)
+                else:
+                    os.environ["HF_HUB_OFFLINE"] = old_offline
 
         self._dimension = self._model.get_embedding_dimension()
         logger.info("Embedding model ready: %s (dim=%d)", model_name, self._dimension)

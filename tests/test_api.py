@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import json
-import os
 import random
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -35,15 +34,22 @@ async def _mock_create_embedder(settings):
 def client(tmp_path: Path):
     """Create a test client with temporary DB and mocked embedder."""
     config_path = tmp_path / "hippocampus.json"
-    config_path.write_text(json.dumps({
-        "db_path": str(tmp_path / "test.db"),
-        "kg_path": str(tmp_path / "test_kg.json"),
-        "port": 8321,
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "db_path": str(tmp_path / "test.db"),
+                "kg_path": str(tmp_path / "test_kg.json"),
+                "port": 8321,
+            }
+        )
+    )
 
-    with patch("hippocampus.config.loader.find_config_file", return_value=config_path), \
-         patch("hippocampus.embedding.factory.create_embedder", side_effect=_mock_create_embedder):
+    with (
+        patch("hippocampus.config.loader.find_config_file", return_value=config_path),
+        patch("hippocampus.embedding.factory.create_embedder", side_effect=_mock_create_embedder),
+    ):
         from hippocampus.server.app import create_app
+
         app = create_app()
         with TestClient(app) as c:
             yield c
@@ -75,18 +81,24 @@ class TestPartitionEndpoints:
         assert "mem_semantic" in ids
 
     def test_create_partition(self, client: TestClient):
-        resp = client.post("/api/v1/partitions", json={
-            "id": "mem_custom",
-            "name": "Custom Partition",
-            "description": "test",
-        })
+        resp = client.post(
+            "/api/v1/partitions",
+            json={
+                "id": "mem_custom",
+                "name": "Custom Partition",
+                "description": "test",
+            },
+        )
         assert resp.status_code == 201
         assert resp.json()["id"] == "mem_custom"
 
     def test_update_partition(self, client: TestClient):
-        resp = client.patch("/api/v1/partitions/mem_hippocampus", json={
-            "description": "Updated description",
-        })
+        resp = client.patch(
+            "/api/v1/partitions/mem_hippocampus",
+            json={
+                "description": "Updated description",
+            },
+        )
         assert resp.status_code == 200
         assert resp.json()["description"] == "Updated description"
 
@@ -102,11 +114,14 @@ class TestPartitionEndpoints:
 
 class TestMemoryEndpoints:
     def test_create_memory(self, client: TestClient):
-        resp = client.post("/api/v1/memories", json={
-            "content": "User prefers dark mode",
-            "partition_id": "mem_hippocampus",
-            "tags": ["preference", "ui"],
-        })
+        resp = client.post(
+            "/api/v1/memories",
+            json={
+                "content": "User prefers dark mode",
+                "partition_id": "mem_hippocampus",
+                "tags": ["preference", "ui"],
+            },
+        )
         assert resp.status_code == 201
         data = resp.json()
         assert data["content"] == "User prefers dark mode"
@@ -143,11 +158,14 @@ class TestMemoryEndpoints:
         assert resp.status_code == 404
 
     def test_batch_create(self, client: TestClient):
-        resp = client.post("/api/v1/memories/batch", json=[
-            {"content": "memory 1"},
-            {"content": "memory 2"},
-            {"content": "memory 3"},
-        ])
+        resp = client.post(
+            "/api/v1/memories/batch",
+            json=[
+                {"content": "memory 1"},
+                {"content": "memory 2"},
+                {"content": "memory 3"},
+            ],
+        )
         assert resp.status_code == 201
         assert len(resp.json()) == 3
 

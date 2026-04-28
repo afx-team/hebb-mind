@@ -14,8 +14,14 @@ from __future__ import annotations
 import os
 import sys
 
-import httpx
-from mcp.server.fastmcp import FastMCP
+# --- Stdio protection: MUST run before any third-party imports ---
+from hippocampus.utils.stdio_guard import capture_stdout, restore_stdout
+
+capture_stdout()
+# -----------------------------------------------------------------
+
+import httpx  # noqa: E402
+from mcp.server.fastmcp import FastMCP  # noqa: E402
 
 mcp = FastMCP(
     "hippocampus",
@@ -152,6 +158,10 @@ async def search_memory(
         query: Natural language search query.
         top_k: Maximum number of results to return (1-100, default 5).
     """
+    from hippocampus.retrieval.query_sanitizer import sanitize_query
+
+    query = sanitize_query(query)
+
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"{_base_url()}/api/v1/search",
@@ -204,8 +214,44 @@ async def consolidate() -> str:
     return f"Consolidation complete: {processed} processed, {succeeded} succeeded, {failed} failed"
 
 
+@mcp.tool()
+async def ingest_conversation(
+    content: str,
+    format_hint: str | None = None,
+    importance: float = 5.0,
+) -> str:
+    """Ingest a conversation export into hippocampus memory.
+
+    Auto-detects Claude Code JSONL, ChatGPT JSON, and plain text formats.
+    Normalizes turns, strips noise, and stores each turn as a memory.
+
+    Args:
+        content: Raw conversation data (JSONL, JSON, or plain text).
+        format_hint: Optional format override ('claude_code', 'chatgpt', 'plain').
+        importance: Importance score from 0.0 to 10.0 (default 5.0).
+    """
+    async with httpx.AsyncClient(timeout=120) as client:
+        resp = await client.post(
+            f"{_base_url()}/api/v1/ingest",
+            json={
+                "content": content,
+                "format_hint": format_hint,
+                "partition_id": "mem_hippocampus",
+                "importance_score": importance,
+                "source": "mcp",
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    return (
+        f"Ingested {data['memories_created']} memories (format={data['format_detected']}, turns={data['turns_parsed']})"
+    )
+
+
 def main() -> None:
     """Entry point for hippocampus-mcp console script."""
+    restore_stdout()
     _ensure_service_running()
     mcp.run(transport="stdio")
 

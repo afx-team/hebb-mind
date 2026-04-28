@@ -1,14 +1,15 @@
 """Tests for retrieval scoring."""
 
-import math
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
+from hippocampus.embedding.utils import cosine_similarity
 from hippocampus.retrieval.scorer import (
     compute_composite_score,
     compute_importance_score,
     compute_recency_score,
 )
-from hippocampus.embedding.utils import cosine_similarity
 
 
 class TestScoring:
@@ -30,8 +31,12 @@ class TestScoring:
 
     def test_composite_score(self):
         score = compute_composite_score(
-            recency=0.8, importance=0.6, relevance=0.9,
-            weight_recency=1.0, weight_importance=1.0, weight_relevance=1.0,
+            recency=0.8,
+            importance=0.6,
+            relevance=0.9,
+            weight_recency=1.0,
+            weight_importance=1.0,
+            weight_relevance=1.0,
         )
         expected = (0.8 + 0.6 + 0.9) / 3
         assert score == pytest.approx(expected)
@@ -39,15 +44,23 @@ class TestScoring:
     def test_composite_score_weights(self):
         # Only relevance matters
         score = compute_composite_score(
-            recency=0.1, importance=0.1, relevance=0.9,
-            weight_recency=0.0, weight_importance=0.0, weight_relevance=1.0,
+            recency=0.1,
+            importance=0.1,
+            relevance=0.9,
+            weight_recency=0.0,
+            weight_importance=0.0,
+            weight_relevance=1.0,
         )
         assert score == pytest.approx(0.9)
 
     def test_composite_score_zero_weights(self):
         score = compute_composite_score(
-            recency=0.5, importance=0.5, relevance=0.5,
-            weight_recency=0.0, weight_importance=0.0, weight_relevance=0.0,
+            recency=0.5,
+            importance=0.5,
+            relevance=0.5,
+            weight_recency=0.0,
+            weight_importance=0.0,
+            weight_relevance=0.0,
         )
         assert score == 0.0
 
@@ -71,6 +84,3 @@ class TestCosineSimilarity:
         a = [0.0, 0.0]
         b = [1.0, 0.0]
         assert cosine_similarity(a, b) == 0.0
-
-
-import pytest

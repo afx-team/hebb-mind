@@ -32,6 +32,7 @@ hippocampus config path
 | `embedding_enabled` | boolean | `true` | 是否启用向量搜索 |
 | `embedding_model` | string | `"all-MiniLM-L6-v2"` | Embedding 模型名称 |
 | `embedding_dim` | number | `384` | 向量维度 |
+| `hf_endpoint` | string | `null` | HuggingFace 镜像地址（如 `https://hf-mirror.com`） |
 | `llm_model` | string | `null` | LLM 模型标识（如 `openai/gpt-4o-mini`） |
 | `llm_base_url` | string | `null` | 自定义 LLM API 地址 |
 | `llm_api_key` | string | `null` | LLM 提供商 API 密钥 |
@@ -55,6 +56,7 @@ hippocampus config path
   "embedding_enabled": true,
   "embedding_model": "all-MiniLM-L6-v2",
   "embedding_dim": 384,
+  "hf_endpoint": "https://hf-mirror.com",
   "llm_model": "openai/gpt-4o-mini",
   "llm_api_key": "sk-your-key",
   "host": "0.0.0.0",
@@ -75,5 +77,15 @@ hippocampus config path
 启动服务后，打开 `http://localhost:8321/` 进入 Web 控制台，在 **Settings** 页面也可以可视化编辑配置。修改后会自动写入 `hippocampus.json`。
 
 ::: tip
-部分配置修改后需要重启服务才能生效，包括：`storage_type`、`db_path`、`pg_url`、`embedding_enabled`、`embedding_model`、`embedding_dim`、`host`、`port`、`kg_path`。
+部分配置修改后需要重启服务才能生效，包括：`storage_type`、`db_path`、`pg_url`、`embedding_enabled`、`embedding_model`、`embedding_dim`、`hf_endpoint`、`host`、`port`、`kg_path`。
 :::
+
+## 国内镜像加速
+
+国内用户下载 HuggingFace 模型可能较慢，可以通过配置镜像加速：
+
+```bash
+hippocampus config set hf_endpoint https://hf-mirror.com
+```
+
+设置后，启动服务时会自动通过镜像站下载 Embedding 模型。

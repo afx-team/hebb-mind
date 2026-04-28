@@ -1,9 +1,9 @@
 """Tests for Pydantic data models."""
 
-from hippocampus.models.memory import Memory, MemoryCreate, MemoryQuery, MemoryUpdate
-from hippocampus.models.partition import Partition, PartitionCreate, PartitionUpdate
-from hippocampus.models.graph import TagNode, TagEdge, KnowledgeGraphState
 from hippocampus.models.common import PaginatedResponse
+from hippocampus.models.graph import KnowledgeGraphState, TagEdge, TagNode
+from hippocampus.models.memory import Memory, MemoryCreate, MemoryQuery, MemoryUpdate
+from hippocampus.models.partition import PartitionCreate, PartitionUpdate
 
 
 class TestMemoryModels:
@@ -49,6 +49,7 @@ class TestPartitionModels:
 
     def test_partition_create_invalid_id(self):
         import pytest
+
         with pytest.raises(Exception):
             PartitionCreate(id="invalid", name="Bad ID")
 
