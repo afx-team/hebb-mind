@@ -11,9 +11,6 @@ URL resolution:
 
 from __future__ import annotations
 
-import os
-import sys
-
 # --- Stdio protection: MUST run before any third-party imports ---
 from hippocampus.utils.stdio_guard import capture_stdout, restore_stdout
 
@@ -22,6 +19,8 @@ capture_stdout()
 
 import httpx  # noqa: E402
 from mcp.server.fastmcp import FastMCP  # noqa: E402
+
+from hippocampus.utils.service import ensure_service_running, resolve_base_url  # noqa: E402
 
 mcp = FastMCP(
     "hippocampus",
@@ -35,81 +34,20 @@ mcp = FastMCP(
 
 
 def _base_url() -> str:
-    """Resolve the running server URL.
-
-    1. Read host/port from hippocampus.json (found by walking up from cwd)
-    2. Fall back to http://localhost:8321 if no config file found
-    3. HIPPOCAMPUS_URL env var overrides both — for remote services only
-    """
-    # Read from config file (cwd walk-up)
-    try:
-        from hippocampus.config.loader import load_settings
-
-        s = load_settings()
-        host = "127.0.0.1" if s.host in ("0.0.0.0", "") else s.host
-        base = f"http://{host}:{s.port}"
-    except Exception:
-        base = "http://localhost:8321"
-
-    # Explicit override for non-local / remote services
-    url = os.environ.get("HIPPOCAMPUS_URL")
-    if url:
-        return url.rstrip("/")
-
-    return base
+    """Resolve the running server URL — delegates to shared utility."""
+    return resolve_base_url()
 
 
 def _is_server_running(url: str) -> bool:
     """Check if the Hippocampus service is reachable."""
-    try:
-        httpx.get(f"{url}/health", timeout=3)
-        return True
-    except (httpx.ConnectError, httpx.RemoteProtocolError):
-        return False
+    from hippocampus.utils.service import is_server_running
+
+    return is_server_running(url)
 
 
 def _ensure_service_running() -> None:
     """Auto-start the Hippocampus service if not already running."""
-    url = _base_url()
-
-    if _is_server_running(url):
-        return
-
-    # Skip auto-start if using a remote URL (user manages that server)
-    if os.environ.get("HIPPOCAMPUS_URL"):
-        return
-
-    # Start the service as a daemon
-    import subprocess
-
-    cmd = [sys.executable, "-m", "hippocampus.cli.main", "start", "-d"]
-
-    try:
-        subprocess.Popen(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-    except FileNotFoundError:
-        # Fallback: try the installed binary
-        try:
-            subprocess.Popen(
-                ["hippocampus", "start", "-d"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-        except FileNotFoundError:
-            return
-
-    # Wait for the service to come up
-    import time
-
-    for _ in range(30):
-        time.sleep(0.5)
-        if _is_server_running(url):
-            return
+    ensure_service_running()
 
 
 @mcp.tool()

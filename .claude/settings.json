@@ -3,6 +3,44 @@
   "permissions": {
     "defaultMode": "bypassPermissions"
   },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "hippocampus cc recall",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "hippocampus cc write",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "hippocampus cc stop",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  },
   "mcpServers": {
     "context7": {
       "type": "stdio",

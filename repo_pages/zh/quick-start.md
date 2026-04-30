@@ -107,7 +107,23 @@ curl -X POST http://localhost:8321/api/v1/admin/consolidate
 }
 ```
 
-详见 [MCP 集成](./advanced/mcp-integration.md)。
+详见 [MCP 集成](./guide/mcp-integration.md)。
+
+## Claude Code 自动记忆
+
+让 Claude Code 拥有跨会话持久记忆：
+
+```bash
+hippocampus cc install
+```
+
+自动注册三个 hooks 到 `.claude/settings.json`：
+
+- **SessionStart** — 会话开始时召回跨会话记忆
+- **UserPromptSubmit** — 每条用户消息自动写入记忆（自动去噪、去重）
+- **Stop** — 会话结束时触发记忆巩固
+
+详见 [Claude Code 集成](./guide/claude-code.md)。
 
 ## 下一步
 

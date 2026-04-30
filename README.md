@@ -61,6 +61,7 @@ Hippocampus addresses these gaps with a **zero-config, automatic memory lifecycl
 - **Multi-model support** — Works with OpenAI, Anthropic, Qwen, GLM, Kimi, and 100+ providers via LiteLLM
 - **Built-in Web Console** — Memory CRUD, search, and graph visualization in a single-page app
 - **MCP Server** — Native integration with Claude Code and other MCP-compatible clients
+- **Claude Code Hooks** — Automatic cross-session memory: writes on every turn, recalls at session start
 
 ## Quick Start
 
@@ -80,6 +81,20 @@ Open http://localhost:8321/ for the **Web Console**, or http://localhost:8321/do
 ```bash
 pip install afx-hippocampus
 ```
+
+### Claude Code (auto-memory)
+
+Give Claude Code persistent memory across sessions — three commands:
+
+```bash
+pip install afx-hippocampus
+hippocampus init
+hippocampus cc install
+```
+
+Restart Claude Code. Hippocampus will automatically recall cross-session memories at session start, write each user message to memory, and consolidate when the session ends.
+
+See [Claude Code Integration](https://afx-team.github.io/hippocampus/advanced/claude-code.html) for details.
 
 ### Docker
 
@@ -276,6 +291,7 @@ mypy src/hippocampus/
 - [x] Built-in Web Console (memory CRUD, search, graph visualization)
 - [x] Evaluation benchmarks (LoCoMo, LongMemEval, ConvoMem, PersonaMem)
 - [x] MCP server for Claude Code / OpenClaw integration
+- [x] Claude Code hooks — automatic cross-session memory
 - [ ] Multi-agent shared memory
 - [ ] Emotional tagging and memory importance learning
 

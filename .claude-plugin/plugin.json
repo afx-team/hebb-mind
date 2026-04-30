@@ -1,0 +1,51 @@
+{
+  "name": "hippocampus",
+  "version": "0.1.0",
+  "description": "Neuroscience-inspired long-term memory for Claude Code — auto-captures and recalls cross-session context",
+  "author": "afx-team",
+  "homepage": "https://github.com/afx-team/hippocampus",
+  "mcpServers": {
+    "hippocampus": {
+      "type": "stdio",
+      "command": "hippocampus-mcp"
+    }
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "hippocampus cc recall",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "hippocampus cc write",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "hippocampus cc stop",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

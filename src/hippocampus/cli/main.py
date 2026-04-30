@@ -12,6 +12,7 @@ from hippocampus.cli.commands.service import service_cmd
 from hippocampus.cli.commands.start import start_cmd
 from hippocampus.cli.commands.status import status_cmd
 from hippocampus.cli.commands.stop import restart_cmd, stop_cmd
+from hippocampus.integrations.claude_code.cli import cc
 
 
 @click.group()
@@ -29,3 +30,4 @@ main.add_command(status_cmd, "status")
 main.add_command(config_cmd, "config")
 main.add_command(mcp_cmd, "mcp")
 main.add_command(service_cmd, "service")
+main.add_command(cc)

@@ -107,7 +107,23 @@ Use Hippocampus as an MCP tool in Claude Code, Cursor, or other MCP clients:
 }
 ```
 
-See [MCP Integration](./advanced/mcp-integration.md) for full setup instructions.
+See [MCP Integration](./guide/mcp-integration.md) for full setup instructions.
+
+## Claude Code Auto-Memory
+
+Give Claude Code persistent memory across sessions with hooks:
+
+```bash
+hippocampus cc install
+```
+
+This registers three hooks in `.claude/settings.json`:
+
+- **SessionStart** — recalls cross-session memories into context
+- **UserPromptSubmit** — writes each user message to memory (with noise stripping and dedup)
+- **Stop** — triggers consolidation when the session ends
+
+See [Claude Code Integration](./guide/claude-code.md) for details.
 
 ## Next Steps
 

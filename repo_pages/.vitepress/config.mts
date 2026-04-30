@@ -14,6 +14,8 @@ function guideSidebar(prefix = '') {
       items: [
         { text: prefix ? '安装' : 'Installation', link: `${prefix}/guide/installation` },
         { text: prefix ? '配置' : 'Configuration', link: `${prefix}/guide/configuration` },
+        { text: 'Claude Code', link: `${prefix}/guide/claude-code` },
+        { text: prefix ? 'MCP 集成' : 'MCP Integration', link: `${prefix}/guide/mcp-integration` },
       ],
     },
     {
@@ -43,7 +45,6 @@ function guideSidebar(prefix = '') {
       items: [
         { text: prefix ? '存储后端' : 'Storage Backends', link: `${prefix}/advanced/storage-backends` },
         { text: prefix ? '多模型支持' : 'Multi-model', link: `${prefix}/advanced/multi-model` },
-        { text: 'MCP Integration', link: `${prefix}/advanced/mcp-integration` },
       ],
     },
   ]

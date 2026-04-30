@@ -1,74 +1,51 @@
 # Installation
 
-## From PyPI (Recommended)
+## Install
 
 ```bash
 pip install afx-hippocampus
 ```
 
-Requires **Python >= 3.10**.
+Requires **Python >= 3.10**. No external database needed — SQLite is built in.
 
-## Optional Extras
-
-Hippocampus ships with optional dependency groups for different use cases:
-
-| Extra | Command | Description |
-|-------|---------|-------------|
-| PostgreSQL | `pip install afx-hippocampus[pg]` | PostgreSQL + pgvector storage backend |
-| Development | `pip install afx-hippocampus[dev]` | Testing, linting, type-checking, and benchmark evaluation tools |
-
-Install multiple extras at once:
-
-```bash
-pip install afx-hippocampus[pg,dev]
-```
-
-## One-line Installer
-
-For a guided installation with interactive backend selection:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/afx-team/hippocampus/main/scripts/install.sh | sh
-```
-
-## From Source
-
-```bash
-git clone https://github.com/afx-team/hippocampus.git
-cd hippocampus
-python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-pip install -e ".[dev]"
-```
-
-## Verify Installation
-
-```bash
-hippocampus --version
-```
-
-You should see the installed version number printed to the console.
-
-## What Gets Installed
-
-The `afx-hippocampus` package includes:
-
-- **hippocampus** CLI command
-- FastAPI REST server
-- SQLite + sqlite-vec storage backend (zero-config)
-- Sentence-transformers embedding model (`all-MiniLM-L6-v2`, downloaded on first use)
-- NetworkX-based knowledge graph
-- APScheduler for background consolidation and forgetting jobs
-- LiteLLM for multi-model LLM support
-
-## Next Steps
-
-After installation, initialize your project:
+## Initialize
 
 ```bash
 hippocampus init
-hippocampus config set llm_api_key sk-your-key-here
+```
+
+Creates `hippocampus.json` (config) and `hippocampus.db` (database) in your current directory.
+
+## Verify
+
+```bash
+hippocampus --version
 hippocampus start
 ```
 
-See the [Quick Start](../quick-start.md) guide for a complete walkthrough.
+Open [http://localhost:8321/](http://localhost:8321/) for the Web Console, or [http://localhost:8321/docs](http://localhost:8321/docs) for the API docs.
+
+## Docker
+
+```bash
+git clone https://github.com/afx-team/hippocampus.git && cd hippocampus
+docker compose -f docker/docker-compose.yml up
+```
+
+## PostgreSQL Backend
+
+For production workloads, switch to PostgreSQL + pgvector:
+
+```bash
+pip install afx-hippocampus[pg]
+hippocampus config set storage_type postgresql
+hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
+```
+
+See [Storage Backends](../advanced/storage-backends.md) for details.
+
+## Next Steps
+
+- [Configuration](./configuration.md) — full config reference
+- [Claude Code](./claude-code.md) — automatic cross-session memory for Claude Code
+- [MCP Integration](./mcp-integration.md) — use hippocampus as MCP tools in any client

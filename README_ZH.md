@@ -61,6 +61,7 @@ Hippocampus 借鉴神经科学，通过**零配置、自动化的记忆生命周
 - **多模型支持** — 通过 LiteLLM 支持 OpenAI、Anthropic、通义千问、GLM、Kimi 等 100+ 提供商
 - **内置 Web 控制台** — 记忆增删改查、搜索和图谱可视化
 - **MCP Server** — 原生集成 Claude Code 及其他 MCP 兼容客户端
+- **Claude Code Hooks** — 跨会话自动记忆：每轮对话自动写入，会话开始时自动召回
 
 ## 快速开始
 
@@ -80,6 +81,20 @@ hippocampus start                 # 启动服务 → http://localhost:8321/
 ```bash
 pip install afx-hippocampus
 ```
+
+### Claude Code（自动记忆）
+
+让 Claude Code 拥有跨会话持久记忆 — 三条命令：
+
+```bash
+pip install afx-hippocampus
+hippocampus init
+hippocampus cc install
+```
+
+重启 Claude Code 即可。Hippocampus 会自动在会话开始时召回跨会话记忆，每条用户消息自动写入记忆，会话结束时触发巩固。
+
+详见 [Claude Code 集成](https://afx-team.github.io/hippocampus/zh/advanced/claude-code.html)。
 
 ### Docker 部署
 
@@ -279,6 +294,7 @@ mypy src/hippocampus/
 - [x] 内置 Web 管理控制台
 - [x] 评估基准测试（LoCoMo、LongMemEval、ConvoMem、PersonaMem）
 - [x] MCP Server 集成 Claude Code / OpenClaw
+- [x] Claude Code Hooks — 跨会话自动记忆
 - [ ] 多 Agent 共享记忆
 - [ ] 情感标签与记忆重要性学习
 
