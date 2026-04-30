@@ -1,4 +1,4 @@
-"""Stop hook — record turn summary, trigger consolidation, and cleanup."""
+"""Stop hook — record turn summary and cleanup."""
 
 from __future__ import annotations
 
@@ -15,33 +15,31 @@ logger = logging.getLogger(__name__)
 
 
 def handle() -> None:
-    """Record the last turn, trigger consolidation, and clean up session state."""
+    """Record the last turn and clean up session state.
+
+    Consolidation is NOT triggered here — it runs on its own schedule
+    via ``consolidation_interval_seconds`` in the server lifecycle.
+    """
     hook_input = read_hook_input()
     session_id = hook_input.get("session_id", "")
     transcript_path = hook_input.get("transcript_path", "")
 
-    try:
-        client = get_client(timeout=30)
-    except Exception:
-        logger.debug("Could not connect to hippocampus service", exc_info=True)
-        # Still clean up dedup state even if service is unreachable.
-        if session_id:
-            cleanup_session(session_id)
-        return
-
     # 1. Record last turn summary as a memory.
     if transcript_path:
-        _record_turn(client, transcript_path, session_id)
+        try:
+            client = get_client(timeout=30)
+        except Exception:
+            logger.debug("Could not connect to hippocampus service", exc_info=True)
+            if session_id:
+                cleanup_session(session_id)
+            return
 
-    # 2. Trigger consolidation (fire-and-forget on timeout).
-    try:
-        client.post("/api/v1/admin/consolidate")
-    except Exception:
-        logger.debug("Consolidation trigger failed", exc_info=True)
+        try:
+            _record_turn(client, transcript_path, session_id)
+        finally:
+            client.close()
 
-    client.close()
-
-    # 3. Clean up dedup state for this session.
+    # 2. Clean up dedup state for this session.
     if session_id:
         cleanup_session(session_id)
 

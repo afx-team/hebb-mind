@@ -383,16 +383,13 @@ class TestFormatTurnMemory:
 
 
 class TestStopHook:
-    def test_triggers_consolidation_and_cleanup(self, monkeypatch: pytest.MonkeyPatch):
-        client = _FakeClient()
+    def test_cleanup_without_transcript(self, monkeypatch: pytest.MonkeyPatch):
+        """No transcript_path → only dedup cleanup, no client needed."""
         cleaned: list[str] = []
         monkeypatch.setattr(stop, "read_hook_input", lambda: {"session_id": "s1"})
-        monkeypatch.setattr(stop, "get_client", lambda timeout=30: client)
         monkeypatch.setattr(stop, "cleanup_session", lambda session_id: cleaned.append(session_id))
         stop.handle()
-        assert ("/api/v1/admin/consolidate", None) in client.calls
         assert cleaned == ["s1"]
-        assert client.closed is True
 
     def test_records_turn_summary_from_transcript(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         transcript = tmp_path / "session.jsonl"
@@ -431,10 +428,8 @@ class TestStopHook:
 
         stop.handle()
 
-        # Should have two calls: memory write + consolidation
-        assert len(client.calls) == 2
-
-        # First call: turn summary memory
+        # Only turn summary write, no consolidation
+        assert len(client.calls) == 1
         path, payload = client.calls[0]
         assert path == "/api/v1/memories"
         assert "[User] Explain this code" in payload["content"]
@@ -443,18 +438,5 @@ class TestStopHook:
         assert payload["tags"] == ["turn-summary", "hook"]
         assert payload["metadata"]["tools"] == ["Read"]
         assert payload["source"] == "hook:stop"
-
-        # Second call: consolidation
-        assert client.calls[1] == ("/api/v1/admin/consolidate", None)
-
-    def test_skips_recording_without_transcript_path(self, monkeypatch: pytest.MonkeyPatch):
-        client = _FakeClient()
-        cleaned: list[str] = []
-        monkeypatch.setattr(stop, "read_hook_input", lambda: {"session_id": "s1"})
-        monkeypatch.setattr(stop, "get_client", lambda timeout=30: client)
-        monkeypatch.setattr(stop, "cleanup_session", lambda session_id: cleaned.append(session_id))
-
-        stop.handle()
-
-        # Only consolidation, no memory write
-        assert client.calls == [("/api/v1/admin/consolidate", None)]
+        assert client.closed is True
+        assert cleaned == ["s1"]
