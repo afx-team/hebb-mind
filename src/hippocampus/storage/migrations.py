@@ -11,45 +11,19 @@ logger = logging.getLogger(__name__)
 _VEC_FIX_HINT = (
     "Vector search requires SQLite extension loading, which is disabled "
     "in some Python builds (notably macOS python.org installer). "
-    "Fix: pip install pysqlite3-binary"
+    "Fix: pip install pysqlite3"
 )
 
 
-def _get_loadable_sqlite3():
-    """Return a sqlite3 module that supports extension loading.
-
-    The standard sqlite3 on some platforms (notably macOS python.org builds)
-    is compiled without extension loading support. We try pysqlite3 as a
-    fallback, which bundles a full SQLite and always supports extensions.
-    """
-    import sqlite3
-
-    # Fast path: check if the standard module supports extensions
-    test_conn = sqlite3.connect(":memory:")
-    if hasattr(test_conn, "enable_load_extension"):
-        test_conn.close()
-        return sqlite3
-    test_conn.close()
-
-    # Fallback: try pysqlite3-binary which always supports extensions
-    try:
-        import pysqlite3  # type: ignore[import-untyped]
-
-        test_conn = pysqlite3.connect(":memory:")
-        if hasattr(test_conn, "enable_load_extension"):
-            test_conn.close()
-            logger.info("Using pysqlite3 for sqlite-vec extension loading")
-            return pysqlite3
-        test_conn.close()
-    except ImportError:
-        pass
-
-    logger.warning("SQLite extension loading unavailable. %s", _VEC_FIX_HINT)
-    return None
-
-
 async def get_connection(db_path: str, *, load_vec: bool = True) -> aiosqlite.Connection:
-    """Open a connection with WAL mode, foreign keys, and sqlite-vec loaded."""
+    """Open a connection with WAL mode, foreign keys, and sqlite-vec loaded.
+
+    Note: ``hippocampus.storage._sqlite_compat`` patches ``sys.modules["sqlite3"]``
+    with ``pysqlite3`` on platforms that lack extension loading support.
+    This means ``aiosqlite`` (which imports ``sqlite3``) transparently uses the
+    patched module, and ``conn.enable_load_extension`` is always available
+    when ``pysqlite3-binary`` is installed.
+    """
     db = await aiosqlite.connect(db_path)
     db.row_factory = aiosqlite.Row
     await db.execute("PRAGMA journal_mode=WAL")
@@ -59,19 +33,13 @@ async def get_connection(db_path: str, *, load_vec: bool = True) -> aiosqlite.Co
         try:
             import sqlite_vec
 
-            sqlite3_mod = _get_loadable_sqlite3()
+            def _load_vec(conn):
+                conn.enable_load_extension(True)
+                sqlite_vec.load(conn)
+                conn.enable_load_extension(False)
 
-            if sqlite3_mod is not None:
-
-                def _load_vec(conn):
-                    conn.enable_load_extension(True)
-                    sqlite_vec.load(conn)
-                    conn.enable_load_extension(False)
-
-                await db.execute("select 1")  # ensure connection is initialized
-                await db._execute(_load_vec, db._connection)
-            else:
-                logger.warning("Vector search disabled. %s", _VEC_FIX_HINT)
+            await db.execute("select 1")  # ensure connection is initialized
+            await db._execute(_load_vec, db._connection)
         except (AttributeError, ImportError, OSError) as e:
             logger.warning("sqlite-vec unavailable (%s), vector search disabled. %s", e, _VEC_FIX_HINT)
 

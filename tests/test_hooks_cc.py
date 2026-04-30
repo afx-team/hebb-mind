@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 
 from hippocampus.ingest.noise import strip_noise
 from hippocampus.integrations.claude_code import dedup, recall, stop, write
+from hippocampus.integrations.claude_code.transcript import (
+    TurnSummary,
+    extract_last_turn,
+    format_turn_memory,
+)
 
 
 class _FakeResponse:
@@ -177,6 +183,205 @@ class TestRecallHook:
         assert capsys.readouterr().out == ""
 
 
+class TestTranscript:
+    """Tests for transcript parsing and turn summary formatting."""
+
+    def _write_jsonl(self, tmp_path: Path, messages: list[dict]) -> Path:
+        """Helper to write a JSONL transcript file."""
+        path = tmp_path / "session.jsonl"
+        with open(path, "w") as f:
+            for msg in messages:
+                f.write(json.dumps(msg) + "\n")
+        return path
+
+    def test_extract_user_and_assistant_text(self, tmp_path: Path):
+        path = self._write_jsonl(
+            tmp_path,
+            [
+                {
+                    "type": "user",
+                    "message": {"role": "user", "content": [{"type": "text", "text": "What is 1+1?"}]},
+                },
+                {
+                    "type": "assistant",
+                    "message": {"role": "assistant", "content": [{"type": "text", "text": "The answer is 2."}]},
+                },
+            ],
+        )
+        summary = extract_last_turn(path)
+        assert summary is not None
+        assert summary.user_input == "What is 1+1?"
+        assert summary.assistant_output == "The answer is 2."
+        assert summary.tools == []
+        assert summary.mcps == []
+
+    def test_extract_tools_and_mcps(self, tmp_path: Path):
+        path = self._write_jsonl(
+            tmp_path,
+            [
+                {
+                    "type": "user",
+                    "message": {"role": "user", "content": [{"type": "text", "text": "Read the file"}]},
+                },
+                {
+                    "type": "assistant",
+                    "message": {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "text", "text": "Let me read that."},
+                            {"type": "tool_use", "name": "Read", "id": "t1", "input": {}},
+                            {"type": "tool_use", "name": "Grep", "id": "t2", "input": {}},
+                            {"type": "tool_use", "name": "mcp__hippocampus__search_memory", "id": "t3", "input": {}},
+                        ],
+                    },
+                },
+            ],
+        )
+        summary = extract_last_turn(path)
+        assert summary is not None
+        assert summary.tools == ["Read", "Grep"]
+        assert summary.mcps == ["mcp__hippocampus__search_memory"]
+
+    def test_deduplicates_repeated_tools(self, tmp_path: Path):
+        path = self._write_jsonl(
+            tmp_path,
+            [
+                {
+                    "type": "user",
+                    "message": {"role": "user", "content": [{"type": "text", "text": "Search for it"}]},
+                },
+                {
+                    "type": "assistant",
+                    "message": {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "tool_use", "name": "Grep", "id": "t1", "input": {}},
+                            {"type": "tool_use", "name": "Grep", "id": "t2", "input": {}},
+                            {"type": "tool_use", "name": "Read", "id": "t3", "input": {}},
+                        ],
+                    },
+                },
+            ],
+        )
+        summary = extract_last_turn(path)
+        assert summary is not None
+        assert summary.tools == ["Grep", "Read"]
+
+    def test_strips_system_noise_from_user_input(self, tmp_path: Path):
+        path = self._write_jsonl(
+            tmp_path,
+            [
+                {
+                    "type": "user",
+                    "message": {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "<system-reminder>hidden</system-reminder>Actual question here"},
+                        ],
+                    },
+                },
+                {
+                    "type": "assistant",
+                    "message": {"role": "assistant", "content": [{"type": "text", "text": "Sure!"}]},
+                },
+            ],
+        )
+        summary = extract_last_turn(path)
+        assert summary is not None
+        assert summary.user_input == "Actual question here"
+
+    def test_extracts_last_turn_only(self, tmp_path: Path):
+        """When there are multiple turns, only the last one is extracted."""
+        path = self._write_jsonl(
+            tmp_path,
+            [
+                {
+                    "type": "user",
+                    "message": {"role": "user", "content": [{"type": "text", "text": "First question"}]},
+                },
+                {
+                    "type": "assistant",
+                    "message": {"role": "assistant", "content": [{"type": "text", "text": "First answer"}]},
+                },
+                {
+                    "type": "user",
+                    "message": {"role": "user", "content": [{"type": "text", "text": "Second question"}]},
+                },
+                {
+                    "type": "assistant",
+                    "message": {"role": "assistant", "content": [{"type": "text", "text": "Second answer"}]},
+                },
+            ],
+        )
+        summary = extract_last_turn(path)
+        assert summary is not None
+        assert summary.user_input == "Second question"
+        assert summary.assistant_output == "Second answer"
+
+    def test_returns_none_for_missing_file(self):
+        summary = extract_last_turn("/nonexistent/path.jsonl")
+        assert summary is None
+
+    def test_returns_none_for_empty_file(self, tmp_path: Path):
+        path = tmp_path / "empty.jsonl"
+        path.write_text("")
+        assert extract_last_turn(path) is None
+
+    def test_collects_tools_from_multiple_assistant_messages(self, tmp_path: Path):
+        """Tools from all assistant messages in the last turn are collected."""
+        path = self._write_jsonl(
+            tmp_path,
+            [
+                {
+                    "type": "user",
+                    "message": {"role": "user", "content": [{"type": "text", "text": "Do stuff"}]},
+                },
+                {
+                    "type": "assistant",
+                    "message": {
+                        "role": "assistant",
+                        "content": [{"type": "tool_use", "name": "Read", "id": "t1", "input": {}}],
+                    },
+                },
+                {
+                    "type": "assistant",
+                    "message": {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "text", "text": "Done."},
+                            {"type": "tool_use", "name": "Edit", "id": "t2", "input": {}},
+                        ],
+                    },
+                },
+            ],
+        )
+        summary = extract_last_turn(path)
+        assert summary is not None
+        assert summary.tools == ["Edit", "Read"]
+        assert summary.assistant_output == "Done."
+
+
+class TestFormatTurnMemory:
+    def test_formats_full_summary(self):
+        summary = TurnSummary(
+            user_input="What is 1+1?",
+            assistant_output="The answer is 2.",
+            tools=["Read", "Grep"],
+            mcps=["mcp__hippocampus__search_memory"],
+        )
+        result = format_turn_memory(summary)
+        assert "[User] What is 1+1?" in result
+        assert "[Assistant] The answer is 2." in result
+        assert "[Tools] Read, Grep" in result
+        assert "[MCP] mcp__hippocampus__search_memory" in result
+
+    def test_skips_empty_sections(self):
+        summary = TurnSummary(user_input="Hello", assistant_output="Hi")
+        result = format_turn_memory(summary)
+        assert "[Tools]" not in result
+        assert "[MCP]" not in result
+
+
 class TestStopHook:
     def test_triggers_consolidation_and_cleanup(self, monkeypatch: pytest.MonkeyPatch):
         client = _FakeClient()
@@ -185,6 +390,71 @@ class TestStopHook:
         monkeypatch.setattr(stop, "get_client", lambda timeout=30: client)
         monkeypatch.setattr(stop, "cleanup_session", lambda session_id: cleaned.append(session_id))
         stop.handle()
-        assert client.calls == [("/api/v1/admin/consolidate", None)]
+        assert ("/api/v1/admin/consolidate", None) in client.calls
         assert cleaned == ["s1"]
         assert client.closed is True
+
+    def test_records_turn_summary_from_transcript(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        transcript = tmp_path / "session.jsonl"
+        transcript.write_text(
+            json.dumps(
+                {
+                    "type": "user",
+                    "message": {"role": "user", "content": [{"type": "text", "text": "Explain this code"}]},
+                }
+            )
+            + "\n"
+            + json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "text", "text": "This function does X."},
+                            {"type": "tool_use", "name": "Read", "id": "t1", "input": {}},
+                        ],
+                    },
+                }
+            )
+            + "\n"
+        )
+
+        client = _FakeClient()
+        cleaned: list[str] = []
+        monkeypatch.setattr(
+            stop,
+            "read_hook_input",
+            lambda: {"session_id": "s1", "transcript_path": str(transcript)},
+        )
+        monkeypatch.setattr(stop, "get_client", lambda timeout=30: client)
+        monkeypatch.setattr(stop, "cleanup_session", lambda session_id: cleaned.append(session_id))
+
+        stop.handle()
+
+        # Should have two calls: memory write + consolidation
+        assert len(client.calls) == 2
+
+        # First call: turn summary memory
+        path, payload = client.calls[0]
+        assert path == "/api/v1/memories"
+        assert "[User] Explain this code" in payload["content"]
+        assert "[Assistant] This function does X." in payload["content"]
+        assert "[Tools] Read" in payload["content"]
+        assert payload["tags"] == ["turn-summary", "hook"]
+        assert payload["metadata"]["tools"] == ["Read"]
+        assert payload["source"] == "hook:stop"
+
+        # Second call: consolidation
+        assert client.calls[1] == ("/api/v1/admin/consolidate", None)
+
+    def test_skips_recording_without_transcript_path(self, monkeypatch: pytest.MonkeyPatch):
+        client = _FakeClient()
+        cleaned: list[str] = []
+        monkeypatch.setattr(stop, "read_hook_input", lambda: {"session_id": "s1"})
+        monkeypatch.setattr(stop, "get_client", lambda timeout=30: client)
+        monkeypatch.setattr(stop, "cleanup_session", lambda session_id: cleaned.append(session_id))
+
+        stop.handle()
+
+        # Only consolidation, no memory write
+        assert client.calls == [("/api/v1/admin/consolidate", None)]
