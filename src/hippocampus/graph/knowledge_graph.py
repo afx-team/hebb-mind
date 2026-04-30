@@ -91,14 +91,26 @@ class KnowledgeGraph:
                 weight=1.0,
             )
 
-    def remove_memory_from_tags(self, memory_id: str) -> None:
-        """Remove a memory reference from all tags."""
+    def remove_memory_from_tags(self, memory_id: str, *, prune: bool = True) -> None:
+        """Remove a memory reference from all tags.
+
+        Args:
+            memory_id: The memory to unlink.
+            prune: If True, remove tag nodes that have no remaining
+                   memory references after the removal.
+        """
+        empty_nodes: list[str] = []
         for node_id in list(self.graph.nodes):
             data = self.graph.nodes[node_id]
             mids = data.get("memory_ids", [])
             if memory_id in mids:
                 mids.remove(memory_id)
                 data["weight"] = len(mids)
+                if prune and not mids:
+                    empty_nodes.append(node_id)
+
+        for node_id in empty_nodes:
+            self.graph.remove_node(node_id)
 
     def add_edge(self, source: str, target: str, relation: str = "related") -> None:
         """Add or update an edge between two tags."""

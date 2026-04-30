@@ -47,9 +47,14 @@ async def trigger_consolidation(
 @router.post("/forget")
 async def trigger_forgetting(
     memory_store: MemoryStore = Depends(get_memory_store),
+    kg: KnowledgeGraph = Depends(get_knowledge_graph),
 ):
-    deleted = await memory_store.delete_expired()
-    return {"deleted": deleted}
+    deleted_ids = await memory_store.delete_expired()
+    for mid in deleted_ids:
+        kg.remove_memory_from_tags(mid)
+    if deleted_ids:
+        kg.save()
+    return {"deleted": len(deleted_ids)}
 
 
 @router.get("/stats")

@@ -5,12 +5,14 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from hippocampus.embedding.base import EmbeddingProvider
+from hippocampus.graph.knowledge_graph import KnowledgeGraph
 from hippocampus.ingest.normalizer import normalize
 from hippocampus.models.common import PaginatedResponse
 from hippocampus.models.ingest import IngestRequest, IngestResponse
 from hippocampus.models.memory import Memory, MemoryCreate, MemoryMetadata, MemoryUpdate
 from hippocampus.server.dependencies import (
     get_embedder,
+    get_knowledge_graph,
     get_memory_store,
 )
 from hippocampus.storage.base import MemoryStore
@@ -95,10 +97,13 @@ async def update_memory(
 async def delete_memory(
     memory_id: str,
     store: MemoryStore = Depends(get_memory_store),
+    kg: KnowledgeGraph = Depends(get_knowledge_graph),
 ):
     deleted = await store.delete(memory_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Memory not found")
+    kg.remove_memory_from_tags(memory_id)
+    kg.save()
 
 
 @router.post("/ingest", response_model=IngestResponse, status_code=201)

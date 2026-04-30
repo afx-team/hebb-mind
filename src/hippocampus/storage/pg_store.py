@@ -272,13 +272,12 @@ class PGMemoryStore:
             )
         return [_record_to_memory(r) for r in rows]
 
-    async def delete_expired(self) -> int:
+    async def delete_expired(self) -> list[str]:
         async with self.pool.acquire() as conn:
-            result = await conn.execute(
-                "DELETE FROM memories WHERE expires_at IS NOT NULL AND expires_at < now()",
+            rows = await conn.fetch(
+                "DELETE FROM memories WHERE expires_at IS NOT NULL AND expires_at < now() RETURNING id",
             )
-        # result is like "DELETE 5"
-        return int(result.split()[-1]) if result else 0
+        return [row["id"] for row in rows]
 
     async def update_access(self, memory_id: str) -> None:
         async with self.pool.acquire() as conn:

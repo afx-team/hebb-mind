@@ -103,8 +103,9 @@ class TestForgettingJob:
         await memory_store.update_expiry(mem.id, expires.isoformat())
 
         # Run delete_expired
-        deleted = await memory_store.delete_expired()
-        assert deleted == 1
+        deleted_ids = await memory_store.delete_expired()
+        assert len(deleted_ids) == 1
+        assert mem.id in deleted_ids
 
         # Verify gone
         assert await memory_store.get(mem.id) is None

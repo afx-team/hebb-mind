@@ -257,9 +257,9 @@ class SQLiteMemoryStore:
         rows = await cursor.fetchall()
         return [_row_to_memory(r) for r in rows]
 
-    async def delete_expired(self) -> int:
+    async def delete_expired(self) -> list[str]:
         now = _now_iso()
-        # Get expired memory IDs first (for embedding cleanup)
+        # Get expired memory IDs first (for embedding/fts cleanup)
         cursor = await self.db.execute(
             "SELECT id FROM memories WHERE expires_at IS NOT NULL AND expires_at < ?",
             (now,),
@@ -268,7 +268,7 @@ class SQLiteMemoryStore:
         expired_ids = [row["id"] for row in rows]
 
         if not expired_ids:
-            return 0
+            return []
 
         placeholders = ",".join("?" * len(expired_ids))
         await self.db.execute(
@@ -279,12 +279,12 @@ class SQLiteMemoryStore:
             f"DELETE FROM memory_fts WHERE memory_id IN ({placeholders})",
             expired_ids,
         )
-        cursor = await self.db.execute(
+        await self.db.execute(
             f"DELETE FROM memories WHERE id IN ({placeholders})",
             expired_ids,
         )
         await self.db.commit()
-        return cursor.rowcount
+        return expired_ids
 
     async def update_access(self, memory_id: str) -> None:
         await self.db.execute(
