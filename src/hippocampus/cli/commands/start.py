@@ -11,17 +11,15 @@ from rich.console import Console
 
 from hippocampus import __version__
 from hippocampus.config.loader import load_settings
+from hippocampus.config.workspace import resolve_workspace
 
 console = Console()
 
 
 def _pid_file() -> Path:
-    """Return the PID file path (next to hippocampus.json or cwd)."""
-    from hippocampus.config.loader import find_config_file
-
-    config = find_config_file()
-    base = config.parent if config else Path.cwd()
-    return base / "hippocampus.pid"
+    """Return the PID file path (in the workspace root)."""
+    workspace = resolve_workspace()
+    return workspace / "hippocampus.pid"
 
 
 def _write_pid(pid: int) -> None:
@@ -121,7 +119,10 @@ def _run_foreground(host: str, port: int, reload: bool, settings: object) -> Non
     """Run the server in the foreground."""
     import uvicorn
 
+    workspace = settings.home_dir or resolve_workspace()
+
     console.print(f"[bold green]Hippocampus v{__version__}[/]")
+    console.print(f"  Workspace:  {workspace}")
     console.print(f"  Server:     http://{host}:{port}")
     console.print(f"  Docs:       http://{host}:{port}/docs")
     console.print(f"  LLM:        {settings.llm_model or '[dim]not configured[/]'}")

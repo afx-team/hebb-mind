@@ -5,17 +5,20 @@ from pathlib import Path
 
 from hippocampus.config.loader import create_default_config, load_settings, update_config_field
 from hippocampus.config.settings import Settings
+from hippocampus.config.workspace import get_default_home, resolve_workspace
 
 
 class TestSettings:
     def test_defaults(self):
         s = Settings()
         assert s.db_path == "hippocampus.db"
+        assert s.kg_path == "knowledge_graph.json"
         assert s.embedding_dim == 384
         assert s.port == 8321
         assert s.embedding_provider == "local"
         assert s.embedding_api_key is None
         assert s.embedding_base_url is None
+        assert s.home is None
 
     def test_custom_values(self):
         s = Settings(port=9000, llm_model="anthropic/claude-3")
@@ -33,17 +36,42 @@ class TestSettings:
         assert s.embedding_model == "openai/text-embedding-3-small"
         assert s.embedding_api_key == "sk-test"
 
+    def test_db_path_derived_from_home_dir(self, tmp_path: Path):
+        s = Settings(home_dir=tmp_path)
+        assert s.db_path == str(tmp_path / "hippocampus.db")
+        assert s.kg_path == str(tmp_path / "knowledge_graph.json")
+
+    def test_db_path_fallback_without_home_dir(self):
+        s = Settings()
+        assert s.db_path == "hippocampus.db"
+        assert s.kg_path == "knowledge_graph.json"
+
+    def test_home_dir_not_in_model_dump(self):
+        s = Settings()
+        data = s.model_dump()
+        assert "home_dir" not in data
+
+    def test_db_path_kg_path_not_in_model_dump(self):
+        """db_path and kg_path are computed properties, not persisted."""
+        s = Settings()
+        data = s.model_dump()
+        assert "db_path" not in data
+        assert "kg_path" not in data
+
 
 class TestConfigLoader:
     def test_load_from_json(self, tmp_path: Path):
-        config = {"port": 9999, "host": "127.0.0.1", "db_path": "custom.db"}
+        config = {"port": 9999, "host": "127.0.0.1"}
         config_path = tmp_path / "hippocampus.json"
         config_path.write_text(json.dumps(config))
 
         settings = load_settings(config_path)
         assert settings.port == 9999
         assert settings.host == "127.0.0.1"
-        assert settings.db_path == "custom.db"
+        # db_path and kg_path are derived from home_dir (workspace)
+        assert settings.db_path == str(tmp_path / "hippocampus.db")
+        assert settings.kg_path == str(tmp_path / "knowledge_graph.json")
+        assert settings.home_dir == tmp_path.resolve()
 
     def test_json_includes_all_fields(self, tmp_path: Path):
         config = {"port": 8321, "llm_api_key": "sk-test-key"}
@@ -61,6 +89,9 @@ class TestConfigLoader:
         assert "port" in data
         assert "embedding_provider" in data
         assert data["embedding_provider"] == "local"
+        # db_path and kg_path should not be in the default config
+        assert "db_path" not in data
+        assert "kg_path" not in data
 
     def test_update_config_field(self, tmp_path: Path):
         config_path = tmp_path / "hippocampus.json"
@@ -77,3 +108,71 @@ class TestConfigLoader:
         update_config_field("embedding_enabled", "false", config_path)
         data = json.loads(config_path.read_text())
         assert data["embedding_enabled"] is False
+
+    def test_home_field_in_config(self, tmp_path: Path):
+        config = {"home": str(tmp_path / "custom_workspace")}
+        config_path = tmp_path / "hippocampus.json"
+        config_path.write_text(json.dumps(config))
+
+        settings = load_settings(config_path)
+        assert settings.home == str(tmp_path / "custom_workspace")
+        # home_dir is resolved from the "home" field
+        assert settings.home_dir == (tmp_path / "custom_workspace").resolve()
+        assert settings.db_path == str((tmp_path / "custom_workspace").resolve() / "hippocampus.db")
+
+    def test_home_field_relative_path(self, tmp_path: Path):
+        config = {"home": "workspace_subdir"}
+        config_path = tmp_path / "hippocampus.json"
+        config_path.write_text(json.dumps(config))
+
+        settings = load_settings(config_path)
+        # Relative "home" resolves against config file's parent
+        assert settings.home_dir == (tmp_path / "workspace_subdir").resolve()
+
+
+class TestWorkspace:
+    def test_default_home(self):
+        home = get_default_home()
+        assert home == Path.home() / ".hippocampus"
+
+    def test_resolve_workspace_with_config_file(self, tmp_path: Path):
+        config_path = tmp_path / "hippocampus.json"
+        config_path.write_text("{}")
+
+        workspace = resolve_workspace(config_path)
+        assert workspace == tmp_path.resolve()
+
+    def test_resolve_workspace_with_home_field(self, tmp_path: Path):
+        custom = tmp_path / "custom_home"
+        config_path = tmp_path / "hippocampus.json"
+        config_path.write_text(json.dumps({"home": str(custom)}))
+
+        workspace = resolve_workspace(config_path)
+        assert workspace == custom.resolve()
+        assert custom.exists()  # auto-created
+
+    def test_resolve_workspace_with_env_var(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setenv("HIPPOCAMPUS_HOME", str(tmp_path))
+
+        workspace = resolve_workspace()
+        assert workspace == tmp_path.resolve()
+
+    def test_resolve_workspace_env_creates_dir(self, tmp_path: Path, monkeypatch):
+        new_dir = tmp_path / "new_home"
+        assert not new_dir.exists()
+        monkeypatch.setenv("HIPPOCAMPUS_HOME", str(new_dir))
+
+        workspace = resolve_workspace()
+        assert workspace == new_dir.resolve()
+        assert new_dir.exists()
+
+    def test_resolve_workspace_env_overrides_home_field(self, tmp_path: Path, monkeypatch):
+        env_dir = tmp_path / "env_home"
+        config_dir = tmp_path / "config_home"
+        config_path = tmp_path / "hippocampus.json"
+        config_path.write_text(json.dumps({"home": str(config_dir)}))
+
+        monkeypatch.setenv("HIPPOCAMPUS_HOME", str(env_dir))
+        workspace = resolve_workspace(config_path)
+        # HIPPOCAMPUS_HOME takes priority over "home" in config
+        assert workspace == env_dir.resolve()

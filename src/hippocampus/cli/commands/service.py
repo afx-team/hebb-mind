@@ -26,11 +26,10 @@ def _hippocampus_bin() -> str:
 
 
 def _working_dir() -> str:
-    """Return the working directory (where hippocampus.json lives)."""
-    from hippocampus.config.loader import find_config_file
+    """Return the working directory (workspace root)."""
+    from hippocampus.config.workspace import resolve_workspace
 
-    config = find_config_file()
-    return str(config.parent) if config else os.getcwd()
+    return str(resolve_workspace())
 
 
 def _systemd_unit() -> str:

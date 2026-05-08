@@ -11,10 +11,17 @@ When a memory with tags `["python", "testing", "pytest"]` is consolidated, edges
 
 ## Storage
 
-The knowledge graph is stored in a JSON file (default: `knowledge_graph.json`). The path is configurable:
+The knowledge graph is stored as `knowledge_graph.json` in the workspace directory. The file path is automatically derived from the workspace and cannot be configured independently. To change where the knowledge graph file is stored, set the workspace directory:
 
 ```bash
-hippocampus config set kg_path knowledge_graph.json
+# Check the current workspace directory
+hippocampus workspace
+
+# Override the workspace directory
+hippocampus config set home /data/hippocampus
+
+# Or use the HIPPOCAMPUS_HOME environment variable
+export HIPPOCAMPUS_HOME=/data/hippocampus
 ```
 
 ## API

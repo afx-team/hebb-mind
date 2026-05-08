@@ -16,7 +16,7 @@ Requires **Python >= 3.10**. No external database needed — SQLite is built in.
 hippocampus init
 ```
 
-This creates `hippocampus.json` (config) and `hippocampus.db` (database) in your current directory.
+This creates `hippocampus.json` (config) and `hippocampus.db` (database) in `~/.hippocampus/` (the default workspace).
 
 ## 3. Start
 
@@ -25,6 +25,12 @@ hippocampus start
 ```
 
 Open [http://localhost:8321/](http://localhost:8321/) for the Web Console, or [http://localhost:8321/docs](http://localhost:8321/docs) for the API docs.
+
+To see where your data is stored, run:
+
+```bash
+hippocampus workspace
+```
 
 ## Keep It Running
 

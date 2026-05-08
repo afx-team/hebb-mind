@@ -39,7 +39,6 @@ async def update_config(
     # Fields that require restart to take effect
     restart_fields = {
         "storage_type",
-        "db_path",
         "pg_url",
         "pg_pool_min",
         "pg_pool_max",
@@ -51,7 +50,7 @@ async def update_config(
         "embedding_base_url",
         "host",
         "port",
-        "kg_path",
+        "home",
     }
 
     try:

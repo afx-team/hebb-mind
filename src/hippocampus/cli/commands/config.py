@@ -10,6 +10,7 @@ from rich.table import Table
 
 from hippocampus.config.loader import find_config_file, load_settings, update_config_field
 from hippocampus.config.settings import Settings
+from hippocampus.config.workspace import resolve_workspace
 
 console = Console()
 
@@ -29,11 +30,15 @@ def config_list() -> None:
         raise SystemExit(1)
 
     settings = load_settings(path)
-    data = settings.model_dump()
+    data = settings.model_dump(exclude={"home_dir"})
 
+    workspace = resolve_workspace(path)
     table = Table(title=f"Configuration ({path})", show_lines=False)
     table.add_column("Key", style="cyan", min_width=30)
     table.add_column("Value", style="white")
+
+    # Show workspace first
+    table.add_row("workspace", str(workspace))
 
     for key, value in data.items():
         display = _mask(key, value)
@@ -52,14 +57,20 @@ def config_get(key: str) -> None:
         raise SystemExit(1)
 
     settings = load_settings(path)
+
+    # Allow reading computed properties
+    if key == "workspace":
+        console.print(str(settings.home_dir))
+        return
+
     data = settings.model_dump()
 
     if key not in data:
         console.print(f"[red]Unknown key:[/] {key}")
-        console.print(f"[dim]Available keys: {', '.join(sorted(data.keys()))}[/]")
+        console.print(f"[dim]Available keys: {', '.join(sorted(data.keys()))}, workspace[/]")
         raise SystemExit(1)
 
-    console.print(f"{key} = {data[key]!r}")
+    console.print(f"{key} = {_mask(key, data[key])}")
 
 
 @config_cmd.command("set")
@@ -77,6 +88,8 @@ def config_set(key: str, value: str) -> None:
       hippocampus config set port 8000
 
       hippocampus config set embedding_enabled false
+
+      hippocampus config set home /data/hippocampus
     """
     try:
         path = update_config_field(key, value)

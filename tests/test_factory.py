@@ -11,7 +11,7 @@ from hippocampus.storage.factory import create_stores
 class TestStorageFactory:
     @pytest.mark.asyncio
     async def test_sqlite_factory(self, tmp_path: Path):
-        settings = Settings(storage_type="sqlite", db_path=str(tmp_path / "test.db"))
+        settings = Settings(storage_type="sqlite", home_dir=tmp_path)
         ctx = await create_stores(settings)
         assert ctx.memory_store is not None
         assert ctx.partition_store is not None
@@ -23,7 +23,7 @@ class TestStorageFactory:
 
     @pytest.mark.asyncio
     async def test_invalid_backend(self, tmp_path: Path):
-        settings = Settings(storage_type="redis", db_path=str(tmp_path / "test.db"))
+        settings = Settings(storage_type="redis", home_dir=tmp_path)
         with pytest.raises(ValueError, match="Unknown storage_type"):
             await create_stores(settings)
 

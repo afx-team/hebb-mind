@@ -16,8 +16,7 @@ from hippocampus.storage.sqlite_store import SQLiteMemoryStore
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
     return Settings(
-        db_path=str(tmp_path / "test.db"),
-        kg_path=str(tmp_path / "test_kg.json"),
+        home_dir=tmp_path,
         llm_model="openai/gpt-4o-mini",
     )
 

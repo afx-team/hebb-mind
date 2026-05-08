@@ -25,7 +25,7 @@ hippocampus config path
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `storage_type` | string | `"sqlite"` | 存储后端，可选 `"sqlite"` 或 `"postgresql"` |
-| `db_path` | string | `"hippocampus.db"` | SQLite 数据库文件路径 |
+| `home` | string | `null` | 工作目录覆盖。设置后数据文件存储在此目录。也可通过 HIPPOCAMPUS_HOME 环境变量设置。 |
 | `pg_url` | string | `null` | PostgreSQL 连接字符串 |
 | `pg_pool_min` | number | `2` | PostgreSQL 连接池最小连接数 |
 | `pg_pool_max` | number | `10` | PostgreSQL 连接池最大连接数 |
@@ -45,14 +45,13 @@ hippocampus config path
 | `weight_recency` | number | `1.0` | 检索时"时效性"权重 |
 | `weight_importance` | number | `1.0` | 检索时"重要性"权重 |
 | `weight_relevance` | number | `1.0` | 检索时"相关性"权重 |
-| `kg_path` | string | `"knowledge_graph.json"` | 知识图谱文件路径 |
 
 ## 示例配置文件
 
 ```json
 {
   "storage_type": "sqlite",
-  "db_path": "hippocampus.db",
+  "home": null,
   "embedding_enabled": true,
   "embedding_model": "all-MiniLM-L6-v2",
   "embedding_dim": 384,
@@ -67,9 +66,35 @@ hippocampus config path
   "decay_factor": 0.693,
   "weight_recency": 1.0,
   "weight_importance": 1.0,
-  "weight_relevance": 1.0,
-  "kg_path": "knowledge_graph.json"
+  "weight_relevance": 1.0
 }
+```
+
+## 工作目录
+
+Hippocampus 的数据文件（`hippocampus.db`、`knowledge_graph.json`）始终存储在工作目录中。工作目录的解析优先级如下：
+
+1. **`HIPPOCAMPUS_HOME` 环境变量** — 最高优先级
+2. **`home` 配置字段** — `hippocampus.json` 中的 `home` 字段
+3. **配置文件所在目录** — `hippocampus.json` 的父目录
+4. **`~/.hippocampus/`** — 默认目录
+
+```bash
+# 查看当前解析的工作目录
+hippocampus workspace
+
+# 也可通过 config get 查看
+hippocampus config get workspace
+```
+
+示例：
+
+```bash
+# 通过环境变量设置工作目录
+export HIPPOCAMPUS_HOME=/data/hippocampus
+
+# 或在配置文件中设置
+hippocampus config set home /data/hippocampus
 ```
 
 ## Web 控制台配置
@@ -77,7 +102,7 @@ hippocampus config path
 启动服务后，打开 `http://localhost:8321/` 进入 Web 控制台，在 **Settings** 页面也可以可视化编辑配置。修改后会自动写入 `hippocampus.json`。
 
 ::: tip
-部分配置修改后需要重启服务才能生效，包括：`storage_type`、`db_path`、`pg_url`、`embedding_enabled`、`embedding_model`、`embedding_dim`、`hf_endpoint`、`host`、`port`、`kg_path`。
+部分配置修改后需要重启服务才能生效，包括：`storage_type`、`home`、`pg_url`、`embedding_enabled`、`embedding_model`、`embedding_dim`、`hf_endpoint`、`host`、`port`。
 :::
 
 ## 国内镜像加速

@@ -16,7 +16,7 @@ pip install afx-hippocampus
 hippocampus init
 ```
 
-在当前目录生成 `hippocampus.json`（配置文件）和 `hippocampus.db`（数据库）。
+在 `~/.hippocampus/`（默认工作目录）生成 `hippocampus.json`（配置文件）和 `hippocampus.db`（数据库）。
 
 ## 3. 启动
 

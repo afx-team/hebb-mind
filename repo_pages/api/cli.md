@@ -4,7 +4,7 @@ Hippocampus provides a command-line interface for managing the server and config
 
 ## hippocampus init
 
-Initialize a new Hippocampus project directory. Creates the configuration file, SQLite database, and knowledge graph file.
+Initialize a new Hippocampus workspace. Creates the configuration file, SQLite database, and knowledge graph file in the workspace directory (default: `~/.hippocampus/`).
 
 ```bash
 hippocampus init
@@ -14,7 +14,7 @@ hippocampus init
 
 | Option | Description |
 |--------|-------------|
-| `--dir DIR` | Target directory (default: current directory) |
+| `--dir DIR` | Target directory (default: `~/.hippocampus/`) |
 | `--force` | Overwrite existing files |
 
 **Created files:**
@@ -26,7 +26,7 @@ hippocampus init
 **Example:**
 
 ```bash
-# Initialize in current directory
+# Initialize in default workspace (~/.hippocampus/)
 hippocampus init
 
 # Initialize in a specific directory
@@ -138,10 +138,38 @@ hippocampus status --url http://localhost:9000
 ```
 Hippocampus v0.1.0
 Status: running
+Workspace: /home/user/.hippocampus
 Storage: sqlite
 Embedding: enabled
 Consolidation: next run in 42m
 Forgetting: next run in 12m
+```
+
+## hippocampus workspace
+
+Show the resolved workspace directory. This is where Hippocampus stores all data files (`hippocampus.db`, `knowledge_graph.json`).
+
+```bash
+hippocampus workspace
+```
+
+The workspace is resolved in the following order:
+
+1. `HIPPOCAMPUS_HOME` environment variable
+2. `home` field in `hippocampus.json`
+3. Parent directory of `hippocampus.json`
+4. `~/.hippocampus/` (default)
+
+**Example:**
+
+```bash
+hippocampus workspace
+# Output: /home/user/.hippocampus
+
+# Override via environment variable
+export HIPPOCAMPUS_HOME=/data/memories
+hippocampus workspace
+# Output: /data/memories
 ```
 
 ## hippocampus config
@@ -158,11 +186,15 @@ hippocampus config list
 
 ### config get
 
-Get the value of a specific configuration field.
+Get the value of a specific configuration field. The computed property `workspace` is derived from the workspace directory and cannot be set directly.
 
 ```bash
 hippocampus config get llm_model
 # Output: openai/gpt-4o-mini
+
+# Computed property (derived from workspace)
+hippocampus config get workspace
+# Output: /home/user/.hippocampus
 ```
 
 ### config set

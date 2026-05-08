@@ -19,7 +19,7 @@ hippocampus init [--dir PATH] [--force]
 
 | 选项 | 说明 |
 |------|------|
-| `--dir PATH` | 初始化目录，默认为当前目录 |
+| `--dir PATH` | 初始化目录，默认为 `~/.hippocampus/` |
 | `--force` | 覆盖已有配置，重建数据库 |
 
 执行后会创建：
@@ -31,7 +31,7 @@ hippocampus init [--dir PATH] [--force]
 示例：
 
 ```bash
-# 在当前目录初始化
+# 在默认工作目录 ~/.hippocampus/ 初始化
 hippocampus init
 
 # 指定目录
@@ -72,10 +72,11 @@ hippocampus start --reload
 
 ```
 Hippocampus v0.1.0
-  Server:  http://0.0.0.0:8321
-  Docs:    http://0.0.0.0:8321/docs
-  Model:   openai/gpt-4o-mini
-  DB:      hippocampus.db
+  Server:    http://0.0.0.0:8321
+  Docs:      http://0.0.0.0:8321/docs
+  Workspace: ~/.hippocampus
+  Model:     openai/gpt-4o-mini
+  DB:        hippocampus.db
 ```
 
 ## hippocampus stop
@@ -138,6 +139,22 @@ Scheduler Jobs
 │ forgetting   │ 2026-04-17T10:30:00Z  │
 └──────────────┴───────────────────────┘
 ```
+
+## hippocampus workspace
+
+显示当前解析的工作目录。数据文件（`hippocampus.db`、`knowledge_graph.json`）存储在此目录中。
+
+```bash
+hippocampus workspace
+```
+
+输出示例：
+
+```
+Workspace: /home/user/.hippocampus
+```
+
+工作目录的解析优先级：`HIPPOCAMPUS_HOME` 环境变量 > 配置文件中的 `home` 字段 > 配置文件所在目录 > `~/.hippocampus/`。
 
 ## hippocampus config
 

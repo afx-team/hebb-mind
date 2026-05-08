@@ -2,15 +2,25 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pathlib import Path
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Settings(BaseModel):
     """Hippocampus configuration. All fields from hippocampus.json."""
 
+    model_config = ConfigDict(ignored_types=(property,))
+
+    # Workspace
+    home: str | None = Field(
+        default=None,
+        description="Workspace directory override. If set, data files are stored here "
+        "instead of auto-detected location. Can also be set via HIPPOCAMPUS_HOME env var.",
+    )
+
     # Storage
     storage_type: str = Field(default="sqlite", description="'sqlite' or 'postgresql'")
-    db_path: str = Field(default="hippocampus.db", description="SQLite database file path")
     pg_url: str | None = Field(default=None, description="PostgreSQL connection URL")
     pg_pool_min: int = Field(default=2)
     pg_pool_max: int = Field(default=10)
@@ -56,5 +66,19 @@ class Settings(BaseModel):
     weight_importance: float = Field(default=1.0)
     weight_relevance: float = Field(default=1.0)
 
-    # Knowledge graph
-    kg_path: str = Field(default="knowledge_graph.json")
+    # Computed (not persisted to JSON) — set by loader after workspace resolution
+    home_dir: Path | None = Field(default=None, exclude=True, description="Resolved workspace root directory")
+
+    @property
+    def db_path(self) -> str:
+        """SQLite database path, derived from workspace root."""
+        if self.home_dir:
+            return str(self.home_dir / "hippocampus.db")
+        return "hippocampus.db"
+
+    @property
+    def kg_path(self) -> str:
+        """Knowledge graph file path, derived from workspace root."""
+        if self.home_dir:
+            return str(self.home_dir / "knowledge_graph.json")
+        return "knowledge_graph.json"

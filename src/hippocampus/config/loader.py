@@ -2,6 +2,9 @@
 
 All configuration lives in hippocampus.json. No environment variable overrides.
 Use `hippocampus config set <key> <value>` to modify config from the CLI.
+
+Data file paths (db_path, kg_path) are computed from the workspace root
+and are not stored in the config file.
 """
 
 from __future__ import annotations
@@ -10,6 +13,7 @@ import json
 from pathlib import Path
 
 from hippocampus.config.settings import Settings
+from hippocampus.config.workspace import resolve_workspace
 
 
 def find_config_file(start_dir: Path | None = None) -> Path | None:
@@ -23,7 +27,11 @@ def find_config_file(start_dir: Path | None = None) -> Path | None:
 
 
 def load_settings(config_path: Path | None = None) -> Settings:
-    """Load settings from hippocampus.json + code defaults."""
+    """Load settings from hippocampus.json + code defaults.
+
+    Resolves the workspace root and sets ``settings.home_dir`` so that
+    ``settings.db_path`` and ``settings.kg_path`` return absolute paths.
+    """
     values: dict = {}
 
     path = config_path or find_config_file()
@@ -34,15 +42,21 @@ def load_settings(config_path: Path | None = None) -> Settings:
             if k in Settings.model_fields:
                 values[k] = v
 
-    return Settings(**values)
+    settings = Settings(**values)
+
+    # Resolve workspace and set home_dir
+    workspace = resolve_workspace(config_path=path)
+    settings.home_dir = workspace
+
+    return settings
 
 
 def save_settings(settings: Settings, config_path: Path | None = None) -> Path:
     """Write current settings back to hippocampus.json."""
     path = config_path or find_config_file() or Path("hippocampus.json")
     data = settings.model_dump()
-    # Exclude None values for cleaner output
-    clean = {k: v for k, v in data.items() if v is not None}
+    # Exclude computed fields and None values
+    clean = {k: v for k, v in data.items() if v is not None and k not in ("home_dir",)}
     with open(path, "w") as f:
         json.dump(clean, f, indent=2)
         f.write("\n")
@@ -53,8 +67,10 @@ def create_default_config(target: Path) -> None:
     """Write hippocampus.json with all defaults."""
     defaults = Settings()
     data = defaults.model_dump()
+    # Exclude computed fields
+    clean = {k: v for k, v in data.items() if k not in ("home_dir",)}
     with open(target, "w") as f:
-        json.dump(data, f, indent=2)
+        json.dump(clean, f, indent=2)
         f.write("\n")
 
 

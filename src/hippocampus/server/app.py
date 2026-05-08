@@ -41,7 +41,7 @@ async def lifespan(app: FastAPI):
     app.state.embedder = embedder
 
     # Knowledge graph
-    kg = KnowledgeGraph(Path(settings.kg_path))
+    kg = KnowledgeGraph(Path(settings.kg_path))  # kg_path already resolved to absolute
     app.state.knowledge_graph = kg
 
     # Searcher (with graph for hybrid retrieval)
@@ -60,7 +60,12 @@ async def lifespan(app: FastAPI):
     scheduler.start()
 
     logger.info(
-        "Hippocampus v%s started on %s:%d [%s]", __version__, settings.host, settings.port, settings.storage_type
+        "Hippocampus v%s started on %s:%d [%s] workspace=%s",
+        __version__,
+        settings.host,
+        settings.port,
+        settings.storage_type,
+        settings.home_dir,
     )
 
     yield

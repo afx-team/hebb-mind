@@ -18,12 +18,11 @@ Hippocampus 支持两种存储后端：SQLite（默认）和 PostgreSQL。
 
 ```json
 {
-  "storage_type": "sqlite",
-  "db_path": "hippocampus.db"
+  "storage_type": "sqlite"
 }
 ```
 
-这是默认配置，`hippocampus init` 后无需修改即可使用。
+这是默认配置，`hippocampus init` 后无需修改即可使用。SQLite 数据库文件 `hippocampus.db` 自动存储在工作目录中。
 
 ## PostgreSQL + pgvector
 
@@ -129,6 +128,7 @@ volumes:
 
 | 变量 | 配置项 | 说明 |
 |------|--------|------|
+| `HIPPOCAMPUS_HOME` | `home` | 工作目录覆盖，数据文件存储在此目录 |
 | `HIPPOCAMPUS_LLM_API_KEY` | `llm_api_key` | LLM 服务 API Key |
 | `HIPPOCAMPUS_LLM_MODEL` | `llm_model` | 模型标识（通过 LiteLLM） |
 | `HIPPOCAMPUS_LLM_BASE_URL` | `llm_base_url` | 自定义 API 端点 |

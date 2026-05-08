@@ -11,11 +11,45 @@ hippocampus config list
 # Get a single value
 hippocampus config get llm_model
 
+# Get computed properties (derived from workspace)
+hippocampus config get workspace
+
 # Set a value (saved to hippocampus.json immediately)
 hippocampus config set llm_api_key sk-your-key-here
 
 # Show config file path
 hippocampus config path
+
+# Show resolved workspace directory
+hippocampus workspace
+```
+
+## Workspace
+
+Hippocampus stores all data files (`hippocampus.db`, `knowledge_graph.json`) in a **workspace directory**. The workspace is resolved using the following precedence:
+
+1. **`HIPPOCAMPUS_HOME` environment variable** (highest priority)
+2. **`home` field in `hippocampus.json`** (if set)
+3. **Parent directory of `hippocampus.json`** (if a config file is found)
+4. **`~/.hippocampus/`** (default fallback)
+
+Data files always live in the workspace root and cannot be configured individually:
+
+| File | Description |
+|------|-------------|
+| `hippocampus.db` | SQLite database |
+| `knowledge_graph.json` | Knowledge graph data |
+
+```bash
+# Check the resolved workspace directory
+hippocampus workspace
+# Output: /home/user/.hippocampus
+
+# Override the workspace via environment variable
+export HIPPOCAMPUS_HOME=/data/hippocampus
+
+# Override the workspace via config
+hippocampus config set home /data/hippocampus
 ```
 
 ## Full Configuration Reference
@@ -25,7 +59,7 @@ Below is a complete `hippocampus.json` with all available fields:
 ```json
 {
   "storage_type": "sqlite",
-  "db_path": "hippocampus.db",
+  "home": null,
   "pg_url": null,
   "pg_pool_min": 2,
   "pg_pool_max": 10,
@@ -44,8 +78,7 @@ Below is a complete `hippocampus.json` with all available fields:
   "decay_factor": 0.693,
   "weight_recency": 1.0,
   "weight_importance": 1.0,
-  "weight_relevance": 1.0,
-  "kg_path": "knowledge_graph.json"
+  "weight_relevance": 1.0
 }
 ```
 
@@ -54,7 +87,7 @@ Below is a complete `hippocampus.json` with all available fields:
 | Field | Default | Description |
 |-------|---------|-------------|
 | `storage_type` | `sqlite` | Storage backend: `sqlite` or `postgresql` |
-| `db_path` | `hippocampus.db` | SQLite database file path |
+| `home` | `null` | Workspace directory override. If set, data files are stored here. Can also be set via `HIPPOCAMPUS_HOME` env var. |
 | `pg_url` | `null` | PostgreSQL connection URL |
 | `pg_pool_min` | `2` | Minimum PostgreSQL connection pool size |
 | `pg_pool_max` | `10` | Maximum PostgreSQL connection pool size |
@@ -74,7 +107,6 @@ Below is a complete `hippocampus.json` with all available fields:
 | `weight_recency` | `1.0` | Weight for recency in search scoring |
 | `weight_importance` | `1.0` | Weight for importance in search scoring |
 | `weight_relevance` | `1.0` | Weight for relevance in search scoring |
-| `kg_path` | `knowledge_graph.json` | Knowledge graph file path |
 
 ## Web Console Settings
 
@@ -82,9 +114,10 @@ The Web Console at [http://localhost:8321/](http://localhost:8321/) includes a *
 
 ## Configuration Precedence
 
-1. Values in `hippocampus.json` (primary)
-2. Environment variables prefixed with `HIPPOCAMPUS_` (used in Docker deployments)
-3. Built-in defaults
+1. `HIPPOCAMPUS_HOME` environment variable (highest priority for workspace resolution)
+2. Values in `hippocampus.json` (primary configuration)
+3. Other environment variables prefixed with `HIPPOCAMPUS_` (used in Docker deployments)
+4. Built-in defaults
 
 ## Common Configuration Examples
 

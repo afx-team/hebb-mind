@@ -37,8 +37,6 @@ def client(tmp_path: Path):
     config_path.write_text(
         json.dumps(
             {
-                "db_path": str(tmp_path / "test.db"),
-                "kg_path": str(tmp_path / "test_kg.json"),
                 "port": 8321,
             }
         )

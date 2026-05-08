@@ -4,11 +4,10 @@ Hippocampus supports two storage backends: SQLite (default) and PostgreSQL with 
 
 ## SQLite (Default)
 
-SQLite is the default backend, requiring zero configuration. All data is stored in a single file.
+SQLite is the default backend, requiring zero configuration. All data is stored in a single file in the workspace directory.
 
 ```bash
 hippocampus config set storage_type sqlite
-hippocampus config set db_path hippocampus.db
 ```
 
 ### Features
@@ -117,7 +116,7 @@ For containerized deployments, use the official Docker image.
 ```bash
 docker run -d \
   -p 8321:8321 \
-  -v hippocampus-data:/data \
+  -v hippocampus-data:/root/.hippocampus \
   -e HIPPOCAMPUS_LLM_API_KEY=sk-your-key \
   ghcr.io/afx-team/hippocampus:latest
 ```
@@ -131,8 +130,9 @@ services:
     ports:
       - "8321:8321"
     volumes:
-      - hippocampus-/data
+      - hippocampus-data:/root/.hippocampus
     environment:
+      - HIPPOCAMPUS_HOME=/root/.hippocampus
       - HIPPOCAMPUS_LLM_API_KEY=${LLM_API_KEY}
       - HIPPOCAMPUS_LLM_MODEL=openai/gpt-4o-mini
 
@@ -144,7 +144,7 @@ services:
       POSTGRES_USER: hippocampus
       POSTGRES_PASSWORD: hippocampus
     volumes:
-      - pg-/var/lib/postgresql/data
+      - pg-data:/var/lib/postgresql/data
 
 volumes:
   hippocampus-data:
@@ -155,6 +155,7 @@ volumes:
 
 | Variable | Config Key | Description |
 |----------|-----------|-------------|
+| `HIPPOCAMPUS_HOME` | `home` | Workspace directory (overrides config file location and `home` field) |
 | `HIPPOCAMPUS_LLM_API_KEY` | `llm_api_key` | LLM provider API key |
 | `HIPPOCAMPUS_LLM_MODEL` | `llm_model` | Model identifier (via LiteLLM) |
 | `HIPPOCAMPUS_LLM_BASE_URL` | `llm_base_url` | Custom API endpoint |
@@ -252,5 +253,5 @@ For daemon mode and auto-start on boot, see [Quick Start → Keep It Running](..
 
 - Use PostgreSQL backend for production workloads
 - Set `HIPPOCAMPUS_LLM_BASE_URL` for Chinese model providers (Qwen, GLM, Kimi)
-- Mount a persistent volume for `/data` to preserve memories across restarts
+- Mount a persistent volume for the workspace directory (`/root/.hippocampus` by default) to preserve memories across restarts
 - Use `--restart unless-stopped` for automatic recovery

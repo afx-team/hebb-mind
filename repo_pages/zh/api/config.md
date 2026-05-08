@@ -19,7 +19,7 @@ curl http://localhost:8321/api/v1/config
 ```json
 {
   "storage_type": "sqlite",
-  "db_path": "hippocampus.db",
+  "home": null,
   "pg_url": null,
   "pg_pool_min": 2,
   "pg_pool_max": 10,
@@ -37,8 +37,7 @@ curl http://localhost:8321/api/v1/config
   "decay_factor": 0.693,
   "weight_recency": 1.0,
   "weight_importance": 1.0,
-  "weight_relevance": 1.0,
-  "kg_path": "knowledge_graph.json"
+  "weight_relevance": 1.0
 }
 ```
 
@@ -66,7 +65,7 @@ curl -X PUT http://localhost:8321/api/v1/config \
 }
 ```
 
-`restart_required` 为 `true` 时，修改需要重启服务才能生效。需要重启的字段包括：`storage_type`、`db_path`、`pg_url`、`embedding_enabled`、`embedding_model`、`embedding_dim`、`host`、`port`、`kg_path` 等。
+`restart_required` 为 `true` 时，修改需要重启服务才能生效。需要重启的字段包括：`storage_type`、`home`、`pg_url`、`embedding_enabled`、`embedding_model`、`embedding_dim`、`host`、`port` 等。
 
 ## 查看敏感值
 

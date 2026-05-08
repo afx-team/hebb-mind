@@ -14,7 +14,7 @@ Requires **Python >= 3.10**. No external database needed — SQLite is built in.
 hippocampus init
 ```
 
-Creates `hippocampus.json` (config) and `hippocampus.db` (database) in your current directory.
+Creates `hippocampus.json` (config) and `hippocampus.db` (database) in `~/.hippocampus/` (the default workspace).
 
 ## Verify
 

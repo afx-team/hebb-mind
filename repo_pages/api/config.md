@@ -21,7 +21,7 @@ curl http://localhost:8321/api/v1/config
 ```json
 {
   "storage_type": "sqlite",
-  "db_path": "hippocampus.db",
+  "home": null,
   "embedding_enabled": true,
   "embedding_model": "all-MiniLM-L6-v2",
   "embedding_dim": 384,
@@ -36,8 +36,7 @@ curl http://localhost:8321/api/v1/config
   "decay_factor": 0.693,
   "weight_recency": 1.0,
   "weight_importance": 1.0,
-  "weight_relevance": 1.0,
-  "kg_path": "knowledge_graph.json"
+  "weight_relevance": 1.0
 }
 ```
 

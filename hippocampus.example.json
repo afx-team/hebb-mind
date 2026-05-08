@@ -1,6 +1,5 @@
 {
   "storage_type": "sqlite",
-  "db_path": "hippocampus.db",
   "pg_pool_min": 2,
   "pg_pool_max": 10,
   "embedding_model": "all-MiniLM-L6-v2",
@@ -14,6 +13,5 @@
   "decay_factor": 0.693,
   "weight_recency": 1.0,
   "weight_importance": 1.0,
-  "weight_relevance": 1.0,
-  "kg_path": "knowledge_graph.json"
+  "weight_relevance": 1.0
 }

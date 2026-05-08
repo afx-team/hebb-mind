@@ -10,6 +10,21 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+def _workspace_models_dir(model_name: str) -> Path:
+    """Return the models/ directory within the current workspace.
+
+    Falls back to the install-relative path if no workspace is found.
+    """
+    try:
+        from hippocampus.config.workspace import resolve_workspace
+
+        workspace = resolve_workspace()
+        return workspace / "models" / model_name
+    except Exception:
+        # Fallback: install-relative path (legacy behavior)
+        return Path(__file__).resolve().parent.parent.parent.parent / "models" / model_name
+
+
 def is_model_cached(model_name: str) -> bool:
     """Check if a sentence-transformers model is already cached locally."""
     try:
@@ -37,8 +52,8 @@ class LocalEmbedder:
             os.environ["HF_ENDPOINT"] = hf_endpoint
             logger.info("Using HuggingFace mirror: %s", hf_endpoint)
 
-        # Prefer local model from project models/ directory
-        local_path = Path(__file__).resolve().parent.parent.parent.parent / "models" / model_name
+        # Prefer local model from workspace models/ directory, then install-relative
+        local_path = _workspace_models_dir(model_name)
 
         # Check cache in offline mode to avoid network hangs.
         # Must set env var BEFORE importing sentence_transformers/huggingface_hub

@@ -40,6 +40,16 @@ def _read_hippocampus_config(project_root: Path | None = None) -> dict:
     if cfg_path.exists():
         with open(cfg_path) as f:
             return json.load(f)
+    # Fallback: try workspace resolution
+    try:
+        from hippocampus.config.loader import find_config_file
+
+        found = find_config_file(root)
+        if found and found.exists():
+            with open(found) as f:
+                return json.load(f)
+    except Exception:
+        pass
     return {}
 
 
@@ -73,10 +83,10 @@ def clean_storage(project_root: Path | None = None) -> list[str]:
     Returns list of deleted file paths.
     """
     root = project_root or Path.cwd()
-    cfg = _read_hippocampus_config(root)
 
-    db_path = root / cfg.get("db_path", "hippocampus.db")
-    kg_path = root / cfg.get("kg_path", "knowledge_graph.json")
+    # Data files are always in the workspace root
+    db_path = root / "hippocampus.db"
+    kg_path = root / "knowledge_graph.json"
 
     deleted = []
     for p in [db_path, kg_path]:
