@@ -95,7 +95,8 @@ def _launchd_plist() -> str:
 
 
 SYSTEMD_PATH = Path("/etc/systemd/system/hippocampus.service")
-LAUNCHD_PATH = Path.home() / "Library" / "LaunchAgents" / "com.hippocampus.server.plist"
+LAUNCHD_LABEL = "com.hippocampus.server"
+LAUNCHD_PATH = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCHD_LABEL}.plist"
 
 
 @click.group("service")
@@ -205,11 +206,15 @@ def _install_launchd() -> None:
     LAUNCHD_PATH.parent.mkdir(parents=True, exist_ok=True)
     LAUNCHD_PATH.write_text(plist)
 
-    subprocess.run(["launchctl", "load", str(LAUNCHD_PATH)], check=True)
-    console.print("[green]Service installed and started.[/]")
+    _load_launchd_service()
+    console.print("[green]Service installed and loaded.[/]")
     console.print("  Logs:    [cmd]tail -f /tmp/hippocampus.log[/]")
-    console.print(f"  Stop:    [cmd]launchctl unload {LAUNCHD_PATH}[/]")
-    console.print(f"  Restart: [cmd]launchctl unload {LAUNCHD_PATH} && launchctl load {LAUNCHD_PATH}[/]")
+    console.print(f"  Status:  [cmd]launchctl print {_launchd_target()}[/]")
+    console.print(f"  Stop:    [cmd]launchctl bootout {_launchd_domain()} {LAUNCHD_PATH}[/]")
+    console.print(
+        f"  Restart: [cmd]launchctl bootout {_launchd_domain()} {LAUNCHD_PATH} "
+        f"&& launchctl bootstrap {_launchd_domain()} {LAUNCHD_PATH}[/]"
+    )
 
 
 def _uninstall_launchd() -> None:
@@ -218,6 +223,73 @@ def _uninstall_launchd() -> None:
         return
 
     console.print("[bold]Uninstalling launchd service...[/]")
-    subprocess.run(["launchctl", "unload", str(LAUNCHD_PATH)], check=False)
+    _unload_launchd_service()
     LAUNCHD_PATH.unlink()
     console.print("[green]Service uninstalled.[/]")
+
+
+def _launchd_domain() -> str:
+    """Return the launchd user GUI domain for LaunchAgents."""
+    return f"gui/{os.getuid()}"
+
+
+def _launchd_target() -> str:
+    """Return the fully qualified launchd service target."""
+    return f"{_launchd_domain()}/{LAUNCHD_LABEL}"
+
+
+def _run_launchctl(args: list[str]) -> subprocess.CompletedProcess[str]:
+    """Run launchctl and capture output for reliable error reporting."""
+    return subprocess.run(
+        ["launchctl", *args],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _launchd_is_loaded() -> bool:
+    """Return whether launchd knows about the Hippocampus service."""
+    result = _run_launchctl(["print", _launchd_target()])
+    return result.returncode == 0
+
+
+def _print_launchctl_failure(action: str, result: subprocess.CompletedProcess[str]) -> None:
+    """Print launchctl output before failing."""
+    console.print(f"[red]launchctl {action} failed[/] (exit {result.returncode})")
+    if result.stderr.strip():
+        console.print(result.stderr.strip())
+    if result.stdout.strip():
+        console.print(result.stdout.strip())
+
+
+def _load_launchd_service() -> None:
+    """Load the launchd service and verify it was registered."""
+    # Replace any stale registration so repeated installs pick up plist changes.
+    _unload_launchd_service()
+
+    result = _run_launchctl(["bootstrap", _launchd_domain(), str(LAUNCHD_PATH)])
+    if result.returncode != 0:
+        legacy = _run_launchctl(["load", str(LAUNCHD_PATH)])
+        if legacy.returncode != 0 and not _launchd_is_loaded():
+            _print_launchctl_failure("bootstrap", result)
+            _print_launchctl_failure("load", legacy)
+            raise SystemExit(1)
+
+    kickstart = _run_launchctl(["kickstart", "-k", _launchd_target()])
+    if kickstart.returncode != 0 and not _launchd_is_loaded():
+        _print_launchctl_failure("kickstart", kickstart)
+        raise SystemExit(1)
+
+    if not _launchd_is_loaded():
+        console.print("[red]launchd did not register the Hippocampus service.[/]")
+        raise SystemExit(1)
+
+
+def _unload_launchd_service() -> None:
+    """Unload the launchd service if it is currently registered."""
+    result = _run_launchctl(["bootout", _launchd_domain(), str(LAUNCHD_PATH)])
+    if result.returncode == 0 or not _launchd_is_loaded():
+        return
+
+    _run_launchctl(["unload", str(LAUNCHD_PATH)])

@@ -33,3 +33,7 @@ main.add_command(mcp_cmd, "mcp")
 main.add_command(service_cmd, "service")
 main.add_command(workspace_cmd, "workspace")
 main.add_command(cc)
+
+
+if __name__ == "__main__":
+    main()
