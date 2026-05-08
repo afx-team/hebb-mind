@@ -48,6 +48,7 @@ async def update_config(
         "embedding_dim",
         "embedding_api_key",
         "embedding_base_url",
+        "consolidation_time",
         "host",
         "port",
         "home",
@@ -58,6 +59,8 @@ async def update_config(
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Config file not found")
     except KeyError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     return {

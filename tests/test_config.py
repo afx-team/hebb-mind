@@ -19,6 +19,7 @@ class TestSettings:
         assert s.embedding_api_key is None
         assert s.embedding_base_url is None
         assert s.home is None
+        assert s.consolidation_time == "18:00"
 
     def test_custom_values(self):
         s = Settings(port=9000, llm_model="anthropic/claude-3")
@@ -108,6 +109,28 @@ class TestConfigLoader:
         update_config_field("embedding_enabled", "false", config_path)
         data = json.loads(config_path.read_text())
         assert data["embedding_enabled"] is False
+
+    def test_update_config_validates_consolidation_time(self, tmp_path: Path):
+        config_path = tmp_path / "hippocampus.json"
+        config_path.write_text(json.dumps({"consolidation_time": "18:00"}))
+
+        update_config_field("consolidation_time", "9:05", config_path)
+        data = json.loads(config_path.read_text())
+        assert data["consolidation_time"] == "09:05"
+
+    def test_update_config_rejects_invalid_consolidation_time(self, tmp_path: Path):
+        config_path = tmp_path / "hippocampus.json"
+        config_path.write_text(json.dumps({"consolidation_time": "18:00"}))
+
+        try:
+            update_config_field("consolidation_time", "25:00", config_path)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("Invalid consolidation_time should raise ValueError")
+
+        data = json.loads(config_path.read_text())
+        assert data["consolidation_time"] == "18:00"
 
     def test_home_field_in_config(self, tmp_path: Path):
         config = {"home": str(tmp_path / "custom_workspace")}

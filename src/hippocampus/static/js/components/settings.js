@@ -34,7 +34,7 @@ const OTHER_GROUPS = [
   { title: 'Server', icon: '&#128421;', keys: ['host', 'port'] },
   { title: 'Storage', icon: '&#128451;', keys: ['storage_type', 'pg_url', 'pg_pool_min', 'pg_pool_max'] },
   { title: 'Workspace', icon: '&#128193;', keys: ['home'] },
-  { title: 'Memory Lifecycle', icon: '&#128260;', keys: ['consolidation_interval_seconds', 'consolidation_concurrency', 'consolidation_max_tokens', 'forget_interval_seconds', 'base_ttl_hours', 'decay_factor'] },
+  { title: 'Memory Lifecycle', icon: '&#128260;', keys: ['consolidation_time', 'consolidation_concurrency', 'consolidation_max_tokens', 'forget_interval_seconds', 'base_ttl_hours', 'decay_factor'] },
   { title: 'Retrieval Weights', icon: '&#9878;', keys: ['weight_recency', 'weight_importance', 'weight_relevance'] },
 ];
 
@@ -42,7 +42,7 @@ const RESTART_KEYS = new Set([
   'storage_type', 'pg_url', 'pg_pool_min', 'pg_pool_max',
   'embedding_enabled', 'embedding_provider', 'embedding_model', 'embedding_dim',
   'embedding_api_key', 'embedding_base_url', 'hf_endpoint',
-  'consolidation_interval_seconds', 'consolidation_concurrency', 'consolidation_max_tokens',
+  'consolidation_time', 'consolidation_concurrency', 'consolidation_max_tokens',
   'forget_interval_seconds',
   'host', 'port', 'home',
 ]);
@@ -588,6 +588,9 @@ function renderInput(key, value) {
   }
   const type = SENSITIVE_KEYS.has(key) ? 'password' : 'text';
   const displayValue = value === null ? '' : String(value);
+  if (key === 'consolidation_time') {
+    return `<input class="form-input setting-input" type="time" step="60" value="${esc(displayValue)}" data-key="${key}">`;
+  }
   return `<input class="form-input setting-input" type="${type}" value="${esc(displayValue)}" placeholder="null" data-key="${key}">`;
 }
 

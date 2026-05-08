@@ -95,6 +95,8 @@ def update_config_field(key: str, value: str, config_path: Path | None = None) -
 
     coerced = _coerce_value(value, annotation)
     data[key] = coerced
+    settings = Settings(**{k: v for k, v in data.items() if k in Settings.model_fields})
+    data[key] = getattr(settings, key)
 
     with open(path, "w") as f:
         json.dump(data, f, indent=2)

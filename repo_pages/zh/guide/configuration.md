@@ -38,7 +38,7 @@ hippocampus config path
 | `llm_api_key` | string | `null` | LLM 提供商 API 密钥 |
 | `host` | string | `"0.0.0.0"` | 服务监听地址 |
 | `port` | number | `8321` | 服务监听端口 |
-| `consolidation_interval_seconds` | number | `3600` | 巩固任务执行间隔（秒） |
+| `consolidation_time` | string | `"18:00"` | 每日巩固时间（`HH:MM`） |
 | `forget_interval_seconds` | number | `1800` | 遗忘任务执行间隔（秒） |
 | `base_ttl_hours` | number | `168.0` | 记忆基础存活时间（小时），即 7 天 |
 | `decay_factor` | number | `0.693` | 遗忘衰减因子 |
@@ -60,7 +60,7 @@ hippocampus config path
   "llm_api_key": "sk-your-key",
   "host": "0.0.0.0",
   "port": 8321,
-  "consolidation_interval_seconds": 3600,
+  "consolidation_time": "18:00",
   "forget_interval_seconds": 1800,
   "base_ttl_hours": 168.0,
   "decay_factor": 0.693,

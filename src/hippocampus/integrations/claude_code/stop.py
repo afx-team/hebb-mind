@@ -18,7 +18,7 @@ def handle() -> None:
     """Record the last turn and clean up session state.
 
     Consolidation is NOT triggered here — it runs on its own schedule
-    via ``consolidation_interval_seconds`` in the server lifecycle.
+    via ``consolidation_time`` in the server lifecycle.
     """
     hook_input = read_hook_input()
     session_id = hook_input.get("session_id", "")

@@ -46,11 +46,11 @@ System partitions (`mem_hippocampus`, `mem_semantic`, `mem_episodic`, `mem_prefe
 
 ## Scheduling
 
-Consolidation runs automatically on a periodic schedule. The interval is configured via `consolidation_interval_seconds` (default: 3600 seconds / 1 hour).
+Consolidation runs automatically once per day. The clock time is configured via `consolidation_time` (default: `18:00`, using the server's local timezone).
 
 ```bash
-# Run consolidation every 30 minutes
-hippocampus config set consolidation_interval_seconds 1800
+# Run consolidation every day at 6 PM
+hippocampus config set consolidation_time 18:00
 ```
 
 ## Manual Trigger

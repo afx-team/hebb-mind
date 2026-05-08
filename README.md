@@ -239,7 +239,7 @@ hippocampus config set llm_base_url https://dashscope.aliyuncs.com/compatible-mo
 | `storage_type` | `sqlite` | `sqlite` or `postgresql` |
 | `embedding_enabled` | `true` | Set `false` to disable vector search |
 | `port` | `8321` | Server port |
-| `consolidation_interval_seconds` | `3600` | How often consolidation runs |
+| `consolidation_time` | `18:00` | Daily consolidation clock time (`HH:MM`) |
 | `base_ttl_hours` | `168` | Base memory TTL before decay |
 
 > Full config reference: [Configuration Guide](https://afx-team.github.io/hippocampus/guide/configuration.html)

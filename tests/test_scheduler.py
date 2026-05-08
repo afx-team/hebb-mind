@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from apscheduler.triggers.cron import CronTrigger
 
 from hippocampus.embedding.local import NoopEmbedder
 from hippocampus.graph.knowledge_graph import KnowledgeGraph
@@ -33,6 +34,7 @@ class TestSchedulerManager:
         assert status["running"] is True
         assert "consolidation_job" in status["jobs"]
         assert "forgetting_job" in status["jobs"]
+        assert isinstance(scheduler.scheduler.get_job("consolidation_job").trigger, CronTrigger)
         scheduler.shutdown()
 
     @pytest.mark.asyncio

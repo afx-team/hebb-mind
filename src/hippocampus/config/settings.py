@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Settings(BaseModel):
@@ -50,7 +50,10 @@ class Settings(BaseModel):
     port: int = Field(default=8321)
 
     # Scheduler
-    consolidation_interval_seconds: int = Field(default=3600)
+    consolidation_time: str = Field(
+        default="18:00",
+        description="Daily consolidation time in 24-hour HH:MM format, using the server's local timezone",
+    )
     consolidation_concurrency: int = Field(default=5, description="Parallel consolidation tasks")
     consolidation_max_tokens: int = Field(
         default=16000, description="Max tokens per consolidation LLM call (session chunk size)"
@@ -68,6 +71,20 @@ class Settings(BaseModel):
 
     # Computed (not persisted to JSON) — set by loader after workspace resolution
     home_dir: Path | None = Field(default=None, exclude=True, description="Resolved workspace root directory")
+
+    @field_validator("consolidation_time")
+    @classmethod
+    def validate_consolidation_time(cls, value: str) -> str:
+        """Validate daily consolidation clock time."""
+        hour_minute = value.split(":")
+        if len(hour_minute) != 2 or not all(part.isdigit() for part in hour_minute):
+            raise ValueError("consolidation_time must use HH:MM format")
+
+        hour, minute = (int(part) for part in hour_minute)
+        if not 0 <= hour <= 23 or not 0 <= minute <= 59:
+            raise ValueError("consolidation_time must be a valid 24-hour time")
+
+        return f"{hour:02d}:{minute:02d}"
 
     @property
     def db_path(self) -> str:

@@ -6,6 +6,7 @@ import logging
 from datetime import datetime, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from hippocampus.config.settings import Settings
@@ -38,9 +39,10 @@ class SchedulerManager:
         self.scheduler = AsyncIOScheduler()
 
     def start(self) -> None:
+        hour, minute = self._parse_consolidation_time()
         self.scheduler.add_job(
             func=self._run_consolidation,
-            trigger=IntervalTrigger(seconds=self.settings.consolidation_interval_seconds),
+            trigger=CronTrigger(hour=hour, minute=minute),
             id="consolidation_job",
             replace_existing=True,
             max_instances=1,
@@ -54,8 +56,8 @@ class SchedulerManager:
         )
         self.scheduler.start()
         logger.info(
-            "Scheduler started: consolidation every %ds, forgetting every %ds",
-            self.settings.consolidation_interval_seconds,
+            "Scheduler started: consolidation daily at %s, forgetting every %ds",
+            self.settings.consolidation_time,
             self.settings.forget_interval_seconds,
         )
 
@@ -120,3 +122,7 @@ class SchedulerManager:
             "running": self.scheduler.running,
             "jobs": jobs,
         }
+
+    def _parse_consolidation_time(self) -> tuple[int, int]:
+        hour, minute = self.settings.consolidation_time.split(":")
+        return int(hour), int(minute)

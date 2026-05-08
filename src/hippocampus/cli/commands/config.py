@@ -106,6 +106,9 @@ def config_set(key: str, value: str) -> None:
         available = ", ".join(sorted(Settings.model_fields.keys()))
         console.print(f"[dim]Available keys: {available}[/]")
         raise SystemExit(1)
+    except ValueError as e:
+        console.print(f"[red]{e}[/]")
+        raise SystemExit(1)
 
 
 @config_cmd.command("path")

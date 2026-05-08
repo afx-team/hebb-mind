@@ -59,7 +59,7 @@ curl -X POST http://localhost:8321/api/v1/memories \
 
 ## 阶段二：巩固
 
-巩固代理按照 `consolidation_interval_seconds` 设定的间隔定期运行（默认 1 小时），也可通过 API 手动触发：
+巩固代理按照 `consolidation_time` 设定的每日时间运行（默认 `18:00`），也可通过 API 手动触发：
 
 ```bash
 curl -X POST http://localhost:8321/api/v1/consolidate

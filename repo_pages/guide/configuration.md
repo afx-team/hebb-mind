@@ -72,7 +72,7 @@ Below is a complete `hippocampus.json` with all available fields:
   "llm_api_key": "sk-xxx",
   "host": "0.0.0.0",
   "port": 8321,
-  "consolidation_interval_seconds": 3600,
+  "consolidation_time": "18:00",
   "forget_interval_seconds": 1800,
   "base_ttl_hours": 168,
   "decay_factor": 0.693,
@@ -100,7 +100,7 @@ Below is a complete `hippocampus.json` with all available fields:
 | `llm_api_key` | `null` | LLM provider API key (required for consolidation) |
 | `host` | `0.0.0.0` | Server bind address |
 | `port` | `8321` | Server port |
-| `consolidation_interval_seconds` | `3600` | Consolidation agent run interval (seconds) |
+| `consolidation_time` | `18:00` | Daily consolidation clock time (`HH:MM`) |
 | `forget_interval_seconds` | `1800` | Forgetting job run interval (seconds) |
 | `base_ttl_hours` | `168` | Base memory TTL before decay (hours, default 7 days) |
 | `decay_factor` | `0.693` | Exponential decay factor for forgetting |
@@ -153,8 +153,8 @@ hippocampus config set base_ttl_hours 336
 # Slower decay
 hippocampus config set decay_factor 0.3
 
-# Faster consolidation (every 30 minutes)
-hippocampus config set consolidation_interval_seconds 1800
+# Daily consolidation at 6 PM
+hippocampus config set consolidation_time 18:00
 ```
 
 ### Switch to PostgreSQL

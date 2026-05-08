@@ -31,7 +31,7 @@ curl http://localhost:8321/api/v1/config
   "llm_api_key": "sk-x****ykey",
   "host": "0.0.0.0",
   "port": 8321,
-  "consolidation_interval_seconds": 3600,
+  "consolidation_time": "18:00",
   "forget_interval_seconds": 1800,
   "base_ttl_hours": 168.0,
   "decay_factor": 0.693,

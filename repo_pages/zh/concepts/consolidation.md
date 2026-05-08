@@ -77,16 +77,13 @@ curl -X POST http://localhost:8321/api/v1/consolidate
 }
 ```
 
-## 调整巩固频率
+## 调整巩固时间
 
-在 `hippocampus.json` 中修改 `consolidation_interval_seconds`：
+在 `hippocampus.json` 中修改 `consolidation_time`：
 
 ```bash
-# 每 30 分钟巩固一次
-hippocampus config set consolidation_interval_seconds 1800
-
-# 每 2 小时巩固一次
-hippocampus config set consolidation_interval_seconds 7200
+# 每天下午 6 点巩固一次
+hippocampus config set consolidation_time 18:00
 ```
 
 ## LLM 依赖

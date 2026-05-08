@@ -242,7 +242,7 @@ hippocampus config set llm_base_url https://dashscope.aliyuncs.com/compatible-mo
 | `storage_type` | `sqlite` | `sqlite` 或 `postgresql` |
 | `embedding_enabled` | `true` | 设为 `false` 禁用向量搜索 |
 | `port` | `8321` | 服务端口 |
-| `consolidation_interval_seconds` | `3600` | 巩固任务执行间隔 |
+| `consolidation_time` | `18:00` | 每日巩固时间（`HH:MM`） |
 | `base_ttl_hours` | `168` | 基础记忆 TTL |
 
 > 完整配置参考：[配置指南](https://afx-team.github.io/hippocampus/zh/guide/configuration.html)
