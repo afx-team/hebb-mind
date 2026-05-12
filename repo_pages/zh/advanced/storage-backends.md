@@ -90,7 +90,10 @@ hippocampus restart
 ```bash
 docker run -d \
   -p 8321:8321 \
-  -v hippocampus-/data \
+  -v hippocampus-data:/data \
+  -e HIPPOCAMPUS_HOME=/data \
+  -e HIPPOCAMPUS_LANGUAGE=auto \
+  -e HIPPOCAMPUS_REGION=auto \
   -e HIPPOCAMPUS_LLM_API_KEY=sk-your-key \
   ghcr.io/afx-team/hippocampus:latest
 ```
@@ -104,8 +107,11 @@ services:
     ports:
       - "8321:8321"
     volumes:
-      - hippocampus-/data
+      - hippocampus-data:/data
     environment:
+      - HIPPOCAMPUS_HOME=/data
+      - HIPPOCAMPUS_LANGUAGE=auto
+      - HIPPOCAMPUS_REGION=auto
       - HIPPOCAMPUS_LLM_API_KEY=${LLM_API_KEY}
       - HIPPOCAMPUS_LLM_MODEL=openai/gpt-4o-mini
 
@@ -120,7 +126,7 @@ services:
       - pg-data:/var/lib/postgresql/data
 
 volumes:
-  hippocampus-
+  hippocampus-data:
   pg-
 ```
 
@@ -129,6 +135,8 @@ volumes:
 | 变量 | 配置项 | 说明 |
 |------|--------|------|
 | `HIPPOCAMPUS_HOME` | `home` | 工作目录覆盖，数据文件存储在此目录 |
+| `HIPPOCAMPUS_LANGUAGE` | setup 参数 | `auto`、`en`、`zh` 或 `multi`，容器初始化时选择默认 Embedding 模型 |
+| `HIPPOCAMPUS_REGION` | setup 参数 | `auto`、`cn` 或 `global`，容器初始化时选择模型下载源 |
 | `HIPPOCAMPUS_LLM_API_KEY` | `llm_api_key` | LLM 服务 API Key |
 | `HIPPOCAMPUS_LLM_MODEL` | `llm_model` | 模型标识（通过 LiteLLM） |
 | `HIPPOCAMPUS_LLM_BASE_URL` | `llm_base_url` | 自定义 API 端点 |

@@ -5,11 +5,17 @@ PACKAGE="afx-hippocampus"
 MIN_PYTHON_MAJOR=3
 MIN_PYTHON_MINOR=10
 INTERACTIVE=false
+LANGUAGE="auto"
+REGION="auto"
+PROFILE="default"
 
 # Parse arguments
 for arg in "$@"; do
     case "$arg" in
         --interactive|-i) INTERACTIVE=true ;;
+        --language=*) LANGUAGE="${arg#*=}" ;;
+        --region=*) REGION="${arg#*=}" ;;
+        --profile=*) PROFILE="${arg#*=}" ;;
     esac
 done
 
@@ -75,30 +81,19 @@ echo ""
 echo "  Installing ${PACKAGE}${EXTRAS}..."
 $PYTHON -m pip install --quiet "${PACKAGE}${EXTRAS}"
 
-# Init
+# Setup
 HIPPOCAMPUS_HOME="${HIPPOCAMPUS_HOME:-$HOME/.hippocampus}"
 mkdir -p "$HIPPOCAMPUS_HOME"
 
-# Set storage type in config
-if [ "$STORAGE_TYPE" = "postgresql" ] && [ -n "$PG_URL" ]; then
-    export HIPPOCAMPUS_STORAGE_TYPE="postgresql"
-    export HIPPOCAMPUS_PG_URL="$PG_URL"
-fi
-
 cd "$HIPPOCAMPUS_HOME"
-hippocampus init --dir "$HIPPOCAMPUS_HOME" 2>/dev/null || true
+hippocampus setup --language "$LANGUAGE" --region "$REGION" --profile "$PROFILE"
 
 # Update config with storage type if postgresql
 if [ "$STORAGE_TYPE" = "postgresql" ]; then
-    $PYTHON -c "
-import json
-p = '$HIPPOCAMPUS_HOME/hippocampus.json'
-with open(p) as f:
-    c = json.load(f)
-c['storage_type'] = 'postgresql'
-with open(p, 'w') as f:
-    json.dump(c, f, indent=2)
-" 2>/dev/null || true
+    hippocampus config set storage_type postgresql
+    if [ -n "$PG_URL" ]; then
+        hippocampus config set pg_url "$PG_URL"
+    fi
 fi
 
 echo ""
@@ -106,13 +101,13 @@ echo "Hippocampus installed successfully!"
 echo "  Storage: $STORAGE_TYPE"
 echo ""
 echo "Next steps:"
-echo "  1. Set your LLM API key:"
-echo "     export HIPPOCAMPUS_LLM_API_KEY=your-key-here"
+echo "  1. Optional: enable memory consolidation with an LLM:"
+echo "     hippocampus config set llm_api_key your-key-here"
 
 if [ "$STORAGE_TYPE" = "postgresql" ] && [ -z "$PG_URL" ]; then
     echo ""
     echo "  2. Set your PostgreSQL URL:"
-    echo "     export HIPPOCAMPUS_PG_URL=postgresql://user:pass@localhost/hippocampus"
+    echo "     hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus"
     echo ""
     echo "  3. Start the server:"
     echo "     hippocampus start"

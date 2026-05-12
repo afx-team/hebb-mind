@@ -5,18 +5,25 @@
 ## 1. 安装
 
 ```bash
-pip install afx-hippocampus
+pip install -U afx-hippocampus
 ```
 
 需要 **Python >= 3.10**。无需外部数据库 — SQLite 内置。
 
-## 2. 初始化
+## 2. Setup
 
 ```bash
-hippocampus init
+hippocampus setup
 ```
 
-在 `~/.hippocampus/`（默认工作目录）生成 `hippocampus.json`（配置文件）和 `hippocampus.db`（数据库）。
+在 `~/.hippocampus/`（默认工作目录）生成 `hippocampus.json` 和 `hippocampus.db`，根据系统语言选择 Embedding 模型，根据网络可达性选择下载源，并预下载模型。
+
+language 和 region 是独立的：
+
+```bash
+hippocampus setup --language en --region cn      # 英文模型，国内镜像
+hippocampus setup --language zh --region global  # 多语言模型，HuggingFace 官方源
+```
 
 ## 3. 启动
 
@@ -114,7 +121,7 @@ curl -X POST http://localhost:8321/api/v1/admin/consolidate
 让 Claude Code 拥有跨会话持久记忆：
 
 ```bash
-hippocampus cc install
+hippocampus cc install --scope user
 ```
 
 自动注册三个 hooks 到 `.claude/settings.json`：
@@ -124,6 +131,17 @@ hippocampus cc install
 - **Stop** — 会话结束时触发记忆巩固
 
 详见 [Claude Code 集成](./guide/claude-code.md)。
+
+## Codex MCP 工具
+
+为 Codex 添加 Hippocampus 记忆工具：
+
+```bash
+hippocampus codex install --scope user
+codex mcp list
+```
+
+详见 [Codex 集成](./guide/codex.md)。
 
 ## 下一步
 

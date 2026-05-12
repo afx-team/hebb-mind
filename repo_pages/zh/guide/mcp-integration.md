@@ -1,13 +1,13 @@
 # MCP 集成
 
-Hippocampus 提供 MCP (Model Context Protocol) 服务，将记忆操作暴露为工具。Claude Code、Cursor 等 MCP 客户端可以直接使用。
+Hippocampus 提供 MCP (Model Context Protocol) 服务，将记忆操作暴露为工具。Claude Code、Codex、Cursor 等 MCP 客户端可以直接使用。
 
 ## 前提条件
 
 需要先启动 hippocampus 服务。MCP 服务启动时会自动拉起未运行的服务：
 
 ```bash
-hippocampus init     # 首次使用
+hippocampus setup    # 首次使用
 hippocampus start    # 或：hippocampus start -d（后台模式）
 ```
 
@@ -26,6 +26,14 @@ MCP 服务自动从 `hippocampus.json` 发现服务地址。大多数情况下�
 如果服务运行在远程主机或非默认地址，可通过 `HIPPOCAMPUS_URL` 环境变量指定：
 
 ### Claude Code
+
+推荐：
+
+```bash
+hippocampus cc install --scope user
+```
+
+仅 MCP：
 
 在项目目录下创建 `.mcp.json`：
 
@@ -54,6 +62,21 @@ MCP 服务自动从 `hippocampus.json` 发现服务地址。大多数情况下�
     }
   }
 }
+```
+
+### Codex
+
+推荐：
+
+```bash
+hippocampus codex install --scope user
+codex mcp list
+```
+
+Codex 原生命令：
+
+```bash
+codex mcp add hippocampus -- hippocampus-mcp
 ```
 
 ### Claude Desktop
@@ -87,7 +110,7 @@ MCP 服务自动从 `hippocampus.json` 发现服务地址。大多数情况下�
 ## 工作原理
 
 ```
-Claude Code / Cursor
+Claude Code / Codex / Cursor
         │ (stdio)
         v
   hippocampus-mcp (MCP 服务)

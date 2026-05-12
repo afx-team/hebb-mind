@@ -58,7 +58,7 @@ async def _create_sqlite(settings: Settings) -> StorageContext:
 
 async def _create_postgresql(settings: Settings) -> StorageContext:
     if not settings.pg_url:
-        raise ValueError("PostgreSQL storage requires pg_url. Set HIPPOCAMPUS_PG_URL environment variable.")
+        raise ValueError("PostgreSQL storage requires pg_url. Run: hippocampus config set pg_url <postgresql-url>")
 
     try:
         import asyncpg

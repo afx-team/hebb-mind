@@ -20,8 +20,9 @@ const LLM_PRESETS = [
 
 /* --- Embedding provider presets --- */
 const EMB_PRESETS = [
-  { label: 'Local — all-MiniLM-L6-v2 (English, 384d, 87MB)', provider: 'local', model: 'all-MiniLM-L6-v2', url: '', dim: 384 },
+  { label: 'Local — bge-large-en-v1.5 (English, 1024d)', provider: 'local', model: 'BAAI/bge-large-en-v1.5', url: '', dim: 1024 },
   { label: 'Local — bge-m3 (Multilingual, 1024d, 2.2GB)', provider: 'local', model: 'BAAI/bge-m3', url: '', dim: 1024 },
+  { label: 'Local — all-MiniLM-L6-v2 (Fast, 384d, 87MB)', provider: 'local', model: 'sentence-transformers/all-MiniLM-L6-v2', url: '', dim: 384 },
   { label: 'Local — multilingual-e5-small (Multi, 384d, 470MB)', provider: 'local', model: 'intfloat/multilingual-e5-small', url: '', dim: 384 },
   { label: 'OpenAI — text-embedding-3-small', provider: 'api', model: 'openai/text-embedding-3-small', url: 'https://api.openai.com/v1', dim: 1536 },
   { label: 'Cohere — embed-multilingual-v3.0', provider: 'api', model: 'cohere/embed-multilingual-v3.0', url: 'https://api.cohere.com/v1', dim: 1024 },
@@ -319,7 +320,7 @@ function buildEmbeddingSection(config) {
         </div>
         <div class="setting-input-wrap">
           <input class="form-input setting-input" id="emb-model" type="text"
-                 value="${esc(config.embedding_model || '')}" placeholder="all-MiniLM-L6-v2">
+                 value="${esc(config.embedding_model || '')}" placeholder="BAAI/bge-large-en-v1.5">
         </div>
       </div>
       <div id="emb-api-fields" ${!isApi ? 'style="display:none"' : ''}>

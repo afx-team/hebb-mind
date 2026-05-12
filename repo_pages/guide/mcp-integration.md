@@ -1,13 +1,13 @@
 # MCP Integration
 
-Hippocampus provides an MCP (Model Context Protocol) server that exposes memory operations as tools. Claude Code, Cursor, and other MCP-compatible clients can use it directly.
+Hippocampus provides an MCP (Model Context Protocol) server that exposes memory operations as tools. Claude Code, Codex, Cursor, and other MCP-compatible clients can use it directly.
 
 ## Prerequisites
 
 The hippocampus service must be running. The MCP server will auto-start it if not detected:
 
 ```bash
-hippocampus init     # first time only
+hippocampus setup    # first time only
 hippocampus start    # or: hippocampus start -d (daemon mode)
 ```
 
@@ -26,6 +26,14 @@ The MCP server automatically discovers the service address from `hippocampus.jso
 If the service runs on a remote host or non-default address, set `HIPPOCAMPUS_URL`:
 
 ### Claude Code
+
+Recommended:
+
+```bash
+hippocampus cc install --scope user
+```
+
+MCP-only:
 
 Add to your project's `.mcp.json`:
 
@@ -54,6 +62,21 @@ If the service runs on a non-default address, set the URL explicitly:
     }
   }
 }
+```
+
+### Codex
+
+Recommended:
+
+```bash
+hippocampus codex install --scope user
+codex mcp list
+```
+
+Native Codex command:
+
+```bash
+codex mcp add hippocampus -- hippocampus-mcp
 ```
 
 ### Claude Desktop
@@ -87,7 +110,7 @@ Open **Settings → Features → MCP** and add:
 ## How It Works
 
 ```
-Claude Code / Cursor
+Claude Code / Codex / Cursor
         │ (stdio)
         v
   hippocampus-mcp (MCP server)

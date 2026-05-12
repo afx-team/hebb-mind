@@ -14,8 +14,10 @@ logger = logging.getLogger(__name__)
 KNOWN_DIMS: dict[str, int] = {
     # Local (sentence-transformers)
     "all-MiniLM-L6-v2": 384,
+    "sentence-transformers/all-MiniLM-L6-v2": 384,
     "all-MiniLM-L12-v2": 384,
     "all-mpnet-base-v2": 768,
+    "sentence-transformers/all-mpnet-base-v2": 768,
     "paraphrase-multilingual-MiniLM-L12-v2": 384,
     "paraphrase-multilingual-mpnet-base-v2": 768,
     "BAAI/bge-m3": 1024,

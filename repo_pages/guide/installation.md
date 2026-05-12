@@ -3,23 +3,30 @@
 ## Install
 
 ```bash
-pip install afx-hippocampus
+pip install -U afx-hippocampus
 ```
 
 Requires **Python >= 3.10**. No external database needed — SQLite is built in.
 
-## Initialize
+## Setup
+
+```bash
+hippocampus setup
+```
+
+Creates `hippocampus.json` and `hippocampus.db`, selects the default embedding model, selects the download source, and verifies the model. It does **not** start a background service.
+
+For scripted or offline initialization only:
 
 ```bash
 hippocampus init
 ```
 
-Creates `hippocampus.json` (config) and `hippocampus.db` (database) in `~/.hippocampus/` (the default workspace).
-
 ## Verify
 
 ```bash
 hippocampus --version
+hippocampus model status
 hippocampus start
 ```
 
@@ -48,4 +55,5 @@ See [Storage Backends](../advanced/storage-backends.md) for details.
 
 - [Configuration](./configuration.md) — full config reference
 - [Claude Code](./claude-code.md) — automatic cross-session memory for Claude Code
+- [Codex](./codex.md) — MCP memory tools for Codex
 - [MCP Integration](./mcp-integration.md) — use hippocampus as MCP tools in any client

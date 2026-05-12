@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from hippocampus.config.loader import create_default_config, load_settings, update_config_field
+from hippocampus.config.loader import create_default_config, find_config_file, load_settings, update_config_field
 from hippocampus.config.settings import Settings
 from hippocampus.config.workspace import get_default_home, resolve_workspace
 
@@ -151,6 +151,43 @@ class TestConfigLoader:
         settings = load_settings(config_path)
         # Relative "home" resolves against config file's parent
         assert settings.home_dir == (tmp_path / "workspace_subdir").resolve()
+
+    def test_find_config_file_uses_hippocampus_home(self, tmp_path: Path, monkeypatch):
+        home = tmp_path / "home"
+        home.mkdir()
+        config_path = home / "hippocampus.json"
+        config_path.write_text("{}")
+        monkeypatch.setenv("HIPPOCAMPUS_HOME", str(home))
+
+        empty_dir = tmp_path / "empty"
+        empty_dir.mkdir()
+
+        assert find_config_file(empty_dir) == config_path
+
+    def test_find_config_file_does_not_fall_back_when_hippocampus_home_is_set(self, tmp_path: Path, monkeypatch):
+        default_home = tmp_path / ".hippocampus"
+        default_home.mkdir()
+        (default_home / "hippocampus.json").write_text("{}")
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("HIPPOCAMPUS_HOME", str(tmp_path / "empty_home"))
+
+        empty_dir = tmp_path / "empty"
+        empty_dir.mkdir()
+
+        assert find_config_file(empty_dir) is None
+
+    def test_find_config_file_uses_default_home(self, tmp_path: Path, monkeypatch):
+        default_home = tmp_path / ".hippocampus"
+        default_home.mkdir()
+        config_path = default_home / "hippocampus.json"
+        config_path.write_text("{}")
+        monkeypatch.delenv("HIPPOCAMPUS_HOME", raising=False)
+        monkeypatch.setenv("HOME", str(tmp_path))
+
+        empty_dir = tmp_path / "empty"
+        empty_dir.mkdir()
+
+        assert find_config_file(empty_dir) == config_path
 
 
 class TestWorkspace:

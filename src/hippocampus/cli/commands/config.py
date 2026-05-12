@@ -26,7 +26,7 @@ def config_list() -> None:
     """Show all current configuration values."""
     path = find_config_file()
     if not path:
-        console.print("[red]No hippocampus.json found. Run `hippocampus init` first.[/]")
+        console.print("[red]No hippocampus.json found. Run `hippocampus setup` first.[/]")
         raise SystemExit(1)
 
     settings = load_settings(path)

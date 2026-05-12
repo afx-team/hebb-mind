@@ -14,9 +14,9 @@ Hippocampus 与 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) �
 ## 安装
 
 ```bash
-pip install afx-hippocampus          # 安装包
-hippocampus init                      # 初始化配置 + 数据库
-hippocampus cc install                # 注入 hooks + MCP 到 Claude Code
+pip install -U afx-hippocampus       # 安装包
+hippocampus setup                     # 初始化并预下载 Embedding 模型
+hippocampus cc install --scope user   # 注入 hooks + MCP 到 Claude Code
 ```
 
 重启 Claude Code 即可生效。hippocampus 会自动：
@@ -27,7 +27,7 @@ hippocampus cc install                # 注入 hooks + MCP 到 Claude Code
 
 ### 作用域
 
-默认写入**项目级** `.claude/settings.json`。全局安装：
+默认将 hooks 写入**项目级** `.claude/settings.json`。全局安装：
 
 ```bash
 hippocampus cc install --scope user   # 写入 ~/.claude/settings.json
@@ -107,6 +107,13 @@ MCP 服务提供显式记忆工具，Claude 可在对话中主动调用：
 }
 ```
 
+也可以使用 Claude Code 官方 MCP 命令：
+
+```bash
+claude mcp add --transport stdio --scope user hippocampus -- hippocampus-mcp
+claude mcp list
+```
+
 详见 [MCP 集成](./mcp-integration.md) 了解 Claude Desktop、Cursor 和远程服务配置。
 
 ## 配置
@@ -144,4 +151,4 @@ curl http://localhost:8321/api/v1/memories?limit=5
 
 ### 召回速度慢
 
-冷启动后首次召回需要加载嵌入模型（bge-m3 约 10 秒）。后续调用很快。建议保持服务常驻：`hippocampus start -d` 或 `hippocampus service install`。
+冷启动后首次召回需要加载嵌入模型。`hippocampus setup` 会提前下载默认模型，让这条链路更可预期。建议保持服务常驻：`hippocampus start -d` 或 `hippocampus service install`。

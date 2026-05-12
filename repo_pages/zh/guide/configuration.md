@@ -2,6 +2,14 @@
 
 Hippocampus 的所有配置集中在项目目录下的 `hippocampus.json` 文件中，无需设置环境变量。
 
+首次使用推荐：
+
+```bash
+hippocampus setup --language auto --region auto
+```
+
+`language` 决定 Embedding 模型，`region` 决定 HuggingFace 下载源，二者独立。
+
 ## CLI 管理
 
 ```bash
@@ -18,6 +26,9 @@ hippocampus config set embedding_enabled false
 
 # 查看配置文件路径
 hippocampus config path
+
+# 查看 Embedding 模型状态
+hippocampus model status
 ```
 
 ## 完整配置项
@@ -30,9 +41,9 @@ hippocampus config path
 | `pg_pool_min` | number | `2` | PostgreSQL 连接池最小连接数 |
 | `pg_pool_max` | number | `10` | PostgreSQL 连接池最大连接数 |
 | `embedding_enabled` | boolean | `true` | 是否启用向量搜索 |
-| `embedding_model` | string | `"all-MiniLM-L6-v2"` | Embedding 模型名称 |
-| `embedding_dim` | number | `384` | 向量维度 |
-| `hf_endpoint` | string | `null` | HuggingFace 镜像地址（如 `https://hf-mirror.com`） |
+| `embedding_model` | string | setup-selected | Embedding 模型名称。英语默认 `BAAI/bge-large-en-v1.5`，中文/多语言默认 `BAAI/bge-m3` |
+| `embedding_dim` | number | setup-selected | 向量维度 |
+| `hf_endpoint` | string | `null` | HuggingFace 镜像地址。`setup --region cn` 会设置 `https://hf-mirror.com` |
 | `llm_model` | string | `null` | LLM 模型标识（如 `openai/gpt-4o-mini`） |
 | `llm_base_url` | string | `null` | 自定义 LLM API 地址 |
 | `llm_api_key` | string | `null` | LLM 提供商 API 密钥 |
@@ -53,11 +64,11 @@ hippocampus config path
   "storage_type": "sqlite",
   "home": null,
   "embedding_enabled": true,
-  "embedding_model": "all-MiniLM-L6-v2",
-  "embedding_dim": 384,
+  "embedding_model": "BAAI/bge-m3",
+  "embedding_dim": 1024,
   "hf_endpoint": "https://hf-mirror.com",
-  "llm_model": "openai/gpt-4o-mini",
-  "llm_api_key": "sk-your-key",
+  "llm_model": null,
+  "llm_api_key": null,
   "host": "0.0.0.0",
   "port": 8321,
   "consolidation_time": "18:00",
@@ -110,7 +121,13 @@ hippocampus config set home /data/hippocampus
 国内用户下载 HuggingFace 模型可能较慢，可以通过配置镜像加速：
 
 ```bash
-hippocampus config set hf_endpoint https://hf-mirror.com
+hippocampus setup --region cn
 ```
 
 设置后，启动服务时会自动通过镜像站下载 Embedding 模型。
+
+也可以手动设置：
+
+```bash
+hippocampus config set hf_endpoint https://hf-mirror.com
+```

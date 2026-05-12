@@ -10,6 +10,7 @@ and are not stored in the config file.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from hippocampus.config.settings import Settings
@@ -17,12 +18,29 @@ from hippocampus.config.workspace import resolve_workspace
 
 
 def find_config_file(start_dir: Path | None = None) -> Path | None:
-    """Walk up from start_dir looking for hippocampus.json."""
+    """Find the active hippocampus.json.
+
+    Search order:
+        1. Current directory and parents.
+        2. HIPPOCAMPUS_HOME/hippocampus.json.
+        3. ~/.hippocampus/hippocampus.json.
+    """
     d = start_dir or Path.cwd()
     for parent in [d, *d.parents]:
         candidate = parent / "hippocampus.json"
         if candidate.is_file():
             return candidate
+
+    env_home = os.environ.get("HIPPOCAMPUS_HOME")
+    if env_home:
+        candidate = Path(env_home).expanduser() / "hippocampus.json"
+        if candidate.is_file():
+            return candidate
+        return None
+
+    candidate = Path.home() / ".hippocampus" / "hippocampus.json"
+    if candidate.is_file():
+        return candidate
     return None
 
 

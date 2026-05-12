@@ -60,7 +60,12 @@ For Chinese model providers (Qwen, GLM, Kimi), the `openai/` prefix tells LiteLL
 
 ## Embedding Model
 
-The embedding model (`all-MiniLM-L6-v2`) runs **locally** via sentence-transformers. No external API calls are needed for generating embeddings. The model is automatically downloaded on first use (~80 MB).
+The embedding model runs **locally** via sentence-transformers. No external API calls are needed for generating embeddings. `hippocampus setup` selects the default model by content language:
+
+- English: `BAAI/bge-large-en-v1.5`
+- Chinese or multilingual: `BAAI/bge-m3`
+
+Download region is independent from language. Use `hippocampus setup --language en --region cn` for English content on a China network, or `hippocampus setup --language zh --region global` for Chinese content on a global network.
 
 This means:
 

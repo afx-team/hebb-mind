@@ -66,20 +66,21 @@ Hippocampus addresses these gaps with a **zero-config, automatic memory lifecycl
 ## Quick Start
 
 ```bash
-pip install afx-hippocampus      # Install
-hippocampus init                  # Initialize (creates hippocampus.json + SQLite DB)
-hippocampus config set llm_api_key sk-your-key-here  # Set LLM key
+pip install -U afx-hippocampus      # Install
+hippocampus setup                 # Initialize + choose/download the default embedding model
 hippocampus start                 # Start server → http://localhost:8321/
 ```
 
 Open http://localhost:8321/ for the **Web Console**, or http://localhost:8321/docs for the API docs.
+
+`setup` detects your content language from the OS locale and download region from network reachability. Language selects the embedding model; region only selects the HuggingFace download source.
 
 ## Installation
 
 ### pip (recommended)
 
 ```bash
-pip install afx-hippocampus
+pip install -U afx-hippocampus
 ```
 
 ### Claude Code (auto-memory)
@@ -87,14 +88,32 @@ pip install afx-hippocampus
 Give Claude Code persistent memory across sessions — three commands:
 
 ```bash
-pip install afx-hippocampus
-hippocampus init
-hippocampus cc install
+pip install -U afx-hippocampus
+hippocampus setup
+hippocampus cc install --scope user
 ```
 
 Restart Claude Code. Hippocampus will automatically recall cross-session memories at session start, write each user message to memory, and consolidate when the session ends.
 
-See [Claude Code Integration](https://afx-team.github.io/hippocampus/advanced/claude-code.html) for details.
+See [Claude Code Integration](https://afx-team.github.io/hippocampus/guide/claude-code.html) for details.
+
+### Codex (MCP memory tools)
+
+Add Hippocampus memory tools to Codex:
+
+```bash
+pip install -U afx-hippocampus
+hippocampus setup
+hippocampus codex install --scope user
+```
+
+Verify with:
+
+```bash
+codex mcp list
+```
+
+Codex uses MCP tools for explicit memory operations. Claude Code additionally supports hooks-based automatic write/recall.
 
 ### Docker
 
@@ -112,7 +131,7 @@ curl -fsSL https://raw.githubusercontent.com/afx-team/hippocampus/main/scripts/i
 ### PostgreSQL backend (production)
 
 ```bash
-pip install afx-hippocampus[pg]
+pip install -U afx-hippocampus[pg]
 hippocampus config set storage_type postgresql
 hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
 ```
@@ -233,11 +252,13 @@ hippocampus config set llm_base_url https://dashscope.aliyuncs.com/compatible-mo
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `llm_model` | `openai/gpt-4o-mini` | LLM model identifier (via [LiteLLM](https://github.com/BerriAI/litellm)) |
+| `llm_model` | `null` | LLM model identifier (via [LiteLLM](https://github.com/BerriAI/litellm)); optional until consolidation is enabled |
 | `llm_api_key` | `null` | LLM provider API key (required for consolidation) |
 | `llm_base_url` | `null` | Custom LLM API endpoint (for Qwen/GLM/Kimi) |
 | `storage_type` | `sqlite` | `sqlite` or `postgresql` |
 | `embedding_enabled` | `true` | Set `false` to disable vector search |
+| `embedding_model` | language-aware | `setup` chooses `BAAI/bge-large-en-v1.5` for English and `BAAI/bge-m3` for Chinese/multilingual |
+| `hf_endpoint` | `null` | HuggingFace mirror endpoint; `setup --region cn` sets `https://hf-mirror.com` |
 | `port` | `8321` | Server port |
 | `consolidation_time` | `18:00` | Daily consolidation clock time (`HH:MM`) |
 | `base_ttl_hours` | `168` | Base memory TTL before decay |

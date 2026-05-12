@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from hippocampus.ingest.noise import strip_noise
-from hippocampus.integrations.claude_code import dedup, recall, stop, write
+from hippocampus.integrations.claude_code import dedup, install, recall, stop, write
 from hippocampus.integrations.claude_code.transcript import (
     TurnSummary,
     extract_last_turn,
@@ -64,6 +64,66 @@ class TestDedup:
         monkeypatch.setattr(dedup, "STATE_FILE", tmp_path / "hook_state.json")
 
         assert dedup.is_duplicate("s1", "I like salmon") is False
+
+
+class TestInstallHook:
+    def test_installs_mcp_with_claude_cli_when_available(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        calls: list[list[str]] = []
+        settings_path = tmp_path / "settings.json"
+
+        def fake_which(name: str) -> str | None:
+            return f"/bin/{name}"
+
+        def fake_run(args: list[str], **kwargs):
+            calls.append(args)
+
+            class Result:
+                returncode = 0
+
+            return Result()
+
+        monkeypatch.setattr(install.shutil, "which", fake_which)
+        monkeypatch.setattr(install.subprocess, "run", fake_run)
+        monkeypatch.setattr(install, "_find_settings_path", lambda scope: settings_path)
+
+        install.handle("user")
+
+        data = json.loads(settings_path.read_text())
+        assert "hooks" in data
+        assert "mcpServers" not in data
+        assert calls == [
+            [
+                "claude",
+                "mcp",
+                "add",
+                "--transport",
+                "stdio",
+                "--scope",
+                "user",
+                "hippocampus",
+                "--",
+                "hippocampus-mcp",
+            ]
+        ]
+
+    def test_installs_mcp_in_settings_when_claude_cli_unavailable(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        settings_path = tmp_path / "settings.json"
+
+        def fake_which(name: str) -> str | None:
+            if name == "claude":
+                return None
+            return f"/bin/{name}"
+
+        monkeypatch.setattr(install.shutil, "which", fake_which)
+        monkeypatch.setattr(install, "_find_settings_path", lambda scope: settings_path)
+
+        install.handle("user")
+
+        data = json.loads(settings_path.read_text())
+        assert "hooks" in data
+        assert data["mcpServers"]["hippocampus"]["command"] == "hippocampus-mcp"
         dedup.record_written("s1", "I like salmon")
         assert dedup.is_duplicate("s1", "I like salmon") is True
         assert dedup.is_duplicate("s2", "I like salmon") is False

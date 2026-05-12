@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 from pathlib import Path
 
 import click
@@ -83,17 +84,48 @@ def handle(scope: str) -> None:
                 existing_hooks[event].extend(hook_list)
     settings["hooks"] = existing_hooks
 
-    # 4. Inject MCP server
-    mcp_servers = settings.get("mcpServers", {})
-    if "hippocampus" not in mcp_servers:
-        mcp_servers["hippocampus"] = _MCP_SERVER_CONFIG["hippocampus"]
-    settings["mcpServers"] = mcp_servers
+    # 4. Install MCP server. Prefer the official Claude CLI so `claude mcp list`
+    # matches user expectations, then fall back to settings.json.
+    mcp_installed_with_cli = _install_mcp_with_claude_cli(scope)
+    if not mcp_installed_with_cli:
+        mcp_servers = settings.get("mcpServers", {})
+        if "hippocampus" not in mcp_servers:
+            mcp_servers["hippocampus"] = _MCP_SERVER_CONFIG["hippocampus"]
+        settings["mcpServers"] = mcp_servers
 
     # 5. Save
     _save_settings(settings_path, settings)
 
     click.secho(f"Installed hippocampus into {settings_path}", fg="green")
     click.echo("  Hooks:  SessionStart (recall), UserPromptSubmit (write), Stop (consolidate)")
-    click.echo("  MCP:    hippocampus (write_memory, search_memory, consolidate)")
+    click.echo(
+        "  MCP:    hippocampus via claude mcp add"
+        if mcp_installed_with_cli
+        else "  MCP:    hippocampus via settings.json"
+    )
     click.echo("")
-    click.echo("Restart Claude Code to activate.")
+    click.echo("Verify MCP with: claude mcp list")
+    click.echo("Restart Claude Code to activate hooks.")
+
+
+def _install_mcp_with_claude_cli(scope: str) -> bool:
+    if not shutil.which("claude"):
+        return False
+    result = subprocess.run(
+        [
+            "claude",
+            "mcp",
+            "add",
+            "--transport",
+            "stdio",
+            "--scope",
+            scope,
+            "hippocampus",
+            "--",
+            "hippocampus-mcp",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0

@@ -1,6 +1,6 @@
 # CLI 命令参考
 
-Hippocampus 提供了 `hippocampus` 命令行工具来管理服务和配置。
+Hippocampus 提供了 `hippocampus` 命令行工具来管理 setup、模型、集成、服务和配置。
 
 ## 全局选项
 
@@ -9,9 +9,19 @@ hippocampus --version    # 显示版本号
 hippocampus --help       # 显示帮助信息
 ```
 
+## hippocampus setup
+
+准备开箱即用环境：必要时初始化 workspace，根据内容语言选择 Embedding 模型，根据网络区域选择 HuggingFace 下载源，下载模型并验证。
+
+```bash
+hippocampus setup [--language auto|en|zh|multi] [--region auto|cn|global] [--profile default|fast|best]
+```
+
+`setup` 不会启动服务，完成后运行 `hippocampus start`。
+
 ## hippocampus init
 
-初始化项目目录，创建配置文件和数据库。
+离线初始化项目目录，只创建配置文件和数据库。
 
 ```bash
 hippocampus init [--dir PATH] [--force]
@@ -21,6 +31,15 @@ hippocampus init [--dir PATH] [--force]
 |------|------|
 | `--dir PATH` | 初始化目录，默认为 `~/.hippocampus/` |
 | `--force` | 覆盖已有配置，重建数据库 |
+
+## hippocampus model
+
+查看或预下载 Embedding 模型。
+
+```bash
+hippocampus model status
+hippocampus model prefetch --model BAAI/bge-m3 --region cn
+```
 
 执行后会创建：
 

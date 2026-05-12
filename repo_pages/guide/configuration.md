@@ -2,6 +2,14 @@
 
 All configuration lives in a single file: **`hippocampus.json`**. No environment variables are required for local use.
 
+For first-time users, prefer:
+
+```bash
+hippocampus setup --language auto --region auto
+```
+
+`language` selects the embedding model. `region` selects the HuggingFace download source. They are independent.
+
 ## CLI Config Management
 
 ```bash
@@ -22,6 +30,9 @@ hippocampus config path
 
 # Show resolved workspace directory
 hippocampus workspace
+
+# Inspect embedding model state
+hippocampus model status
 ```
 
 ## Workspace
@@ -64,10 +75,10 @@ Below is a complete `hippocampus.json` with all available fields:
   "pg_pool_min": 2,
   "pg_pool_max": 10,
   "embedding_enabled": true,
-  "embedding_model": "all-MiniLM-L6-v2",
-  "embedding_dim": 384,
+  "embedding_model": "BAAI/bge-large-en-v1.5",
+  "embedding_dim": 1024,
   "hf_endpoint": null,
-  "llm_model": "openai/gpt-4o-mini",
+  "llm_model": null,
   "llm_base_url": null,
   "llm_api_key": "sk-xxx",
   "host": "0.0.0.0",
@@ -92,10 +103,10 @@ Below is a complete `hippocampus.json` with all available fields:
 | `pg_pool_min` | `2` | Minimum PostgreSQL connection pool size |
 | `pg_pool_max` | `10` | Maximum PostgreSQL connection pool size |
 | `embedding_enabled` | `true` | Enable vector embeddings for similarity search |
-| `embedding_model` | `all-MiniLM-L6-v2` | Sentence-transformers model for embeddings |
-| `embedding_dim` | `384` | Embedding vector dimension (must match model) |
-| `hf_endpoint` | `null` | HuggingFace mirror endpoint (e.g. `https://hf-mirror.com`) |
-| `llm_model` | `openai/gpt-4o-mini` | LLM model identifier via LiteLLM |
+| `embedding_model` | setup-selected | Sentence-transformers model for embeddings. English defaults to `BAAI/bge-large-en-v1.5`; Chinese/multilingual defaults to `BAAI/bge-m3`. |
+| `embedding_dim` | setup-selected | Embedding vector dimension (must match model) |
+| `hf_endpoint` | `null` | HuggingFace mirror endpoint. `setup --region cn` sets `https://hf-mirror.com`. |
+| `llm_model` | `null` | Optional LLM model identifier via LiteLLM |
 | `llm_base_url` | `null` | Custom LLM API endpoint (for Qwen, GLM, Kimi) |
 | `llm_api_key` | `null` | LLM provider API key (required for consolidation) |
 | `host` | `0.0.0.0` | Server bind address |
@@ -120,6 +131,16 @@ The Web Console at [http://localhost:8321/](http://localhost:8321/) includes a *
 4. Built-in defaults
 
 ## Common Configuration Examples
+
+### Setup language and download region
+
+```bash
+# English content, China network
+hippocampus setup --language en --region cn
+
+# Chinese content, global network
+hippocampus setup --language zh --region global
+```
 
 ### Disable vector search (keyword-only mode)
 

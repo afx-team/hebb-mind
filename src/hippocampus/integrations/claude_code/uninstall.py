@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 from pathlib import Path
 
 import click
@@ -17,6 +19,7 @@ def _find_settings_path(scope: str) -> Path:
 
 def handle(scope: str) -> None:
     """Remove hippocampus hooks and MCP server from Claude Code settings."""
+    _remove_mcp_with_claude_cli(scope)
     settings_path = _find_settings_path(scope)
 
     if not settings_path.exists():
@@ -71,3 +74,14 @@ def handle(scope: str) -> None:
         click.echo("hippocampus not found in settings, nothing to remove.")
 
     click.echo("Restart Claude Code to apply.")
+
+
+def _remove_mcp_with_claude_cli(scope: str) -> None:
+    if not shutil.which("claude"):
+        return
+    subprocess.run(
+        ["claude", "mcp", "remove", "--scope", scope, "hippocampus"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )

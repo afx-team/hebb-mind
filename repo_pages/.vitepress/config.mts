@@ -15,6 +15,7 @@ function guideSidebar(prefix = '') {
         { text: prefix ? '安装' : 'Installation', link: `${prefix}/guide/installation` },
         { text: prefix ? '配置' : 'Configuration', link: `${prefix}/guide/configuration` },
         { text: 'Claude Code', link: `${prefix}/guide/claude-code` },
+        { text: 'Codex', link: `${prefix}/guide/codex` },
         { text: prefix ? 'MCP 集成' : 'MCP Integration', link: `${prefix}/guide/mcp-integration` },
       ],
     },

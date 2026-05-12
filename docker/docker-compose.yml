@@ -6,14 +6,14 @@ services:
     ports:
       - "8321:8321"
     volumes:
-      - hippocampus-/data
+      - hippocampus-data:/data
     environment:
+      - HIPPOCAMPUS_HOME=/data
+      - HIPPOCAMPUS_LANGUAGE=${HIPPOCAMPUS_LANGUAGE:-auto}
+      - HIPPOCAMPUS_REGION=${HIPPOCAMPUS_REGION:-auto}
       - HIPPOCAMPUS_LLM_API_KEY=${HIPPOCAMPUS_LLM_API_KEY}
       - HIPPOCAMPUS_LLM_MODEL=${HIPPOCAMPUS_LLM_MODEL:-openai/gpt-4o-mini}
       - HIPPOCAMPUS_LLM_BASE_URL=${HIPPOCAMPUS_LLM_BASE_URL:-}
-      - HIPPOCAMPUS_GITHUB_CLIENT_ID=${HIPPOCAMPUS_GITHUB_CLIENT_ID:-}
-      - HIPPOCAMPUS_GITHUB_CLIENT_SECRET=${HIPPOCAMPUS_GITHUB_CLIENT_SECRET:-}
-      - HIPPOCAMPUS_JWT_SECRET=${HIPPOCAMPUS_JWT_SECRET:-change-me-in-production}
     restart: unless-stopped
 
 volumes:

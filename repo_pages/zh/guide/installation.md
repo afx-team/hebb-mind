@@ -3,23 +3,30 @@
 ## 安装
 
 ```bash
-pip install afx-hippocampus
+pip install -U afx-hippocampus
 ```
 
 需要 **Python >= 3.10**。无需外部数据库 — SQLite 内置。
 
-## 初始化
+## Setup
+
+```bash
+hippocampus setup
+```
+
+在 `~/.hippocampus/`（默认工作目录）生成 `hippocampus.json` 和 `hippocampus.db`，选择默认 Embedding 模型、选择下载源并验证模型。它不会启动后台服务。
+
+仅需离线/脚本化初始化时使用：
 
 ```bash
 hippocampus init
 ```
 
-在 `~/.hippocampus/`（默认工作目录）生成 `hippocampus.json`（配置文件）和 `hippocampus.db`（数据库）。
-
 ## 验证
 
 ```bash
 hippocampus --version
+hippocampus model status
 hippocampus start
 ```
 
@@ -48,4 +55,5 @@ hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
 
 - [配置](./configuration.md) — 完整配置项说明
 - [Claude Code](./claude-code.md) — Claude Code 跨会话自动记忆
+- [Codex](./codex.md) — Codex MCP 记忆工具
 - [MCP 集成](./mcp-integration.md) — 在任意 MCP 客户端中使用 hippocampus

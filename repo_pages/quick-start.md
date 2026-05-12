@@ -5,18 +5,25 @@ Get Hippocampus up and running in under a minute.
 ## 1. Install
 
 ```bash
-pip install afx-hippocampus
+pip install -U afx-hippocampus
 ```
 
 Requires **Python >= 3.10**. No external database needed — SQLite is built in.
 
-## 2. Initialize
+## 2. Setup
 
 ```bash
-hippocampus init
+hippocampus setup
 ```
 
-This creates `hippocampus.json` (config) and `hippocampus.db` (database) in `~/.hippocampus/` (the default workspace).
+This creates `hippocampus.json` and `hippocampus.db`, detects your content language, selects an embedding model, detects the best download source, and prefetches the model.
+
+Language and region are independent:
+
+```bash
+hippocampus setup --language en --region cn      # English model, China mirror
+hippocampus setup --language zh --region global  # Multilingual model, official HuggingFace
+```
 
 ## 3. Start
 
@@ -120,7 +127,7 @@ See [MCP Integration](./guide/mcp-integration.md) for full setup instructions.
 Give Claude Code persistent memory across sessions with hooks:
 
 ```bash
-hippocampus cc install
+hippocampus cc install --scope user
 ```
 
 This registers three hooks in `.claude/settings.json`:
@@ -130,6 +137,17 @@ This registers three hooks in `.claude/settings.json`:
 - **Stop** — triggers consolidation when the session ends
 
 See [Claude Code Integration](./guide/claude-code.md) for details.
+
+## Codex MCP Tools
+
+Add Hippocampus memory tools to Codex:
+
+```bash
+hippocampus codex install --scope user
+codex mcp list
+```
+
+See [Codex Integration](./guide/codex.md) for details.
 
 ## Next Steps
 

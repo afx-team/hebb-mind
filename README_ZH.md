@@ -66,20 +66,21 @@ Hippocampus 借鉴神经科学，通过**零配置、自动化的记忆生命周
 ## 快速开始
 
 ```bash
-pip install afx-hippocampus      # 安装
-hippocampus init                  # 初始化（创建 hippocampus.json + SQLite 数据库）
-hippocampus config set llm_api_key sk-your-key-here  # 配置 LLM 密钥
+pip install -U afx-hippocampus      # 安装
+hippocampus setup                 # 初始化并选择/下载默认 Embedding 模型
 hippocampus start                 # 启动服务 → http://localhost:8321/
 ```
 
 打开 http://localhost:8321/ 使用 **Web 管理控制台**，或访问 http://localhost:8321/docs 查看 API 文档。
+
+`setup` 会根据操作系统语言识别内容语言，根据网络可达性识别下载区域。language 只决定 Embedding 模型，region 只决定 HuggingFace 下载源。
 
 ## 安装说明
 
 ### pip（推荐）
 
 ```bash
-pip install afx-hippocampus
+pip install -U afx-hippocampus
 ```
 
 ### Claude Code（自动记忆）
@@ -87,14 +88,32 @@ pip install afx-hippocampus
 让 Claude Code 拥有跨会话持久记忆 — 三条命令：
 
 ```bash
-pip install afx-hippocampus
-hippocampus init
-hippocampus cc install
+pip install -U afx-hippocampus
+hippocampus setup
+hippocampus cc install --scope user
 ```
 
 重启 Claude Code 即可。Hippocampus 会自动在会话开始时召回跨会话记忆，每条用户消息自动写入记忆，会话结束时触发巩固。
 
-详见 [Claude Code 集成](https://afx-team.github.io/hippocampus/zh/advanced/claude-code.html)。
+详见 [Claude Code 集成](https://afx-team.github.io/hippocampus/zh/guide/claude-code.html)。
+
+### Codex（MCP 记忆工具）
+
+为 Codex 添加 Hippocampus 记忆工具：
+
+```bash
+pip install -U afx-hippocampus
+hippocampus setup
+hippocampus codex install --scope user
+```
+
+验证：
+
+```bash
+codex mcp list
+```
+
+Codex 通过 MCP 工具进行显式记忆操作；Claude Code 额外支持 hooks 自动写入/召回。
 
 ### Docker 部署
 
@@ -115,7 +134,7 @@ curl -fsSL https://raw.githubusercontent.com/afx-team/hippocampus/main/scripts/i
 ### PostgreSQL 后端（生产环境）
 
 ```bash
-pip install afx-hippocampus[pg]
+pip install -U afx-hippocampus[pg]
 hippocampus config set storage_type postgresql
 hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
 ```
@@ -236,11 +255,13 @@ hippocampus config set llm_base_url https://dashscope.aliyuncs.com/compatible-mo
 
 | 字段 | 默认值 | 说明 |
 |------|--------|------|
-| `llm_model` | `openai/gpt-4o-mini` | LLM 模型标识（通过 [LiteLLM](https://github.com/BerriAI/litellm)）|
+| `llm_model` | `null` | LLM 模型标识（通过 [LiteLLM](https://github.com/BerriAI/litellm)），仅启用巩固时需要 |
 | `llm_api_key` | `null` | LLM API 密钥（巩固功能必需）|
 | `llm_base_url` | `null` | 自定义 LLM API 端点（用于通义千问/GLM/Kimi）|
 | `storage_type` | `sqlite` | `sqlite` 或 `postgresql` |
 | `embedding_enabled` | `true` | 设为 `false` 禁用向量搜索 |
+| `embedding_model` | language-aware | `setup` 为英语选择 `BAAI/bge-large-en-v1.5`，为中文/多语言选择 `BAAI/bge-m3` |
+| `hf_endpoint` | `null` | HuggingFace 镜像地址；`setup --region cn` 会设置 `https://hf-mirror.com` |
 | `port` | `8321` | 服务端口 |
 | `consolidation_time` | `18:00` | 每日巩固时间（`HH:MM`） |
 | `base_ttl_hours` | `168` | 基础记忆 TTL |

@@ -14,9 +14,9 @@ Most users want both — MCP for explicit memory operations, hooks for seamless 
 ## Install
 
 ```bash
-pip install afx-hippocampus          # Install the package
-hippocampus init                      # Initialize config + database
-hippocampus cc install                # Inject hooks + MCP into Claude Code
+pip install -U afx-hippocampus       # Install the package
+hippocampus setup                     # Initialize + prefetch embedding model
+hippocampus cc install --scope user   # Inject hooks + MCP into Claude Code
 ```
 
 That's it. Restart Claude Code and hippocampus will:
@@ -27,7 +27,7 @@ That's it. Restart Claude Code and hippocampus will:
 
 ### Scope
 
-By default, `hippocampus cc install` writes to the **project-level** `.claude/settings.json`. To install globally:
+By default, `hippocampus cc install` writes hooks to the **project-level** `.claude/settings.json`. To install globally:
 
 ```bash
 hippocampus cc install --scope user   # writes to ~/.claude/settings.json
@@ -107,6 +107,13 @@ If you only want the MCP server without hooks, add to `.mcp.json`:
 }
 ```
 
+Or use Claude Code's MCP command:
+
+```bash
+claude mcp add --transport stdio --scope user hippocampus -- hippocampus-mcp
+claude mcp list
+```
+
 See [MCP Integration](./mcp-integration.md) for details on Claude Desktop, Cursor, and remote service configuration.
 
 ## Configuration
@@ -144,4 +151,4 @@ curl http://localhost:8321/api/v1/memories?limit=5
 
 ### Recall is slow
 
-The first recall after a cold start loads the embedding model (~10s for bge-m3). Subsequent calls are fast. Keep the service running with `hippocampus start -d` or `hippocampus service install`.
+The first recall after a cold start loads the embedding model. `hippocampus setup` prefetches the default model to make this path predictable. Keep the service running with `hippocampus start -d` or `hippocampus service install`.

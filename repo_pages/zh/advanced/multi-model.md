@@ -73,7 +73,14 @@ curl -X POST http://localhost:8321/api/v1/config/test-llm \
 
 ## Embedding 模型
 
-Embedding 模型使用本地的 `sentence-transformers` 运行，默认为 `all-MiniLM-L6-v2`（384 维），不依赖外部 API 调用。如需更换：
+Embedding 模型使用本地的 `sentence-transformers` 运行，不依赖外部 API 调用。`hippocampus setup` 会根据内容语言选择默认模型：
+
+- 英语：`BAAI/bge-large-en-v1.5`
+- 中文或多语言：`BAAI/bge-m3`
+
+下载区域与语言独立。例如英语内容但在国内网络可用 `hippocampus setup --language en --region cn`，中文内容但在海外网络可用 `hippocampus setup --language zh --region global`。
+
+如需更换：
 
 ```bash
 hippocampus config set embedding_model "paraphrase-multilingual-MiniLM-L12-v2"

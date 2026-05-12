@@ -7,6 +7,8 @@ import logging
 from functools import partial
 from pathlib import Path
 
+from hippocampus.embedding.catalog import model_cache_dir, workspace_model_available
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,7 +21,7 @@ def _workspace_models_dir(model_name: str) -> Path:
         from hippocampus.config.workspace import resolve_workspace
 
         workspace = resolve_workspace()
-        return workspace / "models" / model_name
+        return model_cache_dir(workspace, model_name)
     except Exception:
         # Fallback: install-relative path (legacy behavior)
         return Path(__file__).resolve().parent.parent.parent.parent / "models" / model_name
@@ -28,6 +30,11 @@ def _workspace_models_dir(model_name: str) -> Path:
 def is_model_cached(model_name: str) -> bool:
     """Check if a sentence-transformers model is already cached locally."""
     try:
+        from hippocampus.config.workspace import resolve_workspace
+
+        if workspace_model_available(resolve_workspace(), model_name):
+            return True
+
         from huggingface_hub import try_to_load_from_cache
 
         # sentence-transformers models always have config.json

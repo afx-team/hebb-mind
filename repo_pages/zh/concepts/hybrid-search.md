@@ -42,7 +42,7 @@ sqlite-vec     FTS5           知识图谱
 
 - **SQLite 后端**：使用 sqlite-vec 扩展进行向量检索
 - **PostgreSQL 后端**：使用 pgvector 进行向量检索
-- 默认 Embedding 模型：`all-MiniLM-L6-v2`（384 维）
+- 默认 Embedding 模型由 `hippocampus setup` 根据语言选择：英语为 `BAAI/bge-large-en-v1.5`，中文/多语言为 `BAAI/bge-m3`
 
 ### 2. 关键词路
 

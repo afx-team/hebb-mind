@@ -1,10 +1,20 @@
 # CLI Reference
 
-Hippocampus provides a command-line interface for managing the server and configuration.
+Hippocampus provides a command-line interface for managing setup, models, integrations, the server, and configuration.
+
+## hippocampus setup
+
+Prepare the default out-of-box environment. This initializes the workspace if needed, selects an embedding model by content language, selects a HuggingFace download source by network region, downloads the model, and verifies embedding.
+
+```bash
+hippocampus setup [--language auto|en|zh|multi] [--region auto|cn|global] [--profile default|fast|best]
+```
+
+`setup` does not start the server. Run `hippocampus start` afterwards.
 
 ## hippocampus init
 
-Initialize a new Hippocampus workspace. Creates the configuration file, SQLite database, and knowledge graph file in the workspace directory (default: `~/.hippocampus/`).
+Initialize a new Hippocampus workspace without network access. Creates the configuration file, SQLite database, and knowledge graph file in the workspace directory (default: `HIPPOCAMPUS_HOME` or `~/.hippocampus/`).
 
 ```bash
 hippocampus init
@@ -16,6 +26,15 @@ hippocampus init
 |--------|-------------|
 | `--dir DIR` | Target directory (default: `~/.hippocampus/`) |
 | `--force` | Overwrite existing files |
+
+## hippocampus model
+
+Inspect or prefetch embedding models.
+
+```bash
+hippocampus model status
+hippocampus model prefetch --model BAAI/bge-m3 --region cn
+```
 
 **Created files:**
 

@@ -1,0 +1,118 @@
+"""Tests for setup/init CLI behavior."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from click.testing import CliRunner
+
+from hippocampus.cli.commands.init import init_cmd
+from hippocampus.cli.commands.setup import setup_cmd
+
+
+def _clear_locale_env(monkeypatch) -> None:
+    for key in ("LC_ALL", "LC_MESSAGES", "LANGUAGE", "LANG"):
+        monkeypatch.delenv(key, raising=False)
+
+
+def test_setup_initializes_and_selects_english_model(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("HIPPOCAMPUS_HOME", str(home))
+    _clear_locale_env(monkeypatch)
+    monkeypatch.setenv("LANG", "en_US.UTF-8")
+    monkeypatch.setattr(
+        "hippocampus.cli.commands.setup.prefetch_model",
+        lambda model_id, workspace, hf_endpoint=None: workspace / "models" / model_id,
+    )
+    monkeypatch.setattr("hippocampus.cli.commands.setup._verify_model", lambda model_id, hf_endpoint: 1024)
+
+    runner = CliRunner()
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        result = runner.invoke(setup_cmd, ["--region", "global"])
+
+    assert result.exit_code == 0, result.output
+    config = json.loads((home / "hippocampus.json").read_text())
+    assert config["embedding_model"] == "BAAI/bge-large-en-v1.5"
+    assert config["embedding_dim"] == 1024
+    assert config["hf_endpoint"] is None
+
+
+def test_setup_initializes_and_selects_chinese_model(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("HIPPOCAMPUS_HOME", str(home))
+    _clear_locale_env(monkeypatch)
+    monkeypatch.setenv("LANG", "zh_CN.UTF-8")
+    monkeypatch.setattr(
+        "hippocampus.cli.commands.setup.prefetch_model",
+        lambda model_id, workspace, hf_endpoint=None: workspace / "models" / model_id,
+    )
+    monkeypatch.setattr("hippocampus.cli.commands.setup._verify_model", lambda model_id, hf_endpoint: 1024)
+
+    runner = CliRunner()
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        result = runner.invoke(setup_cmd, ["--region", "global"])
+
+    assert result.exit_code == 0, result.output
+    config = json.loads((home / "hippocampus.json").read_text())
+    assert config["embedding_model"] == "BAAI/bge-m3"
+    assert config["embedding_dim"] == 1024
+
+
+def test_setup_explicit_language_and_region_are_independent(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("HIPPOCAMPUS_HOME", str(home))
+    monkeypatch.setattr(
+        "hippocampus.cli.commands.setup.prefetch_model",
+        lambda model_id, workspace, hf_endpoint=None: workspace / "models" / model_id,
+    )
+    monkeypatch.setattr("hippocampus.cli.commands.setup._verify_model", lambda model_id, hf_endpoint: 1024)
+
+    runner = CliRunner()
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        result = runner.invoke(setup_cmd, ["--language", "en", "--region", "cn"])
+
+    assert result.exit_code == 0, result.output
+    config = json.loads((home / "hippocampus.json").read_text())
+    assert config["embedding_model"] == "BAAI/bge-large-en-v1.5"
+    assert config["hf_endpoint"] == "https://hf-mirror.com"
+
+
+def test_setup_keeps_custom_model_without_explicit_language(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("HIPPOCAMPUS_HOME", str(home))
+    runner = CliRunner()
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        init_result = runner.invoke(init_cmd, [])
+        assert init_result.exit_code == 0, init_result.output
+
+        config_path = home / "hippocampus.json"
+        config = json.loads(config_path.read_text())
+        config["embedding_model"] = "custom/model"
+        config["embedding_dim"] = 777
+        config_path.write_text(json.dumps(config))
+
+        monkeypatch.setattr(
+            "hippocampus.cli.commands.setup.prefetch_model",
+            lambda model_id, workspace, hf_endpoint=None: workspace / "models" / model_id,
+        )
+        monkeypatch.setattr("hippocampus.cli.commands.setup._verify_model", lambda model_id, hf_endpoint: 777)
+        result = runner.invoke(setup_cmd, ["--region", "global"])
+
+        assert result.exit_code == 0, result.output
+        updated = json.loads(config_path.read_text())
+        assert updated["embedding_model"] == "custom/model"
+        assert updated["embedding_dim"] == 777
+
+
+def test_init_uses_hippocampus_home(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("HIPPOCAMPUS_HOME", str(home))
+
+    runner = CliRunner()
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        result = runner.invoke(init_cmd, [])
+
+    assert result.exit_code == 0, result.output
+    assert (home / "hippocampus.json").is_file()
+    assert (home / "hippocampus.db").is_file()

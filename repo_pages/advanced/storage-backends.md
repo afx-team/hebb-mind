@@ -116,7 +116,10 @@ For containerized deployments, use the official Docker image.
 ```bash
 docker run -d \
   -p 8321:8321 \
-  -v hippocampus-data:/root/.hippocampus \
+  -v hippocampus-data:/data \
+  -e HIPPOCAMPUS_HOME=/data \
+  -e HIPPOCAMPUS_LANGUAGE=auto \
+  -e HIPPOCAMPUS_REGION=auto \
   -e HIPPOCAMPUS_LLM_API_KEY=sk-your-key \
   ghcr.io/afx-team/hippocampus:latest
 ```
@@ -130,9 +133,11 @@ services:
     ports:
       - "8321:8321"
     volumes:
-      - hippocampus-data:/root/.hippocampus
+      - hippocampus-data:/data
     environment:
-      - HIPPOCAMPUS_HOME=/root/.hippocampus
+      - HIPPOCAMPUS_HOME=/data
+      - HIPPOCAMPUS_LANGUAGE=auto
+      - HIPPOCAMPUS_REGION=auto
       - HIPPOCAMPUS_LLM_API_KEY=${LLM_API_KEY}
       - HIPPOCAMPUS_LLM_MODEL=openai/gpt-4o-mini
 
@@ -156,6 +161,8 @@ volumes:
 | Variable | Config Key | Description |
 |----------|-----------|-------------|
 | `HIPPOCAMPUS_HOME` | `home` | Workspace directory (overrides config file location and `home` field) |
+| `HIPPOCAMPUS_LANGUAGE` | setup option | `auto`, `en`, `zh`, or `multi`; selects the default embedding model during container setup |
+| `HIPPOCAMPUS_REGION` | setup option | `auto`, `cn`, or `global`; selects the model download source during container setup |
 | `HIPPOCAMPUS_LLM_API_KEY` | `llm_api_key` | LLM provider API key |
 | `HIPPOCAMPUS_LLM_MODEL` | `llm_model` | Model identifier (via LiteLLM) |
 | `HIPPOCAMPUS_LLM_BASE_URL` | `llm_base_url` | Custom API endpoint |
