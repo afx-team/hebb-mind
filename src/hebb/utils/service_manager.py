@@ -132,7 +132,7 @@ def _launchd_path(scope: Scope) -> Path:
 def _launchd_domain(scope: Scope) -> str:
     if scope == "system":
         return "system"
-    return f"gui/{os.getuid()}"
+    return f"gui/{os.getuid()}"  # type: ignore[attr-defined]  # unix-only, only called on macOS
 
 
 def _launchd_target(scope: Scope) -> str:
