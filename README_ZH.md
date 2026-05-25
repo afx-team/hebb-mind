@@ -1,7 +1,7 @@
 <p align="center">
   <h1 align="center"><a href="https://afx-team.github.io/hebb-mind/zh/">Hebb Mind</a></h1>
-  <p align="center"><strong>一套受神经科学启发的 AI Agent 记忆框架 — 以神经心理学家唐纳德·赫布命名，建立在他给出的法则之上：一起放电的神经元，会连到一起。</strong></p>
-  <p align="center"><em>编码、回放、巩固、遗忘。沿着大脑走过的路径。</em></p>
+  <p align="center"><strong>一套受神经科学启发的 AI Agent 记忆框架 </strong></p>
+  <p align="center"><em>编码、巩固、激活、遗忘</em></p>
   <p align="center"><a href="https://afx-team.github.io/hebb-mind/zh/">文档</a> · <a href="README.md">English</a> | <a href="README_ZH.md">中文</a></p>
 </p>
 
@@ -15,18 +15,9 @@
 
 ---
 
-1957 年，神经外科医生为治疗一位代号 H.M. 的癫痫患者切除了他双侧的海马体。手术让发作停止了，但他从此再也无法形成新的长期记忆 — 每一顿饭、每一张面孔，对他来说都是初见。半个多世纪的认知神经科学研究 [(Squire, 1992; Tulving, 2002)](#致谢) 由此一步步揭开了海马体的工作方式：它**编码**当下的经验片段、在静息时**回放**这些片段 [(Wilson & McNaughton, 1994)](#致谢)、把重要的部分**巩固**为长期知识、并**任由其余消退** [(Ebbinghaus, 1885)](#致谢)。
+Hebb Mind 给 AI Agent 装上一条受神经科学启发的记忆回路 —— **编码 → 回放 → 巩固 → 遗忘**。`pip install` 后一行命令即可在本地拉起 REST + MCP 端点：SQLite 做存储、sentence-transformers 做嵌入、NetworkX 维护标签图谱。**零外部服务**，只有想让巩固阶段"工作"时才需要 LLM Key。
 
-今天的 AI Agent 就是 H.M. — 它们每一次对话都从零开始。
-
-**Hebb Mind** 这个项目要为你的 Agent 补上这条缺失的回路。`pip install` 后一行命令即可在本地拉起 REST + MCP 端点，跑同样的四阶段循环：编码 → 回放 → 巩固 → 遗忘。SQLite 充当存储，sentence-transformers 充当"皮层"做嵌入，NetworkX 维护标签图谱。**零外部服务。** 只有当你希望巩固阶段真正"工作"时，才需要配置一个 LLM Key。
-
-与同类相比：`mem0` 是云优先、只追加；`letta` 需要外部数据库 + 独立的 sleeptime agent；`zep` 依赖 Postgres + Neo4j。Hebb Mind 是一个二进制、一条生物学意义上的回路。
-
-<!-- TODO(asset): screenshot of /index.html web console with sample memories -->
-<p align="center">
-  <img src="repo_pages/public/web-console-hero.png" alt="Hebb Mind Web 控制台 — 分区记忆与标签图谱" width="760">
-</p>
+与同类相比：`mem0` 云优先、只追加；`letta` 需外部 DB + 独立 sleeptime agent；`zep` 依赖 Postgres + Neo4j。**Hebb Mind 是一个二进制、一条生物学意义上的回路。**
 
 ## 快速开始
 
@@ -69,10 +60,10 @@ curl -X POST http://localhost:8321/api/v1/search \
   -d '{"query": "UI 偏好", "top_k": 5}'
 ```
 
-打开 <http://localhost:8321/> 即可使用 Web 控制台。<!-- TODO(asset): repo_pages/public/quickstart-cast.gif (asciinema of the 60-second path) -->
+打开 <http://localhost:8321/> 即可使用 Web 控制台。
 
 <p align="center">
-  <img src="repo_pages/public/quickstart-cast.gif" alt="Asciinema 演示：60 秒完成安装、setup、启动、写入、检索" width="720">
+  <img src="repo_pages/public/web-console-hero.jpg" alt="Hebb Mind Web 控制台 — 分区记忆与标签图谱" width="760">
 </p>
 
 ### 完整体验（5 分钟）— 启用 LLM 巩固
@@ -92,50 +83,16 @@ hebb config set llm_base_url https://dashscope.aliyuncs.com/compatible-mode/v1
 curl -X POST http://localhost:8321/api/v1/admin/consolidate
 ```
 
-## 为什么叫 "Hebb Mind"？
+## 安装方式
 
-1949 年，加拿大心理学家 **唐纳德·O·赫布（Donald O. Hebb，1904–1985）** 出版《行为的组织》（*The Organization of Behavior*），提出了一条奠定我们对大脑学习方式认知的法则：当一个神经元持续参与激发另一个神经元时，两者之间的连接就会增强。半个多世纪后，它被浓缩成一句话：
+```bash
+pip install -U hebb-mind               # pip
+pip install -U hebb-mind[pg]           # 启用 PostgreSQL/pgvector
+hebb claude-code install --scope user  # Claude Code：基于 hooks 的自动记忆
+hebb codex install --scope user        # Codex：MCP 记忆工具
+```
 
-> **一起放电的神经元，会连到一起（neurons that fire together, wire together）。**
-
-赫布的洞见是：记忆不是一个"存放的地点"，而是一种"连接的模式"。共同出现的概念会被物理地连成**细胞集群（cell assembly）**，激活其中一部分就能唤回全部。重复会强化连接，弃用则任其消退。这条法则 — 赫布学习（Hebbian learning）— 是此后一切人工神经网络与联想记忆系统的源头。
-
-**Hebb Mind 正是跑在这条法则上。** 它的标签**知识图谱**本身就是一个细胞集群：一起出现的标签之间会建立连边，每共现一次，这条边就更强一分。检索沿着这些连边游走，于是一个局部线索就能补全整个模式。巩固保留被反复强化的部分，遗忘修剪没被强化的部分 — *一起放电就连到一起；无人问津便随之消逝。*
-
-**海马体（hippocampus）** 在这里也有一席之地 —— 它是工作记忆分区（`mem_hippocampus`）的名字：每条新记忆在巩固之前最先落入的收件箱。这个名字名副其实：在大脑中，海马体正是把新经验暂存、再逐步固化进长期皮层记忆的"门户"，而这个分区做的正是同一件事。
-
-## 受大脑启发（不止于名字）
-
-系统中的每一块都对应着认知神经科学已经研究了五十年的某个机制。我们的目标不是对生物学的精确复刻 — 而是大脑早已解决了"该保留哪些记忆、何时巩固、如何凭只言片语唤回"这些问题。我们沿用它的答案。
-
-| 大脑机制 | 大脑做了什么 | Hebb Mind 怎么做 |
-|---|---|---|
-| **尖波涟漪与记忆回放** [(Wilson & McNaughton, 1994; Buzsáki, 2015)](#致谢) | 慢波睡眠期间，海马体回放白天的经历，将其转录到新皮层。 | 每日 18:00 的巩固任务"回放"工作记忆收件箱，将每条记忆归类到分区、解决冲突、把标签写入知识图谱。 |
-| **多重记忆系统** [(Tulving, 1972; Squire, 1992)](#致谢) | 情景记忆、语义记忆、程序记忆分布在不同的子系统中。 | 五种命名分区 — `episodic` / `semantic` / `preference` / `procedural` / `custom` — 设计参照 [CoALA](https://arxiv.org/abs/2309.02427) 认知架构。 |
-| **遗忘曲线** [(Ebbinghaus, 1885)](#致谢) | 未经回顾的记忆按指数衰减；回顾会让曲线变平。 | TTL 公式：`base × (1 + log(访问次数)) × 重要度 × exp(-衰减率 × 天数)`。常用的记忆留下，被忽略的自然消退。 |
-| **模式分离与模式补全** [(O'Reilly & McClelland, 1994)](#致谢) | DG 区分相似记忆，CA3 凭部分线索补全完整记忆。 | 混合检索同时运行向量相似度（分离）、关键词匹配、标签图谱游走（补全）— 三条路径，一个综合分数。 |
-
-为什么这件事在工程上重要：一个**只追加**的系统永远解决不了矛盾；一个**永不遗忘**的系统会被自己的噪声淹没。大脑两边都解决了。我们也是。
-
-## 为什么选择 Hebb Mind？（工程视角）
-
-- **零外部服务** — `sqlite-vec` 存向量、NetworkX 存标签图谱、sentence-transformers 算 Embedding。无需 Postgres、Neo4j、Redis。详见 [存储后端](https://afx-team.github.io/hebb-mind/zh/advanced/storage-backends.html)。
-- **诚实的遗忘** — 上面那条 Ebbinghaus 公式，通过周期性任务执行。详见 [动态遗忘](https://afx-team.github.io/hebb-mind/zh/concepts/forgetting.html)。
-- **巩固时解决冲突** — 巩固代理不只是追加，会合并重复、覆盖过时事实。详见 [记忆巩固](https://afx-team.github.io/hebb-mind/zh/concepts/consolidation.html)。
-- **Claude Code 即插即用** — 三行命令为 Claude Code 启用基于 hooks 的跨会话记忆；一行命令为 Codex 注入相同能力的 MCP 工具。详见 [Claude Code 集成](https://afx-team.github.io/hebb-mind/zh/guide/claude-code.html)。
-
-## 基准测试
-
-v0.1.1 在 [LoCoMo](https://github.com/snap-research/LoCoMo) 长对话基准上的单次结果：
-
-| 指标 | 数值 |
-|---|---|
-| 准确率 | **37.6%**（187 / 497） |
-| 平均时延 | 102 ms / 查询 |
-| 最佳类别 | 对抗类 66.1% |
-| 最弱类别 | 多跳推理 5.6% |
-
-基于标签图谱的多跳推理是当前的明显短板。完整数据、方法学与分类细节见 [Benchmarks](https://afx-team.github.io/hebb-mind/zh/benchmarks.html)。这是一个仍在迭代中的结果 — 与 `mem0` / `zep` 的对照实验跟踪在 [#TBD]。
+Docker、一键脚本、源码安装详见 [安装指南](https://afx-team.github.io/hebb-mind/zh/guide/installation.html)。
 
 ## 30 秒 Python SDK
 
@@ -154,17 +111,6 @@ for hit in mem.search("UI 偏好", top_k=5):
 ```
 
 `HebbMind()` 门面封装了上述 REST 接口；当本地未运行守护进程时，会自动在进程内拉起一个服务实例。
-
-## 安装方式
-
-```bash
-pip install -U hebb-mind               # pip
-pip install -U hebb-mind[pg]           # 启用 PostgreSQL/pgvector
-hebb claude-code install --scope user          # Claude Code：基于 hooks 的自动记忆
-hebb codex install --scope user       # Codex：MCP 记忆工具
-```
-
-Docker、一键脚本、源码安装详见 [安装指南](https://afx-team.github.io/hebb-mind/zh/guide/installation.html)。
 
 ## 记忆回路
 
@@ -215,6 +161,22 @@ hebb config set pg_url postgresql://user:pass@localhost/hebb
 | `POST` | `/api/v1/admin/consolidate` | 立即触发巩固（需配置 `llm_api_key`） |
 | `GET`  | `/api/v1/graph/tags` | 列出知识图谱标签 |
 | `GET`  | `/api/v1/graph/neighbors/{tag}?depth=2` | 沿标签图谱游走 |
+
+## 基准测试
+
+TODO: 实验准备中
+
+## 为什么叫 "Hebb Mind"？
+
+1949 年，心理学家 **唐纳德·赫布**（Donald O. Hebb）提出了一条法则，后来被浓缩成一句话：
+
+> **一起放电的神经元，会连到一起（neurons that fire together, wire together）。**
+
+记忆不是"存放的地点"，而是"连接的模式"。共同出现的概念被物理地连成**细胞集群（cell assembly）**，激活其一部分就能唤回全部；重复会强化连接，弃用则任其消退。这条法则 — 赫布学习 — 很大程度影响了记忆系统研究、人工神经网络。
+
+**Hebb Mind 正是跑在这条法则上。** 它的标签知识图谱本身就是一个细胞集群：一起出现的标签之间会建立连边，每共现一次这条边就更强一分。检索沿着连边游走，于是一个局部线索就能补全整个模式。巩固保留被反复强化的部分，遗忘修剪没被强化的部分 — *一起放电就连到一起；无人问津便随之消逝。*
+
+**海马体（hippocampus）** 在这里也有一席之地 — 它是工作记忆分区（`mem_hippocampus`）的名字。在大脑中，海马体正是把新经验暂存、再逐步固化进长期皮层记忆的"门户"；1957 年代号 H.M. 的患者被双侧切除海马体后，再也无法形成新的长期记忆 [(Squire, 1992; Tulving, 2002)](#致谢) — 今天的 AI Agent 就是 H.M.，每一次对话都从零开始。Hebb Mind 要为你的 Agent 补上这条缺失的回路。
 
 ## 贡献
 
