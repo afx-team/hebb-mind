@@ -50,4 +50,6 @@ repo_pages/.vitepress/cache/
 
 # Model weights tracked via Git LFS (see .gitattributes)
 # models/ is NOT ignored — it's committed with LFS
+# Exception: pytorch_model.bin exceeds GitHub's 2 GB LFS limit; use the .onnx/.safetensors variants instead
+models/BAAI/bge-m3/pytorch_model.bin
 .research/
