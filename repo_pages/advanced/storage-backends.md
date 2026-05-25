@@ -1,13 +1,13 @@
 # Storage Backends
 
-Hippocampus supports two storage backends: SQLite (default) and PostgreSQL with pgvector.
+Hebb Mind supports two storage backends: SQLite (default) and PostgreSQL with pgvector.
 
 ## SQLite (Default)
 
 SQLite is the default backend, requiring zero configuration. All data is stored in a single file in the workspace directory.
 
 ```bash
-hippocampus config set storage_type sqlite
+hebb config set storage_type sqlite
 ```
 
 ### Features
@@ -39,14 +39,14 @@ PostgreSQL provides production-grade storage with native vector types, connectio
 Install the PostgreSQL extras:
 
 ```bash
-pip install afx-hippocampus[pg]
+pip install hebb-mind[pg]
 ```
 
 Configure the connection:
 
 ```bash
-hippocampus config set storage_type postgresql
-hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
+hebb config set storage_type postgresql
+hebb config set pg_url postgresql://user:pass@localhost/hebb
 ```
 
 ### Features
@@ -61,10 +61,10 @@ hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
 
 ```bash
 # Minimum connections in the pool
-hippocampus config set pg_pool_min 2
+hebb config set pg_pool_min 2
 
 # Maximum connections in the pool
-hippocampus config set pg_pool_max 10
+hebb config set pg_pool_max 10
 ```
 
 ### When to Use
@@ -83,7 +83,7 @@ Ensure pgvector is installed in your PostgreSQL instance:
 CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
-Hippocampus handles schema creation and migrations automatically on first connection.
+Hebb Mind handles schema creation and migrations automatically on first connection.
 
 ## Comparison
 
@@ -116,84 +116,84 @@ For containerized deployments, use the official Docker image.
 ```bash
 docker run -d \
   -p 8321:8321 \
-  -v hippocampus-data:/data \
-  -e HIPPOCAMPUS_HOME=/data \
-  -e HIPPOCAMPUS_LANGUAGE=auto \
-  -e HIPPOCAMPUS_REGION=auto \
-  -e HIPPOCAMPUS_LLM_API_KEY=sk-your-key \
-  ghcr.io/afx-team/hippocampus:latest
+  -v hebb-data:/data \
+  -e HEBB_HOME=/data \
+  -e HEBB_LANGUAGE=auto \
+  -e HEBB_REGION=auto \
+  -e HEBB_LLM_API_KEY=sk-your-key \
+  ghcr.io/afx-team/hebb-mind:latest
 ```
 
 ### Docker Compose
 
 ```yaml
 services:
-  hippocampus:
-    image: ghcr.io/afx-team/hippocampus:latest
+  hebb:
+    image: ghcr.io/afx-team/hebb-mind:latest
     ports:
       - "8321:8321"
     volumes:
-      - hippocampus-data:/data
+      - hebb-data:/data
     environment:
-      - HIPPOCAMPUS_HOME=/data
-      - HIPPOCAMPUS_LANGUAGE=auto
-      - HIPPOCAMPUS_REGION=auto
-      - HIPPOCAMPUS_LLM_API_KEY=${LLM_API_KEY}
-      - HIPPOCAMPUS_LLM_MODEL=openai/gpt-4o-mini
+      - HEBB_HOME=/data
+      - HEBB_LANGUAGE=auto
+      - HEBB_REGION=auto
+      - HEBB_LLM_API_KEY=${LLM_API_KEY}
+      - HEBB_LLM_MODEL=openai/gpt-4o-mini
 
   # Optional: PostgreSQL backend
   postgres:
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_DB: hippocampus
-      POSTGRES_USER: hippocampus
-      POSTGRES_PASSWORD: hippocampus
+      POSTGRES_DB: hebb
+      POSTGRES_USER: hebb
+      POSTGRES_PASSWORD: hebb
     volumes:
       - pg-data:/var/lib/postgresql/data
 
 volumes:
-  hippocampus-data:
-  pg-
+  hebb-data:
+  pg-data:
 ```
 
 ### Environment Variables
 
 | Variable | Config Key | Description |
 |----------|-----------|-------------|
-| `HIPPOCAMPUS_HOME` | `home` | Workspace directory (overrides config file location and `home` field) |
-| `HIPPOCAMPUS_LANGUAGE` | setup option | `auto`, `en`, `zh`, or `multi`; selects the default embedding model during container setup |
-| `HIPPOCAMPUS_REGION` | setup option | `auto`, `cn`, or `global`; selects the model download source during container setup |
-| `HIPPOCAMPUS_LLM_API_KEY` | `llm_api_key` | LLM provider API key |
-| `HIPPOCAMPUS_LLM_MODEL` | `llm_model` | Model identifier (via LiteLLM) |
-| `HIPPOCAMPUS_LLM_BASE_URL` | `llm_base_url` | Custom API endpoint |
-| `HIPPOCAMPUS_STORAGE_TYPE` | `storage_type` | `sqlite` or `postgresql` |
-| `HIPPOCAMPUS_PG_URL` | `pg_url` | PostgreSQL connection string |
-| `HIPPOCAMPUS_PORT` | `port` | Server port (default 8321) |
+| `HEBB_HOME` | `home` | Workspace directory (overrides config file location and `home` field) |
+| `HEBB_LANGUAGE` | setup option | `auto`, `en`, `zh`, or `multi`; selects the default embedding model during container setup |
+| `HEBB_REGION` | setup option | `auto`, `cn`, or `global`; selects the model download source during container setup |
+| `HEBB_LLM_API_KEY` | `llm_api_key` | LLM provider API key |
+| `HEBB_LLM_MODEL` | `llm_model` | Model identifier (via LiteLLM) |
+| `HEBB_LLM_BASE_URL` | `llm_base_url` | Custom API endpoint |
+| `HEBB_STORAGE_TYPE` | `storage_type` | `sqlite` or `postgresql` |
+| `HEBB_PG_URL` | `pg_url` | PostgreSQL connection string |
+| `HEBB_PORT` | `port` | Server port (default 8321) |
 
 ## Running as a Background Service
 
-`hippocampus start` runs in the foreground by default. For long-running deployments, use one of these approaches:
+`hebb start` runs in the foreground by default. For long-running deployments, use one of these approaches:
 
 ### nohup (Quick)
 
 ```bash
-nohup hippocampus start > hippocampus.log 2>&1 &
+nohup hebb start > hebb.log 2>&1 &
 ```
 
 ### systemd (Linux)
 
-Create `/etc/systemd/system/hippocampus.service`:
+Create `/etc/systemd/system/hebb.service`:
 
 ```ini
 [Unit]
-Description=Hippocampus Memory Server
+Description=Hebb Mind Memory Server
 After=network.target
 
 [Service]
 Type=simple
 User=your-user
 WorkingDirectory=/path/to/project
-ExecStart=/path/to/hippocampus start
+ExecStart=/path/to/hebb start
 Restart=on-failure
 RestartSec=5
 
@@ -204,14 +204,14 @@ WantedBy=multi-user.target
 Enable and start:
 
 ```bash
-sudo systemctl enable hippocampus   # auto-start on boot
-sudo systemctl start hippocampus    # start now
-sudo systemctl status hippocampus   # check status
+sudo systemctl enable hebb   # auto-start on boot
+sudo systemctl start hebb    # start now
+sudo systemctl status hebb   # check status
 ```
 
 ### launchd (macOS)
 
-Create `~/Library/LaunchAgents/com.hippocampus.server.plist`:
+Create `~/Library/LaunchAgents/com.hebb.server.plist`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -220,10 +220,10 @@ Create `~/Library/LaunchAgents/com.hippocampus.server.plist`:
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.hippocampus.server</string>
+  <string>com.hebb.server</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/path/to/hippocampus</string>
+    <string>/path/to/hebb</string>
     <string>start</string>
   </array>
   <key>WorkingDirectory</key>
@@ -233,9 +233,9 @@ Create `~/Library/LaunchAgents/com.hippocampus.server.plist`:
   <key>KeepAlive</key>
   <true/>
   <key>StandardOutPath</key>
-  <string>/tmp/hippocampus.log</string>
+  <string>/tmp/hebb.log</string>
   <key>StandardErrorPath</key>
-  <string>/tmp/hippocampus.err</string>
+  <string>/tmp/hebb.err</string>
 </dict>
 </plist>
 ```
@@ -243,22 +243,20 @@ Create `~/Library/LaunchAgents/com.hippocampus.server.plist`:
 Load and start:
 
 ```bash
-launchctl load ~/Library/LaunchAgents/com.hippocampus.server.plist
+launchctl load ~/Library/LaunchAgents/com.hebb.server.plist
 ```
 
 Unload to stop:
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.hippocampus.server.plist
+launchctl unload ~/Library/LaunchAgents/com.hebb.server.plist
 ```
 
-## Running as a Background Service
-
-For daemon mode and auto-start on boot, see [Quick Start → Keep It Running](../quick-start.md#keep-it-running).
+For an automated installer, run `hebb service install` (writes the unit/plist for you) and `hebb service uninstall` to remove it. See [Quick Start → Keep It Running](../quick-start.md#keep-it-running) for the daemon-mode workflow.
 
 ### Production Tips
 
 - Use PostgreSQL backend for production workloads
-- Set `HIPPOCAMPUS_LLM_BASE_URL` for Chinese model providers (Qwen, GLM, Kimi)
-- Mount a persistent volume for the workspace directory (`/root/.hippocampus` by default) to preserve memories across restarts
+- Set `HEBB_LLM_BASE_URL` for Chinese model providers (Qwen, GLM, Kimi)
+- Mount a persistent volume for the workspace directory (`/root/.hebb` by default) to preserve memories across restarts
 - Use `--restart unless-stopped` for automatic recovery

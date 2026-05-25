@@ -13,9 +13,9 @@ POST /api/v1/search
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `query` | string | Yes | -- | Search query text |
-| `top_k` | integer | No | 5 | Maximum number of results |
-| `partition_ids` | array | No | all | Filter to specific partitions |
-| `tags` | array | No | -- | Filter to memories with specific tags |
+| `top_k` | integer | No | 10 | Maximum number of results (1-100) |
+| `partition_ids` | string[] | No | all | Filter to specific partitions |
+| `tags` | string[] | No | -- | Filter to memories with all listed tags |
 | `weight_relevance` | float | No | 1.0 | Weight for relevance scoring |
 | `weight_importance` | float | No | 1.0 | Weight for importance scoring |
 | `weight_recency` | float | No | 1.0 | Weight for recency scoring |
@@ -25,7 +25,7 @@ POST /api/v1/search
 ```bash
 curl -X POST http://localhost:8321/api/v1/search \
   -H "Content-Type: application/json" \
-  -d '{"query": "UI preferences", "top_k": 5}'
+  -d '{"query": "UI preferences"}'
 ```
 
 ### Filtered Search
@@ -65,28 +65,40 @@ curl -X POST http://localhost:8321/api/v1/search \
 {
   "results": [
     {
-      "id": "mem_abc123",
-      "content": "User prefers dark mode and compact layout",
-      "tags": ["preference", "ui"],
-      "partition_id": "mem_preference",
-      "importance_score": 7.5,
-      "scores": {
-        "recency": 0.92,
-        "importance": 0.75,
-        "relevance": 0.88,
-        "composite": 2.55
+      "memory": {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "partition_id": "mem_preference",
+        "content": "User prefers dark mode and compact layout",
+        "importance_score": 7.5,
+        "tags": ["preference", "ui"],
+        "metadata": {},
+        "source": "consolidation",
+        "created_at": "2026-04-17T10:30:00Z",
+        "updated_at": "2026-04-17T10:30:00Z",
+        "last_accessed_at": "2026-04-17T15:00:00Z",
+        "access_count": 5,
+        "expires_at": "2026-04-25T10:30:00Z"
       },
-      "created_at": "2026-04-17T10:30:00Z",
-      "updated_at": "2026-04-17T10:30:00Z"
+      "score": 0.87,
+      "recency_score": 0.95,
+      "importance_score_normalized": 0.75,
+      "relevance_score": 0.88
     }
   ],
   "related": [
     {
-      "id": "mem_def456",
-      "content": "User enabled high-contrast accessibility settings",
-      "tags": ["preference", "accessibility"],
+      "id": "661f9500-f30c-52e5-b827-557766551111",
       "partition_id": "mem_preference",
-      "importance_score": 6.0
+      "content": "User enabled high-contrast accessibility settings",
+      "importance_score": 6.0,
+      "tags": ["preference", "accessibility"],
+      "metadata": {},
+      "source": "api",
+      "created_at": "2026-04-16T08:00:00Z",
+      "updated_at": "2026-04-16T08:00:00Z",
+      "last_accessed_at": "2026-04-16T08:00:00Z",
+      "access_count": 1,
+      "expires_at": null
     }
   ]
 }
@@ -94,23 +106,31 @@ curl -X POST http://localhost:8321/api/v1/search \
 
 ### Response Fields
 
-**results** -- primary search results, ranked by composite score. Each result includes:
+**results** -- primary search results, ranked by `score` descending. Each entry contains:
 
-- Memory fields (`id`, `content`, `tags`, `partition_id`, `importance_score`, timestamps)
-- `scores` -- breakdown of recency, importance, relevance, and the final composite score
+| Field | Description |
+|-------|-------------|
+| `memory` | Full memory record |
+| `score` | Composite weighted score |
+| `recency_score` | Exponential decay based on `last_accessed_at` |
+| `importance_score_normalized` | `importance_score / 10.0`, in `[0, 1]` |
+| `relevance_score` | Maximum relevance across vector / keyword / graph paths |
 
-**related** -- additional memories found via knowledge graph expansion. These are memories connected to the top results through shared tags in the knowledge graph but did not directly match the query.
+**related** -- additional memories surfaced via knowledge-graph post-expansion. They did not match the query directly but share tags with the top results.
 
 ## Scoring Details
 
-The composite score is calculated as:
+The composite score is the weighted average of three normalized signals:
 
 ```
-composite = weight_recency * recency + weight_importance * importance + weight_relevance * relevance
+score = (weight_recency * recency
+       + weight_importance * importance_normalized
+       + weight_relevance * relevance)
+       / (weight_recency + weight_importance + weight_relevance)
 ```
 
 - **Recency** -- exponential decay based on time since last access
-- **Importance** -- normalized importance score (0-10 scale mapped to 0-1)
-- **Relevance** -- maximum score across vector, keyword, and graph retrieval paths
+- **Importance** -- `importance_score / 10.0`
+- **Relevance** -- maximum across vector cosine, keyword BM25, and graph proximity
 
-See [Hybrid Search](../concepts/hybrid-search.md) for a full explanation of the retrieval and scoring pipeline.
+See [Hybrid Search](../concepts/hybrid-search.md) for the full retrieval and scoring pipeline.

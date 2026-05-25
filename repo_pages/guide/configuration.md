@@ -1,11 +1,11 @@
 # Configuration
 
-All configuration lives in a single file: **`hippocampus.json`**. No environment variables are required for local use.
+All configuration lives in a single file: **`hebb.json`**. No environment variables are required for local use.
 
 For first-time users, prefer:
 
 ```bash
-hippocampus setup --language auto --region auto
+hebb setup --language auto --region auto
 ```
 
 `language` selects the embedding model. `region` selects the HuggingFace download source. They are independent.
@@ -14,58 +14,58 @@ hippocampus setup --language auto --region auto
 
 ```bash
 # View all settings
-hippocampus config list
+hebb config list
 
 # Get a single value
-hippocampus config get llm_model
+hebb config get llm_model
 
 # Get computed properties (derived from workspace)
-hippocampus config get workspace
+hebb config get workspace
 
-# Set a value (saved to hippocampus.json immediately)
-hippocampus config set llm_api_key sk-your-key-here
+# Set a value (saved to hebb.json immediately)
+hebb config set llm_api_key sk-your-key-here
 
 # Show config file path
-hippocampus config path
+hebb config path
 
 # Show resolved workspace directory
-hippocampus workspace
+hebb workspace
 
 # Inspect embedding model state
-hippocampus model status
+hebb model status
 ```
 
 ## Workspace
 
-Hippocampus stores all data files (`hippocampus.db`, `knowledge_graph.json`) in a **workspace directory**. The workspace is resolved using the following precedence:
+Hebb Mind stores all data files (`hebb.db`, `knowledge_graph.json`) in a **workspace directory**. The workspace is resolved using the following precedence:
 
-1. **`HIPPOCAMPUS_HOME` environment variable** (highest priority)
-2. **`home` field in `hippocampus.json`** (if set)
-3. **Parent directory of `hippocampus.json`** (if a config file is found)
-4. **`~/.hippocampus/`** (default fallback)
+1. **`HEBB_HOME` environment variable** (highest priority)
+2. **`home` field in `hebb.json`** (if set)
+3. **Parent directory of `hebb.json`** (if a config file is found)
+4. **`~/.hebb/`** (default fallback)
 
 Data files always live in the workspace root and cannot be configured individually:
 
 | File | Description |
 |------|-------------|
-| `hippocampus.db` | SQLite database |
+| `hebb.db` | SQLite database |
 | `knowledge_graph.json` | Knowledge graph data |
 
 ```bash
 # Check the resolved workspace directory
-hippocampus workspace
-# Output: /home/user/.hippocampus
+hebb workspace
+# Output: /home/user/.hebb
 
 # Override the workspace via environment variable
-export HIPPOCAMPUS_HOME=/data/hippocampus
+export HEBB_HOME=/data/hebb
 
 # Override the workspace via config
-hippocampus config set home /data/hippocampus
+hebb config set home /data/hebb
 ```
 
 ## Full Configuration Reference
 
-Below is a complete `hippocampus.json` with all available fields:
+Below is a complete `hebb.json` with all available fields:
 
 ```json
 {
@@ -98,7 +98,7 @@ Below is a complete `hippocampus.json` with all available fields:
 | Field | Default | Description |
 |-------|---------|-------------|
 | `storage_type` | `sqlite` | Storage backend: `sqlite` or `postgresql` |
-| `home` | `null` | Workspace directory override. If set, data files are stored here. Can also be set via `HIPPOCAMPUS_HOME` env var. |
+| `home` | `null` | Workspace directory override. If set, data files are stored here. Can also be set via `HEBB_HOME` env var. |
 | `pg_url` | `null` | PostgreSQL connection URL |
 | `pg_pool_min` | `2` | Minimum PostgreSQL connection pool size |
 | `pg_pool_max` | `10` | Maximum PostgreSQL connection pool size |
@@ -121,13 +121,13 @@ Below is a complete `hippocampus.json` with all available fields:
 
 ## Web Console Settings
 
-The Web Console at [http://localhost:8321/](http://localhost:8321/) includes a **Settings** page where you can view and edit all configuration values through a graphical interface. Changes made through the Web Console are saved to `hippocampus.json` immediately.
+The Web Console at [http://localhost:8321/](http://localhost:8321/) includes a **Settings** page where you can view and edit all configuration values through a graphical interface. Changes made through the Web Console are saved to `hebb.json` immediately.
 
 ## Configuration Precedence
 
-1. `HIPPOCAMPUS_HOME` environment variable (highest priority for workspace resolution)
-2. Values in `hippocampus.json` (primary configuration)
-3. Other environment variables prefixed with `HIPPOCAMPUS_` (used in Docker deployments)
+1. `HEBB_HOME` environment variable (highest priority for workspace resolution)
+2. Values in `hebb.json` (primary configuration)
+3. Other environment variables prefixed with `HEBB_` (used in Docker deployments)
 4. Built-in defaults
 
 ## Common Configuration Examples
@@ -136,52 +136,52 @@ The Web Console at [http://localhost:8321/](http://localhost:8321/) includes a *
 
 ```bash
 # English content, China network
-hippocampus setup --language en --region cn
+hebb setup --language en --region cn
 
 # Chinese content, global network
-hippocampus setup --language zh --region global
+hebb setup --language zh --region global
 ```
 
 ### Disable vector search (keyword-only mode)
 
 ```bash
-hippocampus config set embedding_enabled false
+hebb config set embedding_enabled false
 ```
 
 ### Use a different LLM provider
 
 ```bash
 # OpenAI
-hippocampus config set llm_model openai/gpt-4o
-hippocampus config set llm_api_key sk-your-openai-key
+hebb config set llm_model openai/gpt-4o
+hebb config set llm_api_key sk-your-openai-key
 
 # Anthropic
-hippocampus config set llm_model anthropic/claude-3-haiku-20240307
-hippocampus config set llm_api_key sk-ant-your-anthropic-key
+hebb config set llm_model anthropic/claude-3-haiku-20240307
+hebb config set llm_api_key sk-ant-your-anthropic-key
 
 # Qwen (Alibaba)
-hippocampus config set llm_model openai/qwen-plus
-hippocampus config set llm_api_key sk-your-qwen-key
-hippocampus config set llm_base_url https://dashscope.aliyuncs.com/compatible-mode/v1
+hebb config set llm_model openai/qwen-plus
+hebb config set llm_api_key sk-your-qwen-key
+hebb config set llm_base_url https://dashscope.aliyuncs.com/compatible-mode/v1
 ```
 
 ### Adjust memory retention
 
 ```bash
 # Memories live longer (14 days base TTL)
-hippocampus config set base_ttl_hours 336
+hebb config set base_ttl_hours 336
 
 # Slower decay
-hippocampus config set decay_factor 0.3
+hebb config set decay_factor 0.3
 
 # Daily consolidation at 6 PM
-hippocampus config set consolidation_time 18:00
+hebb config set consolidation_time 18:00
 ```
 
 ### Switch to PostgreSQL
 
 ```bash
-pip install afx-hippocampus[pg]
-hippocampus config set storage_type postgresql
-hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
+pip install hebb-mind[pg]
+hebb config set storage_type postgresql
+hebb config set pg_url postgresql://user:pass@localhost/hebb
 ```

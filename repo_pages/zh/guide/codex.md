@@ -1,13 +1,13 @@
 # Codex 集成
 
-Hippocampus 通过 MCP 工具集成 Codex。Codex 可以在需要时调用 `write_memory`、`search_memory`、`consolidate` 和 `ingest_conversation`。
+Hebb Mind 通过 MCP 工具集成 Codex。Codex 可以在需要时调用 `write_memory`、`search_memory`、`consolidate` 和 `ingest_conversation`。
 
 ## 安装
 
 ```bash
-pip install -U afx-hippocampus
-hippocampus setup
-hippocampus codex install --scope user
+pip install -U hebb-mind
+hebb setup
+hebb codex install --scope user
 ```
 
 验证：
@@ -21,13 +21,13 @@ codex mcp list
 如果希望直接管理 MCP server：
 
 ```bash
-codex mcp add hippocampus -- hippocampus-mcp
+codex mcp add hebb -- hebb-mcp
 ```
 
-远程 Hippocampus 服务：
+远程 Hebb Mind 服务：
 
 ```bash
-codex mcp add hippocampus --env HIPPOCAMPUS_URL=http://127.0.0.1:8321 -- hippocampus-mcp
+codex mcp add hebb --env HEBB_URL=http://127.0.0.1:8321 -- hebb-mcp
 ```
 
 ## 能力边界
@@ -37,11 +37,11 @@ Codex 通过 MCP 工具进行显式记忆操作。Claude Code 额外支持 hooks
 建议在项目说明中告诉 Codex 何时使用长期记忆：
 
 ```text
-Use the Hippocampus MCP server when durable user preferences, project facts, or cross-session decisions should be remembered or recalled.
+Use the Hebb Mind MCP server when durable user preferences, project facts, or cross-session decisions should be remembered or recalled.
 ```
 
 ## 卸载
 
 ```bash
-hippocampus codex uninstall --scope user
+hebb codex uninstall --scope user
 ```

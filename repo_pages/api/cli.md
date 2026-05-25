@@ -1,236 +1,226 @@
 # CLI Reference
 
-Hippocampus provides a command-line interface for managing setup, models, integrations, the server, and configuration.
-
-## hippocampus setup
-
-Prepare the default out-of-box environment. This initializes the workspace if needed, selects an embedding model by content language, selects a HuggingFace download source by network region, downloads the model, and verifies embedding.
+Hebb Mind ships a single `hebb` command exposing all setup, server, integration, model, and configuration tasks.
 
 ```bash
-hippocampus setup [--language auto|en|zh|multi] [--region auto|cn|global] [--profile default|fast|best]
+hebb --version
+hebb --help
 ```
 
-`setup` does not start the server. Run `hippocampus start` afterwards.
+## hebb setup
 
-## hippocampus init
-
-Initialize a new Hippocampus workspace without network access. Creates the configuration file, SQLite database, and knowledge graph file in the workspace directory (default: `HIPPOCAMPUS_HOME` or `~/.hippocampus/`).
+Prepare the default out-of-box environment: initialize the workspace if needed, pick an embedding model by content language, pick a HuggingFace download source by region, download and verify the model. Does **not** start the server.
 
 ```bash
-hippocampus init
+hebb setup [--language auto|en|zh|multi] [--region auto|cn|global] [--profile default|fast|best]
 ```
 
-**Options:**
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--language` | `auto` | `en` → `BAAI/bge-large-en-v1.5`; `zh`/`multi` → `BAAI/bge-m3`; `auto` infers from system locale |
+| `--region` | `auto` | `cn` uses `https://hf-mirror.com`; `global` uses HuggingFace official |
+| `--profile` | `default` | `fast` favors small models; `best` favors quality |
 
-| Option | Description |
-|--------|-------------|
-| `--dir DIR` | Target directory (default: `~/.hippocampus/`) |
-| `--force` | Overwrite existing files |
+After setup, run `hebb start`.
 
-## hippocampus model
+## hebb init
 
-Inspect or prefetch embedding models.
+Initialize a workspace **without** network access. Creates `hebb.json`, the SQLite database, and an empty knowledge graph file.
 
 ```bash
-hippocampus model status
-hippocampus model prefetch --model BAAI/bge-m3 --region cn
+hebb init [--dir DIR] [--force]
 ```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--dir DIR` | `HEBB_HOME` or `~/.hebb/` | Target directory |
+| `--force` | -- | Overwrite existing config and reset SQLite storage |
 
 **Created files:**
 
-- `hippocampus.json` -- configuration file
-- `hippocampus.db` -- SQLite database
-- `knowledge_graph.json` -- knowledge graph data
+- `hebb.json` — configuration
+- `hebb.db` — SQLite database (with the 5 default partitions)
+- `knowledge_graph.json` — empty knowledge graph
 
-**Example:**
+## hebb start
 
-```bash
-# Initialize in default workspace (~/.hippocampus/)
-hippocampus init
-
-# Initialize in a specific directory
-hippocampus init --dir /path/to/project
-
-# Re-initialize, overwriting existing files
-hippocampus init --force
-```
-
-## hippocampus start
-
-Start the Hippocampus server.
+Start the FastAPI server.
 
 ```bash
-hippocampus start
+hebb start [--host HOST] [--port PORT] [--reload] [-d|--daemon]
 ```
-
-**Options:**
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--host` | `0.0.0.0` | Bind address |
-| `--port` | `8321` | Port number |
-| `--reload` | -- | Enable auto-reload for development |
+| `--host` | from config (`0.0.0.0`) | Bind address |
+| `--port` | from config (`8321`) | Port |
+| `--reload` | -- | Enable uvicorn auto-reload (dev) |
+| `-d`, `--daemon` | -- | Run in the background; PID stored in `<workspace>/hebb.pid` |
 
-**Example:**
+If a server is already running at the resolved URL, the command exits without re-launching.
 
-```bash
-# Start with defaults
-hippocampus start
+## hebb stop
 
-# Start on a custom port
-hippocampus start --port 9000
-
-# Start in development mode with auto-reload
-hippocampus start --reload
-```
-
-## hippocampus stop
-
-Stop a running Hippocampus server.
+Stop a running server (looks up the daemon PID, falls back to `lsof -ti :PORT`).
 
 ```bash
-hippocampus stop
+hebb stop [--url URL]
 ```
 
-**Options:**
+## hebb restart
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--url` | `http://localhost:8321` | Server URL to stop |
-
-**Example:**
+Stop then start.
 
 ```bash
-# Stop the default server
-hippocampus stop
-
-# Stop a server on a custom URL
-hippocampus stop --url http://localhost:9000
+hebb restart [--host HOST] [--port PORT] [--reload] [-d|--daemon]
 ```
 
-## hippocampus restart
+## hebb status
 
-Restart the Hippocampus server.
+Health-check the running server and print scheduler job table.
 
 ```bash
-hippocampus restart
+hebb status [--url URL]
 ```
 
-**Options:**
+Sample output:
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--host` | `0.0.0.0` | Bind address |
-| `--port` | `8321` | Port number |
-| `--reload` | -- | Enable auto-reload for development |
+```
+Server is running (v0.1.1)
 
-**Example:**
+Scheduler Jobs
+┌──────────────────┬───────────────────────────┐
+│ Job              │ Next Run                  │
+├──────────────────┼───────────────────────────┤
+│ consolidation_job│ 2026-04-18T18:00:00+08:00 │
+│ forgetting_job   │ 2026-04-17T11:00:00+08:00 │
+└──────────────────┴───────────────────────────┘
+```
+
+## hebb doctor
+
+Run a one-shot health check covering Python version, config file, workspace, LLM, embedding model cache, web console assets, server reachability, and Claude Code / Codex MCP registration.
 
 ```bash
-hippocampus restart
-hippocampus restart --port 9000 --reload
+hebb doctor
 ```
 
-## hippocampus status
+The output is a Rich table with `[OK]` / `[WARN]` / `[FAIL]` status per check and a hint for each failure (e.g. *"Run: hebb model prefetch"*).
 
-Check the health and status of the running server, including scheduler information.
+## hebb workspace
+
+Print the resolved workspace directory. Resolution order:
+
+1. `HEBB_HOME` environment variable
+2. Parent directory of a `hebb.json` walked up from the current directory
+3. `~/.hebb/` (global default)
 
 ```bash
-hippocampus status
+hebb workspace
+# /Users/you/.hebb
 ```
 
-**Options:**
+## hebb model
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--url` | `http://localhost:8321` | Server URL to check |
-
-**Example:**
+Inspect or prefetch the embedding model.
 
 ```bash
-hippocampus status
-hippocampus status --url http://localhost:9000
+hebb model status
+hebb model prefetch [--model MODEL_ID] [--region auto|cn|global]
 ```
 
-**Sample output:**
+`status` prints the configured provider, model, dimension, language strategy, download source, and whether the model is cached in the workspace and on the user HuggingFace cache.
 
-```
-Hippocampus v0.1.0
-Status: running
-Workspace: /home/user/.hippocampus
-Storage: sqlite
-Embedding: enabled
-Consolidation: next run in 42m
-Forgetting: next run in 12m
-```
+`prefetch` downloads (or re-downloads) a model into the workspace `models/` directory, then loads it once to confirm dimension. With `--model` it also updates `embedding_provider`, `embedding_model`, and `embedding_dim` in `hebb.json`.
 
-## hippocampus workspace
+## hebb service
 
-Show the resolved workspace directory. This is where Hippocampus stores all data files (`hippocampus.db`, `knowledge_graph.json`).
+Install or uninstall a system service that auto-starts the server on boot. Detects the OS and writes a `systemd` unit (Linux) or `launchd` plist (macOS).
 
 ```bash
-hippocampus workspace
+hebb service install
+hebb service uninstall
 ```
 
-The workspace is resolved in the following order:
+After install:
 
-1. `HIPPOCAMPUS_HOME` environment variable
-2. `home` field in `hippocampus.json`
-3. Parent directory of `hippocampus.json`
-4. `~/.hippocampus/` (default)
+| Platform | Inspect | Stop |
+|----------|---------|------|
+| Linux | `systemctl status hebb` / `journalctl -u hebb -f` | `systemctl stop hebb` |
+| macOS | `launchctl print gui/$(id -u)/com.hebb.server` | `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.hebb.server.plist` |
 
-**Example:**
+## hebb mcp
+
+Start the MCP server in stdio mode. Requires the FastAPI server to be running at the configured URL — the MCP server is a thin wrapper that forwards `write_memory`, `search_memory`, and `consolidate` tool calls to it.
 
 ```bash
-hippocampus workspace
-# Output: /home/user/.hippocampus
-
-# Override via environment variable
-export HIPPOCAMPUS_HOME=/data/memories
-hippocampus workspace
-# Output: /data/memories
+hebb mcp
 ```
 
-## hippocampus config
+Use this command in MCP-client config (Claude Desktop, Cursor, Continue) to register Hebb Mind.
 
-Manage configuration via CLI subcommands.
+## hebb cc
+
+Claude Code integration. Installs hooks and registers the MCP server.
+
+```bash
+hebb cc install   [--scope project|user]   # default: project
+hebb cc uninstall [--scope project|user]
+hebb cc recall      # SessionStart hook
+hebb cc write       # UserPromptSubmit hook
+hebb cc stop        # Stop hook (consolidation + cleanup)
+```
+
+`install --scope project` writes to `.claude/` in the current directory; `--scope user` writes to `~/.claude/`.
+
+## hebb codex
+
+Codex CLI integration via `codex mcp add`/`remove`.
+
+```bash
+hebb codex install   [--scope user|project]   # default: user
+hebb codex uninstall [--scope user|project]
+```
+
+Verify with `codex mcp list`.
+
+## hebb config
+
+Manage `hebb.json` from the CLI.
 
 ### config list
 
-Display all configuration values (sensitive values are masked).
+Print all configuration values (sensitive values masked).
 
 ```bash
-hippocampus config list
+hebb config list
 ```
 
 ### config get
 
-Get the value of a specific configuration field. The computed property `workspace` is derived from the workspace directory and cannot be set directly.
+Print one value. The synthetic key `workspace` returns the resolved workspace directory.
 
 ```bash
-hippocampus config get llm_model
-# Output: openai/gpt-4o-mini
-
-# Computed property (derived from workspace)
-hippocampus config get workspace
-# Output: /home/user/.hippocampus
+hebb config get llm_model
+hebb config get workspace
 ```
 
 ### config set
 
-Set a configuration value. The change is saved to `hippocampus.json` immediately.
+Set one value. Type coercion happens automatically (`"true"` → `True`, `"8000"` → `8000`).
 
 ```bash
-hippocampus config set llm_api_key sk-your-key-here
-hippocampus config set port 9000
-hippocampus config set embedding_enabled false
+hebb config set llm_api_key sk-your-key
+hebb config set llm_model openai/gpt-4o
+hebb config set port 9000
+hebb config set embedding_enabled false
+hebb config set home /data/hebb
 ```
 
 ### config path
 
-Display the path to the active `hippocampus.json` file.
+Print the active `hebb.json` path.
 
 ```bash
-hippocampus config path
-# Output: /home/user/project/hippocampus.json
+hebb config path
 ```

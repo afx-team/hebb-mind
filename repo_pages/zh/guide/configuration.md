@@ -1,11 +1,11 @@
 # 配置
 
-Hippocampus 的所有配置集中在项目目录下的 `hippocampus.json` 文件中，无需设置环境变量。
+Hebb Mind 的所有配置集中在项目目录下的 `hebb.json` 文件中，无需设置环境变量。
 
 首次使用推荐：
 
 ```bash
-hippocampus setup --language auto --region auto
+hebb setup --language auto --region auto
 ```
 
 `language` 决定 Embedding 模型，`region` 决定 HuggingFace 下载源，二者独立。
@@ -14,21 +14,21 @@ hippocampus setup --language auto --region auto
 
 ```bash
 # 列出所有配置
-hippocampus config list
+hebb config list
 
 # 获取单个配置值
-hippocampus config get llm_model
+hebb config get llm_model
 
 # 设置配置值
-hippocampus config set llm_api_key sk-xxx
-hippocampus config set port 8000
-hippocampus config set embedding_enabled false
+hebb config set llm_api_key sk-xxx
+hebb config set port 8000
+hebb config set embedding_enabled false
 
 # 查看配置文件路径
-hippocampus config path
+hebb config path
 
 # 查看 Embedding 模型状态
-hippocampus model status
+hebb model status
 ```
 
 ## 完整配置项
@@ -36,7 +36,7 @@ hippocampus model status
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `storage_type` | string | `"sqlite"` | 存储后端，可选 `"sqlite"` 或 `"postgresql"` |
-| `home` | string | `null` | 工作目录覆盖。设置后数据文件存储在此目录。也可通过 HIPPOCAMPUS_HOME 环境变量设置。 |
+| `home` | string | `null` | 工作目录覆盖。设置后数据文件存储在此目录。也可通过 HEBB_HOME 环境变量设置。 |
 | `pg_url` | string | `null` | PostgreSQL 连接字符串 |
 | `pg_pool_min` | number | `2` | PostgreSQL 连接池最小连接数 |
 | `pg_pool_max` | number | `10` | PostgreSQL 连接池最大连接数 |
@@ -83,34 +83,34 @@ hippocampus model status
 
 ## 工作目录
 
-Hippocampus 的数据文件（`hippocampus.db`、`knowledge_graph.json`）始终存储在工作目录中。工作目录的解析优先级如下：
+Hebb Mind 的数据文件（`hebb.db`、`knowledge_graph.json`）始终存储在工作目录中。工作目录的解析优先级如下：
 
-1. **`HIPPOCAMPUS_HOME` 环境变量** — 最高优先级
-2. **`home` 配置字段** — `hippocampus.json` 中的 `home` 字段
-3. **配置文件所在目录** — `hippocampus.json` 的父目录
-4. **`~/.hippocampus/`** — 默认目录
+1. **`HEBB_HOME` 环境变量** — 最高优先级
+2. **`home` 配置字段** — `hebb.json` 中的 `home` 字段
+3. **配置文件所在目录** — `hebb.json` 的父目录
+4. **`~/.hebb/`** — 默认目录
 
 ```bash
 # 查看当前解析的工作目录
-hippocampus workspace
+hebb workspace
 
 # 也可通过 config get 查看
-hippocampus config get workspace
+hebb config get workspace
 ```
 
 示例：
 
 ```bash
 # 通过环境变量设置工作目录
-export HIPPOCAMPUS_HOME=/data/hippocampus
+export HEBB_HOME=/data/hebb
 
 # 或在配置文件中设置
-hippocampus config set home /data/hippocampus
+hebb config set home /data/hebb
 ```
 
 ## Web 控制台配置
 
-启动服务后，打开 `http://localhost:8321/` 进入 Web 控制台，在 **Settings** 页面也可以可视化编辑配置。修改后会自动写入 `hippocampus.json`。
+启动服务后，打开 `http://localhost:8321/` 进入 Web 控制台，在 **Settings** 页面也可以可视化编辑配置。修改后会自动写入 `hebb.json`。
 
 ::: tip
 部分配置修改后需要重启服务才能生效，包括：`storage_type`、`home`、`pg_url`、`embedding_enabled`、`embedding_model`、`embedding_dim`、`hf_endpoint`、`host`、`port`。
@@ -121,7 +121,7 @@ hippocampus config set home /data/hippocampus
 国内用户下载 HuggingFace 模型可能较慢，可以通过配置镜像加速：
 
 ```bash
-hippocampus setup --region cn
+hebb setup --region cn
 ```
 
 设置后，启动服务时会自动通过镜像站下载 Embedding 模型。
@@ -129,5 +129,5 @@ hippocampus setup --region cn
 也可以手动设置：
 
 ```bash
-hippocampus config set hf_endpoint https://hf-mirror.com
+hebb config set hf_endpoint https://hf-mirror.com
 ```

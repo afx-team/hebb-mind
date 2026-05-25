@@ -229,16 +229,16 @@ Letta's **open-source repository does not include a web management UI**.
 
 ---
 
-## Implications for Hippocampus
+## Implications for Hebb Mind
 
 1. **Consolidation gap is a design opportunity** -- Letta's archival memory grows monotonically. A system that automatically detects redundant passages and merges them (importance-weighted, recency-aware) would be a meaningful differentiator. Consider: periodic background jobs that cluster similar passages and produce condensed summaries.
 
-2. **Decay/forgetting is unexplored territory** -- None of the major open-source memory frameworks implement forgetting. Hippocampus could implement time-decayed relevance scoring, combining recency, access frequency, and importance -- analogous to human memory consolidation where unused memories fade.
+2. **Decay/forgetting is unexplored territory** -- None of the major open-source memory frameworks implement forgetting. Hebb Mind could implement time-decayed relevance scoring, combining recency, access frequency, and importance -- analogous to human memory consolidation where unused memories fade.
 
 3. **Knowledge graph as a complement** -- Letta's flat vector search is sufficient for simple retrieval but cannot capture relational knowledge (e.g., "Alice works for Company X, which is headquartered in City Y"). A lightweight knowledge graph layer could provide structured reasoning that vector search cannot.
 
-4. **SQLite-first is viable** -- Letta's SQLite support is incomplete because their server was designed for cloud deployment. Hippocampus, targeting local/self-hosted use, could make SQLite the primary storage backend with zero external dependencies (embedding model being the remaining blocker).
+4. **SQLite-first is viable** -- Letta's SQLite support is incomplete because their server was designed for cloud deployment. Hebb Mind, targeting local/self-hosted use, could make SQLite the primary storage backend with zero external dependencies (embedding model being the remaining blocker).
 
 5. **Sleeptime agent pattern is valuable** -- The concept of a background agent that asynchronously reorganizes memory after conversations is sound and aligns with hippocampal memory consolidation in neuroscience. However, it should be supplemented with deterministic, non-LLM consolidation steps (deduplication, importance scoring, decay) to reduce LLM cost and improve reliability.
 
-6. **Simplicity wins** -- Letta's memory tool APIs (`memory_replace`, `memory_insert`, `archival_memory_search`) are well-designed and simple. Hippocampus should similarly prioritize developer experience with clean, composable primitives.
+6. **Simplicity wins** -- Letta's memory tool APIs (`memory_replace`, `memory_insert`, `archival_memory_search`) are well-designed and simple. Hebb Mind should similarly prioritize developer experience with clean, composable primitives.

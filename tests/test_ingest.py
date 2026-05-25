@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import json
 
-from hippocampus.ingest.detector import detect_format
-from hippocampus.ingest.formats import (
+from hebb.ingest.detector import detect_format
+from hebb.ingest.formats import (
     parse_chatgpt_json,
     parse_claude_code_jsonl,
     parse_plain_text,
 )
-from hippocampus.ingest.noise import strip_noise
-from hippocampus.ingest.normalizer import normalize
-from hippocampus.ingest.types import Format
+from hebb.ingest.noise import strip_noise
+from hebb.ingest.normalizer import normalize
+from hebb.ingest.types import Format
 
 # ---------------------------------------------------------------------------
 # Format detection

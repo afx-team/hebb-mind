@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Protocol
 
-from eval.client import HippocampusClient
+from eval.client import HebbClient
 from eval.config import EvalSettings
 from eval.datasets.base import EvalQuestion, EvalScenario
 from eval.judge import LLMJudge
@@ -54,18 +54,18 @@ class BenchmarkResult:
 
 
 class Benchmark(Protocol):
-    """Protocol for running a benchmark against hippocampus."""
+    """Protocol for running a benchmark against hebb."""
 
     @property
     def name(self) -> str: ...
 
     async def setup(
-        self, client: HippocampusClient, scenarios: list[EvalScenario]
+        self, client: HebbClient, scenarios: list[EvalScenario]
     ) -> None: ...
 
     async def run(
         self,
-        client: HippocampusClient,
+        client: HebbClient,
         scenarios: list[EvalScenario],
         judge: LLMJudge,
     ) -> BenchmarkResult: ...
@@ -95,9 +95,9 @@ class BaseBenchmark:
         return f"[Turn {turn.turn_index}] {turn.role}: {turn.content}"
 
     async def setup(
-        self, client: HippocampusClient, scenarios: list[EvalScenario]
+        self, client: HebbClient, scenarios: list[EvalScenario]
     ) -> None:
-        """Ingest conversation turns into mem_hippocampus. No tags, no custom partitions."""
+        """Ingest conversation turns into mem_hebb. No tags, no custom partitions."""
         total = 0
         for scenario in scenarios:
             batch: list[dict] = []
@@ -132,7 +132,7 @@ class BaseBenchmark:
 
     async def run(
         self,
-        client: HippocampusClient,
+        client: HebbClient,
         scenarios: list[EvalScenario],
         judge: LLMJudge,
     ) -> BenchmarkResult:

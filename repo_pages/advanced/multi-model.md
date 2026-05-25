@@ -1,6 +1,6 @@
 # Multi-Model Support
 
-Hippocampus supports multiple LLM providers through [LiteLLM](https://github.com/BerriAI/litellm). This enables memory consolidation with any major language model.
+Hebb Mind supports multiple LLM providers through [LiteLLM](https://github.com/BerriAI/litellm). This enables memory consolidation with any major language model.
 
 ## Supported Providers
 
@@ -19,39 +19,39 @@ Hippocampus supports multiple LLM providers through [LiteLLM](https://github.com
 ### OpenAI
 
 ```bash
-hippocampus config set llm_model openai/gpt-4o-mini
-hippocampus config set llm_api_key sk-your-openai-key
+hebb config set llm_model openai/gpt-4o-mini
+hebb config set llm_api_key sk-your-openai-key
 ```
 
 ### Anthropic
 
 ```bash
-hippocampus config set llm_model anthropic/claude-3-haiku-20240307
-hippocampus config set llm_api_key sk-ant-your-anthropic-key
+hebb config set llm_model anthropic/claude-3-haiku-20240307
+hebb config set llm_api_key sk-ant-your-anthropic-key
 ```
 
 ### Qwen (Alibaba Cloud)
 
 ```bash
-hippocampus config set llm_model openai/qwen-plus
-hippocampus config set llm_api_key sk-your-qwen-key
-hippocampus config set llm_base_url https://dashscope.aliyuncs.com/compatible-mode/v1
+hebb config set llm_model openai/qwen-plus
+hebb config set llm_api_key sk-your-qwen-key
+hebb config set llm_base_url https://dashscope.aliyuncs.com/compatible-mode/v1
 ```
 
 ### GLM (Zhipu AI)
 
 ```bash
-hippocampus config set llm_model openai/glm-4
-hippocampus config set llm_api_key your-zhipu-key
-hippocampus config set llm_base_url https://open.bigmodel.cn/api/paas/v4
+hebb config set llm_model openai/glm-4
+hebb config set llm_api_key your-zhipu-key
+hebb config set llm_base_url https://open.bigmodel.cn/api/paas/v4
 ```
 
 ### Kimi (Moonshot AI)
 
 ```bash
-hippocampus config set llm_model openai/moonshot-v1-8k
-hippocampus config set llm_api_key sk-your-moonshot-key
-hippocampus config set llm_base_url https://api.moonshot.cn/v1
+hebb config set llm_model openai/moonshot-v1-8k
+hebb config set llm_api_key sk-your-moonshot-key
+hebb config set llm_base_url https://api.moonshot.cn/v1
 ```
 
 ## How It Works
@@ -60,12 +60,12 @@ For Chinese model providers (Qwen, GLM, Kimi), the `openai/` prefix tells LiteLL
 
 ## Embedding Model
 
-The embedding model runs **locally** via sentence-transformers. No external API calls are needed for generating embeddings. `hippocampus setup` selects the default model by content language:
+The embedding model runs **locally** via sentence-transformers. No external API calls are needed for generating embeddings. `hebb setup` selects the default model by content language:
 
 - English: `BAAI/bge-large-en-v1.5`
 - Chinese or multilingual: `BAAI/bge-m3`
 
-Download region is independent from language. Use `hippocampus setup --language en --region cn` for English content on a China network, or `hippocampus setup --language zh --region global` for Chinese content on a global network.
+Download region is independent from language. Use `hebb setup --language en --region cn` for English content on a China network, or `hebb setup --language zh --region global` for Chinese content on a global network.
 
 This means:
 

@@ -1,14 +1,14 @@
 [project]
-name = "afx-hippocampus"
+name = "hebb-mind"
 version = "0.1.1"
-description = "Neuroscience-inspired memory framework for AI agents / 海马体 — Agent 大脑记忆框架"
+description = "Hebb Mind — neuroscience-inspired long-term memory framework for AI agents (neurons that fire together, wire together)"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
 authors = [
     { name = "afx-team", email = "afx-team@users.noreply.github.com" },
 ]
-keywords = ["agent", "memory", "llm", "ai", "hippocampus", "rag", "mcp"]
+keywords = ["agent", "memory", "llm", "ai", "hebb", "hebbian-learning", "hippocampus", "rag", "mcp"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -57,14 +57,14 @@ dev = [
 ]
 
 [project.scripts]
-hippocampus = "hippocampus.cli.main:main"
-hippocampus-mcp = "hippocampus.mcp.server:main"
+hebb = "hebb.cli.main:main"
+hebb-mcp = "hebb.mcp.server:main"
 
 [project.urls]
-Homepage = "https://github.com/afx-team/hippocampus"
-Repository = "https://github.com/afx-team/hippocampus"
-Documentation = "https://github.com/afx-team/hippocampus#readme"
-Issues = "https://github.com/afx-team/hippocampus/issues"
+Homepage = "https://github.com/afx-team/hebb-mind"
+Repository = "https://github.com/afx-team/hebb-mind"
+Documentation = "https://github.com/afx-team/hebb-mind#readme"
+Issues = "https://github.com/afx-team/hebb-mind/issues"
 
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
@@ -74,7 +74,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-hippocampus = [
+hebb = [
     "static/**/*",
 ]
 
@@ -87,10 +87,22 @@ src = ["src"]
 select = ["E", "F", "I", "N", "W", "UP"]
 ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+# __init__.py files re-export names and may keep side-effect imports in a
+# fixed order — exempt them from unused-import and import-sort rules.
+"__init__.py" = ["F401", "I001"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
 
 [tool.mypy]
 python_version = "3.10"
 strict = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_decorators = false

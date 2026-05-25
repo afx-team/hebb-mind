@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from hippocampus.cli.commands import service
+from hebb.cli.commands import service
 
 
 def _completed(args: list[str], returncode: int) -> subprocess.CompletedProcess[str]:
@@ -16,7 +16,7 @@ def _completed(args: list[str], returncode: int) -> subprocess.CompletedProcess[
 
 
 def test_install_launchd_verifies_service_is_loaded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    plist_path = tmp_path / "com.hippocampus.server.plist"
+    plist_path = tmp_path / "com.hebb.server.plist"
     calls: list[list[str]] = []
     loaded = False
 
@@ -34,7 +34,7 @@ def test_install_launchd_verifies_service_is_loaded(tmp_path: Path, monkeypatch:
         return _completed(args, 0)
 
     monkeypatch.setattr(service, "LAUNCHD_PATH", plist_path)
-    monkeypatch.setattr(service, "_hippocampus_bin", lambda: "/usr/local/bin/hippocampus")
+    monkeypatch.setattr(service, "_hebb_bin", lambda: "/usr/local/bin/hebb")
     monkeypatch.setattr(service, "_working_dir", lambda: str(tmp_path))
     monkeypatch.setattr(service, "_run_launchctl", fake_run_launchctl)
 
@@ -42,15 +42,15 @@ def test_install_launchd_verifies_service_is_loaded(tmp_path: Path, monkeypatch:
 
     assert plist_path.exists()
     assert ["bootstrap", f"gui/{os.getuid()}", str(plist_path)] in calls
-    assert ["kickstart", "-k", f"gui/{os.getuid()}/com.hippocampus.server"] in calls
-    assert ["print", f"gui/{os.getuid()}/com.hippocampus.server"] in calls
+    assert ["kickstart", "-k", f"gui/{os.getuid()}/com.hebb.server"] in calls
+    assert ["print", f"gui/{os.getuid()}/com.hebb.server"] in calls
 
 
 def test_install_launchd_exits_when_launchctl_cannot_register(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    plist_path = tmp_path / "com.hippocampus.server.plist"
+    plist_path = tmp_path / "com.hebb.server.plist"
     calls: list[list[str]] = []
 
     def fake_run_launchctl(args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -58,7 +58,7 @@ def test_install_launchd_exits_when_launchctl_cannot_register(
         return _completed(args, 5)
 
     monkeypatch.setattr(service, "LAUNCHD_PATH", plist_path)
-    monkeypatch.setattr(service, "_hippocampus_bin", lambda: "/usr/local/bin/hippocampus")
+    monkeypatch.setattr(service, "_hebb_bin", lambda: "/usr/local/bin/hebb")
     monkeypatch.setattr(service, "_working_dir", lambda: str(tmp_path))
     monkeypatch.setattr(service, "_run_launchctl", fake_run_launchctl)
 

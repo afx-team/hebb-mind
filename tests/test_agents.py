@@ -6,13 +6,13 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from hippocampus.agents.consolidation_agent import ConsolidationAgent
-from hippocampus.agents.llm_client import LLMClient
-from hippocampus.agents.recall_agent import RecallAgent
-from hippocampus.embedding.local import NoopEmbedder
-from hippocampus.graph.knowledge_graph import KnowledgeGraph
-from hippocampus.models.memory import MemoryCreate
-from hippocampus.retrieval.searcher import MemorySearcher
+from hebb.agents.consolidation_agent import ConsolidationAgent
+from hebb.agents.llm_client import LLMClient
+from hebb.agents.recall_agent import RecallAgent
+from hebb.embedding.local import NoopEmbedder
+from hebb.graph.knowledge_graph import KnowledgeGraph
+from hebb.models.memory import MemoryCreate
+from hebb.retrieval.searcher import MemorySearcher
 
 
 @pytest.fixture
@@ -51,10 +51,10 @@ class TestRecallAgent:
 
     @pytest.mark.asyncio
     async def test_recall_excludes_hippocampus_partition(self, mock_llm, memory_store, noop_embedder):
-        """Recalled memories should not include hippocampus partition."""
+        """Recalled memories should not include hebb partition."""
         # Create memories in different partitions
         await memory_store.create(
-            MemoryCreate(content="in hippocampus", partition_id="mem_hippocampus"),
+            MemoryCreate(content="in hebb", partition_id="mem_hippocampus"),
         )
         await memory_store.create(
             MemoryCreate(content="in semantic", partition_id="mem_semantic"),
@@ -82,10 +82,10 @@ class TestRecallAgent:
 class TestConsolidationAgent:
     @pytest.mark.asyncio
     async def test_consolidate_memory(self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path):
-        """Consolidation should move memory from hippocampus to target partition."""
+        """Consolidation should move memory from hebb to target partition."""
         kg = KnowledgeGraph(tmp_path / "kg.json")
 
-        # Create a memory in hippocampus
+        # Create a memory in hebb
         mem = await memory_store.create(
             MemoryCreate(content="User prefers dark mode", partition_id="mem_hippocampus"),
         )
@@ -124,7 +124,7 @@ class TestConsolidationAgent:
         assert result.target_partition == "mem_preference"
         assert "preference" in result.tags_extracted
 
-        # Original memory should be deleted from hippocampus
+        # Original memory should be deleted from hebb
         original = await memory_store.get(mem.id)
         assert original is None
 
@@ -139,7 +139,7 @@ class TestConsolidationAgent:
 
     @pytest.mark.asyncio
     async def test_consolidate_batch_empty(self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path):
-        """Batch consolidation with no hippocampus memories returns empty list."""
+        """Batch consolidation with no hebb memories returns empty list."""
         kg = KnowledgeGraph(tmp_path / "kg.json")
 
         recall_agent = RecallAgent(

@@ -21,7 +21,7 @@ _ROOT = Path(__file__).resolve().parent
 class EvalSettings(BaseModel):
     """Configuration for evaluation runs."""
 
-    hippocampus_url: str = Field(default="http://localhost:8321")
+    hebb_url: str = Field(default="http://localhost:8321")
     project_root: Path = Field(default_factory=lambda: _ROOT.parent)
     mode: EvalMode = Field(default=EvalMode.RAW)
     llm_model: str = Field(default="openai/gpt-4o-mini")
@@ -53,7 +53,7 @@ def load_eval_settings(config_path: Path | None = None) -> EvalSettings:
             data = json.load(f)
 
     env_map = {
-        "EVAL_HIPPOCAMPUS_URL": "hippocampus_url",
+        "EVAL_HEBB_URL": "hebb_url",
         "EVAL_LLM_MODEL": "llm_model",
         "EVAL_LLM_BASE_URL": "llm_base_url",
         "EVAL_LLM_API_KEY": "llm_api_key",

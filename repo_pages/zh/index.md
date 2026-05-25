@@ -2,80 +2,129 @@
 layout: home
 
 hero:
-  name: Hippocampus
-  text: Agent 记忆框架
-  tagline: 为你的 AI Agent 提供类脑记忆系统 — 自动巩固、检索与遗忘。
+  name: Hebb Mind
+  text: 会自己连线的记忆。
+  tagline: '一套受神经科学启发的 AI Agent 记忆框架 —— 以神经心理学家唐纳德·赫布命名，建立在他给出的法则之上：一起放电的神经元，会连到一起。编码 · 回放 · 巩固 · 遗忘 —— 本地 SQLite，零外部服务。'
   actions:
     - theme: brand
-      text: 快速开始
+      text: 60 秒上手
       link: /zh/quick-start
     - theme: alt
       text: GitHub 仓库
-      link: https://github.com/afx-team/hippocampus
+      link: https://github.com/afx-team/hebb-mind
+    - theme: alt
+      text: Benchmarks
+      link: /zh/benchmarks
 
 features:
-  - icon: 🧠
-    title: 记忆巩固
-    details: 自动将记忆分类到语义、情景、偏好、程序性分区 — 模拟人类大脑的记忆系统。
-  - icon: 🔄
-    title: 动态遗忘
-    details: 基于艾宾浩斯遗忘曲线的 TTL 公式 — 频繁访问的高重要性记忆存活更久，被忽略的自然消失。
-  - icon: 🔍
-    title: 混合检索
-    details: 三路并行检索（向量 + 关键词 + 知识图谱），结合时效性、重要性、相关性三维评分。
-  - icon: 🕸️
-    title: 知识图谱
-    details: 巩固过程中自动提取标签构建概念图谱，在 Web 控制台中可视化探索关系。
   - icon: ⚡
-    title: 零配置启动
-    details: "SQLite 后端：hippocampus setup && hippocampus start 即可运行。生产环境可切换 PostgreSQL。"
+    title: 60 秒本地启动
+    details: "pip install + hebb setup + hebb start。SQLite + sentence-transformers，零外部服务。写入与混合检索完全不依赖 API Key。"
+  - icon: 🧠
+    title: 巩固时解决冲突
+    details: 巩固代理会合并重复、覆盖过时事实，而非简单追加。通过 LiteLLM 接入任意 LLM（OpenAI / Claude / 通义千问 / GLM / Kimi …）。
+  - icon: 🔄
+    title: 真正的遗忘
+    details: "TTL = base × (1 + log(访问次数)) × 重要度 × exp(-衰减率 × 天数)。常用记忆存活，被忽略的自然消退，参数可按工作区调优。"
+  - icon: 🔍
+    title: 三路混合检索
+    details: 向量 + 关键词 + 标签图谱并行检索，结合时效 / 重要性 / 相关性评分。基于 NetworkX 的知识图谱，支持沿邻居 API 游走。
   - icon: 🖥️
-    title: Web 控制台
-    details: 内置暗色主题管理面板，支持记忆 CRUD、语义搜索、分区管理、图谱可视化。
+    title: 内置 Web 控制台
+    details: 单页应用，覆盖记忆 CRUD、检索、分区、图谱视图。直接位于 http://localhost:8321/，无需另行部署。
+  - icon: 🔌
+    title: REST + MCP + Claude Code Hooks
+    details: 三行命令为 Claude Code 启用跨会话记忆；hebb codex install 一键将能力以 MCP 工具形式接入 Codex。REST 文档位于 /docs。
 ---
 
 <div class="hippo-home hippo-snap">
 
+<!-- ─────────────── 赫布学习 ─────────────── -->
+<div class="hippo-section">
+<h2>为什么叫 "Hebb Mind"？</h2>
+<p class="hippo-section-sub">1949 年，加拿大心理学家 <strong>唐纳德·O·赫布（Donald O. Hebb，1904–1985）</strong> 描述了大脑学习所遵循的法则。Hebb Mind 正建立在它之上。</p>
+
+<div style="max-width:720px;margin:0 auto;padding:22px 28px;border-left:3px solid var(--vp-c-brand-1);background:var(--vp-c-bg-soft);border-radius:0 10px 10px 0;font-size:15px;line-height:1.7;color:var(--vp-c-text-2);font-style:italic;">
+“当细胞 A 的轴突……反复或持续地参与激发细胞 B……A 作为激发 B 的细胞之一，其效率就会提高。”
+<span style="display:block;margin-top:10px;font-size:13px;color:var(--vp-c-text-3);font-style:normal;">—— D. O. Hebb，《行为的组织》（1949）· 后世记为 <strong>"一起放电的神经元，会连到一起"</strong>。</span>
+</div>
+
+<p class="hippo-section-sub" style="margin-top:28px;">赫布的洞见：记忆不是一个"存放的地点"，而是一种"连接的模式"。共同出现的概念会连成<strong>细胞集群（cell assembly）</strong>，激活一部分便唤回全部。Hebb Mind 的标签知识图谱跑的正是这个回路。</p>
+
+<div class="hippo-lifecycle">
+  <div class="hippo-stage">
+    <div class="hippo-stage-icon">🔗</div>
+    <div class="hippo-stage-name">连线</div>
+    <div class="hippo-stage-desc">共同出现的标签建立图谱连边 —— 一个细胞集群</div>
+  </div>
+  <div class="hippo-arrow">→</div>
+  <div class="hippo-stage">
+    <div class="hippo-stage-icon">💪</div>
+    <div class="hippo-stage-name">强化</div>
+    <div class="hippo-stage-desc">每次共现都加粗连边；巩固保留被反复强化的部分</div>
+  </div>
+  <div class="hippo-arrow">→</div>
+  <div class="hippo-stage">
+    <div class="hippo-stage-icon">🌐</div>
+    <div class="hippo-stage-name">补全</div>
+    <div class="hippo-stage-desc">检索沿连边游走 —— 一个线索唤回整个模式</div>
+  </div>
+  <div class="hippo-arrow">→</div>
+  <div class="hippo-stage">
+    <div class="hippo-stage-icon">💨</div>
+    <div class="hippo-stage-name">修剪</div>
+    <div class="hippo-stage-desc">从不被共同激活的连接逐渐减弱、消退</div>
+  </div>
+</div>
+
+<p class="hippo-section-sub" style="margin-top:28px;">那么<strong>海马体（hippocampus）</strong> —— 项目最初的名字呢？它作为工作记忆分区的名字（<code>mem_hippocampus</code>）保留了下来：每条新记忆在巩固前最先落入的收件箱。这正对应大脑的真实分工 —— 海马体正是把新经验暂存、再固化进长期皮层记忆的"门户"。大脑的<em>结构</em>成了一个组件，而<em>学习法则</em>成了项目的名字。</p>
+</div>
+
 <!-- ─────────────── Memory Lifecycle ─────────────── -->
 <div class="hippo-section">
-<h2>工作原理</h2>
-<p class="hippo-section-sub">记忆流经四个阶段 — 如同人类海马体。</p>
+<h2>记忆回路</h2>
+<p class="hippo-section-sub">四个阶段，按大脑大致相同的顺序运行 —— CA1 编码当下、慢波睡眠中的尖波涟漪进行回放（Wilson &amp; McNaughton, <em>Science</em>, 1994）、CA3 凭线索补全完整记忆、遗忘曲线（Ebbinghaus, 1885）安静地完成它的修剪。</p>
 
 <div class="hippo-lifecycle">
   <div class="hippo-stage">
     <div class="hippo-stage-icon">📥</div>
-    <div class="hippo-stage-name">写入</div>
-    <div class="hippo-stage-desc">新记忆进入工作记忆收件箱</div>
+    <div class="hippo-stage-name">编码</div>
+    <div class="hippo-stage-desc">工作记忆收件箱 <em>（CA1 捕捉）</em></div>
   </div>
   <div class="hippo-arrow">→</div>
   <div class="hippo-stage">
     <div class="hippo-stage-icon">🧠</div>
-    <div class="hippo-stage-name">巩固</div>
-    <div class="hippo-stage-desc">代理分类到分区、提取标签</div>
+    <div class="hippo-stage-name">回放与巩固</div>
+    <div class="hippo-stage-desc">代理合并、分类、提取标签 <em>（尖波涟漪）</em></div>
   </div>
   <div class="hippo-arrow">→</div>
   <div class="hippo-stage">
     <div class="hippo-stage-icon">🔍</div>
     <div class="hippo-stage-name">检索</div>
-    <div class="hippo-stage-desc">三路混合搜索 + 多维评分</div>
+    <div class="hippo-stage-desc">向量 + 关键词 + 图谱 <em>（模式补全）</em></div>
   </div>
   <div class="hippo-arrow">→</div>
   <div class="hippo-stage">
     <div class="hippo-stage-icon">💨</div>
     <div class="hippo-stage-name">遗忘</div>
-    <div class="hippo-stage-desc">动态 TTL — 常用存活，忽略消退</div>
+    <div class="hippo-stage-desc">动态 TTL <em>（Ebbinghaus 衰减）</em></div>
   </div>
 </div>
 
 <!-- ─────────────── Quick Install ─────────────── -->
 <div class="hippo-install">
-  <div class="hippo-install-label">10 秒安装</div>
+  <div class="hippo-install-label">60 秒上手 — 无需 API Key</div>
   <div class="hippo-install-cmd">
-    <code>pip install afx-hippocampus && hippocampus setup && hippocampus start</code>
-    <button class="hippo-copy" onclick="navigator.clipboard.writeText('pip install afx-hippocampus && hippocampus setup && hippocampus start');this.innerHTML='<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;20 6 9 17 4 12&quot;/></svg>';setTimeout(()=>{this.innerHTML='<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><rect x=&quot;9&quot; y=&quot;9&quot; width=&quot;13&quot; height=&quot;13&quot; rx=&quot;2&quot;/><path d=&quot;M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1&quot;/></svg>'},1200)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+    <code>pip install hebb-mind && hebb setup && hebb start</code>
+    <button class="hippo-copy" onclick="navigator.clipboard.writeText('pip install hebb-mind && hebb setup && hebb start');this.innerHTML='<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;20 6 9 17 4 12&quot;/></svg>';setTimeout(()=>{this.innerHTML='<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><rect x=&quot;9&quot; y=&quot;9&quot; width=&quot;13&quot; height=&quot;13&quot; rx=&quot;2&quot;/><path d=&quot;M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1&quot;/></svg>'},1200)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
   </div>
-  <div class="hippo-install-hint">打开 <a href="http://localhost:8321/">http://localhost:8321/</a> — 就这么简单。</div>
+  <div class="hippo-install-hint">写入与混合检索完全本地运行。打开 <a href="http://localhost:8321/">http://localhost:8321/</a>。需要 LLM 巩固时见 <a href="/zh/quick-start#路径-b-5-分钟-启用-llm-巩固">5 分钟路径</a>。</div>
 </div>
+
+<!-- TODO(asset): screenshot of /index.html web console with sample memories -->
+<p style="text-align:center; margin: 32px 0 0;">
+  <img src="/web-console-hero.png" alt="Hebb Mind Web 控制台 — 分区记忆与标签图谱" width="760" style="border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.18);">
+</p>
 
 </div>
 
@@ -93,7 +142,7 @@ features:
   </div>
   <div class="hippo-arch-connector">▼</div>
   <div class="hippo-arch-core">
-    <span class="hippo-arch-core-label">HIPPOCAMPUS 核心</span>
+    <span class="hippo-arch-core-label">HEBB MIND 核心</span>
     <span class="hippo-arch-core-sub">工作记忆收件箱 · 巩固代理 · 回忆代理 (Agentic RAG) · 调度器</span>
   </div>
   <div class="hippo-arch-connector">▼</div>
@@ -161,19 +210,19 @@ features:
 
 <!-- ─────────────── Comparison ─────────────── -->
 <div class="hippo-section hippo-section-compare">
-<h2>为什么选 Hippocampus</h2>
-<p class="hippo-section-sub">核心能力不落后 — 独特优势更突出。</p>
+<h2>为什么选 Hebb Mind</h2>
+<p class="hippo-section-sub">核心能力不落后 — 独特优势更突出。<a href="/zh/benchmarks">v0.1.1 LoCoMo: 37.6% 准确率，102 ms/查询</a>（仍在迭代）。</p>
 
 <div class="hippo-compare">
   <div class="hippo-compare-table">
     <table>
       <thead>
-        <tr><th>特性</th><th>Mem0</th><th>Letta</th><th>Zep</th><th class="hippo-highlight">Hippocampus</th></tr>
+        <tr><th>特性</th><th>Mem0</th><th>Letta</th><th>Zep</th><th class="hippo-highlight">Hebb Mind</th></tr>
       </thead>
       <tbody>
         <tr><td>多模型支持</td><td class="hippo-yes">✓</td><td class="hippo-yes">✓</td><td class="hippo-yes">✓</td><td class="hippo-highlight">通过 LiteLLM</td></tr>
-        <tr><td>知识图谱</td><td class="hippo-partial">部分</td><td class="hippo-no">✗</td><td class="hippo-yes">✓</td><td class="hippo-highlight">标签图谱</td></tr>
-        <tr><td>Web 管理界面</td><td class="hippo-yes">✓</td><td class="hippo-partial">仅云端</td><td class="hippo-partial">仅云端</td><td class="hippo-highlight">内置 SPA</td></tr>
+        <tr><td>知识图谱</td><td class="hippo-partial">可插拔（v3 已移除）</td><td class="hippo-no">✗</td><td class="hippo-yes">✓（Graphiti）</td><td class="hippo-highlight">标签图谱（NetworkX）</td></tr>
+        <tr><td>自托管 Web UI</td><td class="hippo-partial">仅云端</td><td class="hippo-partial">仅云端</td><td class="hippo-partial">仅云端</td><td class="hippo-highlight">内置 SPA</td></tr>
         <tr><td>MCP Server</td><td class="hippo-yes">✓</td><td class="hippo-no">仅消费端</td><td class="hippo-yes">✓</td><td class="hippo-highlight">内置，自动启动</td></tr>
         <tr class="hippo-divider-row"><td colspan="5"></td></tr>
         <tr><td>记忆巩固</td><td class="hippo-partial">仅追加</td><td class="hippo-partial">休眠代理</td><td class="hippo-partial">矛盾解决</td><td class="hippo-highlight">自动 + 冲突解决</td></tr>

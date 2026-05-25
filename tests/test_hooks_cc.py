@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from hippocampus.ingest.noise import strip_noise
-from hippocampus.integrations.claude_code import dedup, install, recall, stop, write
-from hippocampus.integrations.claude_code.transcript import (
+from hebb.ingest.noise import strip_noise
+from hebb.integrations.claude_code import dedup, install, recall, stop, write
+from hebb.integrations.claude_code.transcript import (
     TurnSummary,
     extract_last_turn,
     format_turn_memory,
@@ -100,9 +100,9 @@ class TestInstallHook:
                 "stdio",
                 "--scope",
                 "user",
-                "hippocampus",
+                "hebb",
                 "--",
-                "hippocampus-mcp",
+                "hebb-mcp",
             ]
         ]
 
@@ -123,7 +123,7 @@ class TestInstallHook:
 
         data = json.loads(settings_path.read_text())
         assert "hooks" in data
-        assert data["mcpServers"]["hippocampus"]["command"] == "hippocampus-mcp"
+        assert data["mcpServers"]["hebb"]["command"] == "hebb-mcp"
         dedup.record_written("s1", "I like salmon")
         assert dedup.is_duplicate("s1", "I like salmon") is True
         assert dedup.is_duplicate("s2", "I like salmon") is False
@@ -291,7 +291,7 @@ class TestTranscript:
                             {"type": "text", "text": "Let me read that."},
                             {"type": "tool_use", "name": "Read", "id": "t1", "input": {}},
                             {"type": "tool_use", "name": "Grep", "id": "t2", "input": {}},
-                            {"type": "tool_use", "name": "mcp__hippocampus__search_memory", "id": "t3", "input": {}},
+                            {"type": "tool_use", "name": "mcp__hebb__search_memory", "id": "t3", "input": {}},
                         ],
                     },
                 },
@@ -300,7 +300,7 @@ class TestTranscript:
         summary = extract_last_turn(path)
         assert summary is not None
         assert summary.tools == ["Read", "Grep"]
-        assert summary.mcps == ["mcp__hippocampus__search_memory"]
+        assert summary.mcps == ["mcp__hebb__search_memory"]
 
     def test_deduplicates_repeated_tools(self, tmp_path: Path):
         path = self._write_jsonl(
@@ -427,13 +427,13 @@ class TestFormatTurnMemory:
             user_input="What is 1+1?",
             assistant_output="The answer is 2.",
             tools=["Read", "Grep"],
-            mcps=["mcp__hippocampus__search_memory"],
+            mcps=["mcp__hebb__search_memory"],
         )
         result = format_turn_memory(summary)
         assert "[User] What is 1+1?" in result
         assert "[Assistant] The answer is 2." in result
         assert "[Tools] Read, Grep" in result
-        assert "[MCP] mcp__hippocampus__search_memory" in result
+        assert "[MCP] mcp__hebb__search_memory" in result
 
     def test_skips_empty_sections(self):
         summary = TurnSummary(user_input="Hello", assistant_output="Hi")

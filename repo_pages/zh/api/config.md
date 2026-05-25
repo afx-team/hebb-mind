@@ -1,32 +1,32 @@
 # 配置 API
 
-通过 HTTP 接口读取和修改 `hippocampus.json` 配置。
+通过 HTTP 接口读取和修改 `hebb.json` 配置。
+
+所有配置端点都挂载在 `/api/v1/admin/config` 下。
 
 ## 获取配置
 
 ```
-GET /api/v1/config
+GET /api/v1/admin/config
 ```
 
-返回所有配置项。敏感字段（`llm_api_key`、`pg_url`）自动脱敏显示。
+返回所有配置项。敏感字段（`llm_api_key`、`pg_url`、`embedding_api_key`）自动脱敏显示。
 
 ```bash
-curl http://localhost:8321/api/v1/config
+curl http://localhost:8321/api/v1/admin/config
 ```
 
-响应：
+响应（节选）：
 
 ```json
 {
   "storage_type": "sqlite",
   "home": null,
-  "pg_url": null,
-  "pg_pool_min": 2,
-  "pg_pool_max": 10,
   "embedding_enabled": true,
-  "embedding_model": "BAAI/bge-m3",
-  "embedding_dim": 1024,
-  "hf_endpoint": "https://hf-mirror.com",
+  "embedding_provider": "local",
+  "embedding_model": "all-MiniLM-L6-v2",
+  "embedding_dim": 384,
+  "hf_endpoint": null,
   "llm_model": null,
   "llm_base_url": null,
   "llm_api_key": "sk-x****ykey",
@@ -45,13 +45,18 @@ curl http://localhost:8321/api/v1/config
 ## 更新配置
 
 ```
-PUT /api/v1/config
+PUT /api/v1/admin/config
 ```
 
-每次更新一个配置字段，修改会直接写入 `hippocampus.json`。
+每次更新一个配置字段，修改会直接写入 `hebb.json`。
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `key` | string | 是 | 配置字段名 |
+| `value` | string | 是 | 字符串形式的新值，服务端按字段类型自动转换 |
 
 ```bash
-curl -X PUT http://localhost:8321/api/v1/config \
+curl -X PUT http://localhost:8321/api/v1/admin/config \
   -H "Content-Type: application/json" \
   -d '{"key": "llm_model", "value": "openai/gpt-4o"}'
 ```
@@ -66,18 +71,18 @@ curl -X PUT http://localhost:8321/api/v1/config \
 }
 ```
 
-`restart_required` 为 `true` 时，修改需要重启服务才能生效。需要重启的字段包括：`storage_type`、`home`、`pg_url`、`embedding_enabled`、`embedding_model`、`embedding_dim`、`host`、`port` 等。
+`restart_required` 为 `true` 时需要重启服务才能生效。需要重启的字段包括：`storage_type`、`pg_url`、`pg_pool_min`、`pg_pool_max`、`embedding_enabled`、`embedding_provider`、`embedding_model`、`embedding_dim`、`embedding_api_key`、`embedding_base_url`、`consolidation_time`、`host`、`port`、`home`。
 
 ## 查看敏感值
 
 ```
-GET /api/v1/config/reveal/{key}
+GET /api/v1/admin/config/reveal/{key}
 ```
 
-查看被脱敏的配置字段的完整值，仅支持 `llm_api_key` 和 `pg_url`。
+仅支持 `llm_api_key`、`pg_url`、`embedding_api_key`。
 
 ```bash
-curl http://localhost:8321/api/v1/config/reveal/llm_api_key
+curl http://localhost:8321/api/v1/admin/config/reveal/llm_api_key
 ```
 
 响应：
@@ -91,19 +96,22 @@ curl http://localhost:8321/api/v1/config/reveal/llm_api_key
 
 ## 测试 LLM 连接
 
+向指定模型发起一次最小化的请求，验证 `model`/`base_url`/`api_key` 是否可用。如果 `api_key` 中包含 `****`（脱敏占位），服务端会自动从 `hebb.json` 中读取真实密钥。
+
 ```
-POST /api/v1/config/test-llm
+POST /api/v1/admin/config/test-llm
 ```
 
-使用指定的模型、URL 和 API 密钥测试 LLM 连通性。
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `model` | string | 是 | LiteLLM 模型标识，如 `openai/gpt-4o-mini` |
+| `base_url` | string | 否 | 自定义 API 端点 |
+| `api_key` | string | 否 | API Key（可填脱敏占位以使用已保存的密钥） |
 
 ```bash
-curl -X POST http://localhost:8321/api/v1/config/test-llm \
+curl -X POST http://localhost:8321/api/v1/admin/config/test-llm \
   -H "Content-Type: application/json" \
-  -d '{
-    "model": "openai/gpt-4o-mini",
-    "api_key": "sk-your-key"
-  }'
+  -d '{"model": "openai/gpt-4o-mini", "api_key": "sk-your-key"}'
 ```
 
 成功响应：
@@ -125,23 +133,62 @@ curl -X POST http://localhost:8321/api/v1/config/test-llm \
 }
 ```
 
-::: tip
-如果 `api_key` 包含 `****`（从 GET /config 复制的脱敏值），系统会自动从配置文件中读取真实密钥。
-:::
+## 测试 Embedding 连接
 
-## 获取字段元数据
+验证本地 embedding 模型能否加载，或云端 embedding API 能否响应。
 
 ```
-GET /api/v1/config/fields
+POST /api/v1/admin/config/test-embedding
 ```
 
-返回所有配置字段的类型、描述和默认值，适用于动态构建配置表单。
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `provider` | string | 是 | `local` 或 `api` |
+| `model` | string | 是 | 模型名称（HuggingFace ID 或 LiteLLM 模型 ID） |
+| `base_url` | string | 否 | `api` 类型必填 |
+| `api_key` | string | 否 | API Key 或脱敏占位 |
 
-```bash
-curl http://localhost:8321/api/v1/config/fields
+成功响应：
+
+```json
+{
+  "success": true,
+  "dimension": 384,
+  "message": "Model loaded, dimension=384, sample vector length=384"
+}
 ```
 
-响应：
+## Embedding 状态
+
+返回当前 embedding 配置以及本地模型是否已缓存。
+
+```
+GET /api/v1/admin/config/embedding-status
+```
+
+响应（local，已缓存）：
+
+```json
+{
+  "enabled": true,
+  "provider": "local",
+  "model": "all-MiniLM-L6-v2",
+  "status": "cached",
+  "cached": true
+}
+```
+
+`status` 取值：`cached`、`not_downloaded`、`disabled`、`api`。
+
+## 字段元数据
+
+返回所有配置字段的类型、描述和默认值，便于动态构建表单。
+
+```
+GET /api/v1/admin/config/fields
+```
+
+响应（节选）：
 
 ```json
 [

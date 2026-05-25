@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from eval.benchmarks.base import BenchmarkResult
-from eval.client import HippocampusClient
+from eval.client import HebbClient
 from eval.config import EvalSettings
 from eval.datasets.base import EvalScenario
 from eval.judge import LLMJudge
@@ -20,17 +20,17 @@ class MemoryArenaBenchmark:
         return "memoryarena"
 
     async def setup(
-        self, client: HippocampusClient, scenarios: list[EvalScenario]
+        self, client: HebbClient, scenarios: list[EvalScenario]
     ) -> None:
         raise NotImplementedError("MemoryArena benchmark is not yet implemented.")
 
     async def run(
         self,
-        client: HippocampusClient,
+        client: HebbClient,
         scenarios: list[EvalScenario],
         judge: LLMJudge,
     ) -> BenchmarkResult:
         raise NotImplementedError("MemoryArena benchmark is not yet implemented.")
 
-    async def teardown(self, client: HippocampusClient) -> None:
+    async def teardown(self, client: HebbClient) -> None:
         pass

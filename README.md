@@ -1,332 +1,217 @@
 <p align="center">
-  <h1 align="center"><a href="https://afx-team.github.io/hippocampus/">Hippocampus</a></h1>
-  <p align="center">Neuroscience-inspired memory framework for AI agents</p>
-  <p align="center"><a href="https://afx-team.github.io/hippocampus/">📖 Documentation</a> · <a href="README.md">English</a> | <a href="README_ZH.md">中文</a></p>
+  <h1 align="center"><a href="https://afx-team.github.io/hebb-mind/">Hebb Mind</a></h1>
+  <p align="center"><strong>A memory framework for AI agents — named for Donald Hebb, built on the rule his work gave us: neurons that fire together, wire together.</strong></p>
+  <p align="center"><em>Encode. Replay. Consolidate. Forget. The way brains do.</em></p>
+  <p align="center"><a href="https://afx-team.github.io/hebb-mind/">Documentation</a> · <a href="README.md">English</a> | <a href="README_ZH.md">中文</a></p>
 </p>
 
 <p align="center">
-  <a href="https://afx-team.github.io/hippocampus/"><img src="https://img.shields.io/badge/docs-afx--team.github.io-blue" alt="Documentation"></a>
-  <a href="https://github.com/afx-team/hippocampus/actions"><img src="https://github.com/afx-team/hippocampus/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://pypi.org/project/afx-hippocampus/"><img src="https://img.shields.io/pypi/v/afx-hippocampus" alt="PyPI"></a>
-  <a href="https://github.com/afx-team/hippocampus/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"></a>
-  <img src="https://img.shields.io/pypi/pyversions/afx-hippocampus" alt="Python">
+  <a href="https://afx-team.github.io/hebb-mind/"><img src="https://img.shields.io/badge/docs-afx--team.github.io-blue" alt="Documentation"></a>
+  <a href="https://github.com/afx-team/hebb-mind/actions"><img src="https://github.com/afx-team/hebb-mind/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://pypi.org/project/hebb-mind/"><img src="https://img.shields.io/pypi/v/hebb-mind" alt="PyPI"></a>
+  <a href="https://github.com/afx-team/hebb-mind/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"></a>
+  <img src="https://img.shields.io/pypi/pyversions/hebb-mind" alt="Python">
 </p>
 
 ---
 
-Hippocampus gives your AI agents a **brain-like memory system**. Just like the human hippocampus consolidates short-term experiences into long-term knowledge, this framework automatically organizes, prioritizes, and forgets memories so your agents stay sharp.
+In 1957, neurosurgeons removed both hippocampi from a patient known as H.M. to treat his epilepsy. He survived — but lost the ability to form new long-term memories. Each day, every meal, every face was forever new. The hippocampus, it turned out, was the bridge between *what just happened* and *what we know*. Half a century of research [(Squire, 1992; Tulving, 2002)](#acknowledgments) has shown how it does this: it **encodes** fragments of experience, **replays** them during quiet rest [(Wilson & McNaughton, 1994)](#acknowledgments), **consolidates** the important ones into long-term knowledge, and **lets the rest fade** [(Ebbinghaus, 1885)](#acknowledgments).
 
-## Table of Contents
+Today's AI agents are H.M. They start every conversation new.
 
-- [Background & Motivation](#background--motivation)
-- [Features](#features)
-- [Quick Start](#quick-start)
-- [Installation](#installation)
-- [Usage](#usage)
-- [API Documentation](#api-documentation)
-- [Configuration](#configuration)
-- [Supported Models](#supported-models)
-- [Contributing](#contributing)
-- [Roadmap](#roadmap)
-- [Acknowledgments](#acknowledgments)
-- [License](#license)
+**Hebb Mind** is a memory framework that gives your agent that missing bridge. `pip install`, one command, and you have a local REST + MCP endpoint that runs the same four-stage loop: encode → replay → consolidate → forget. SQLite for storage, sentence-transformers for the embedding cortex, NetworkX for the tag graph. **Zero external services.** Bring an LLM key only when you want consolidation to do its work.
 
-## Background & Motivation
+Where peers diverge: `mem0` is cloud-first and append-only; `letta` needs an external DB and a separate sleeptime agent; `zep` needs Postgres + Neo4j. Hebb Mind runs on a single binary, with one biological loop.
 
-Current AI agents treat every conversation as stateless — they forget everything after each session. While existing memory solutions exist, they have significant limitations:
-
-- **Mem0** only adds memories, never consolidates or resolves conflicts
-- **Letta** requires a separate "sleeptime agent" and external databases
-- **Zep** depends on PostgreSQL + Neo4j, with complex setup
-
-Hippocampus addresses these gaps with a **zero-config, automatic memory lifecycle** inspired by neuroscience. The human hippocampus doesn't just store memories — it classifies, consolidates, and prunes them. This framework brings that same intelligence to AI agents.
-
-| Feature | Mem0 | Letta | Zep | **Hippocampus** |
-|---------|------|-------|-----|-----------------|
-| Multi-model support | Yes | Yes | Yes | Via [LiteLLM](https://github.com/BerriAI/litellm) |
-| Knowledge graph | Partial | No | Yes | Tag-based |
-| Web management UI | Yes | Cloud only | Cloud only | Built-in SPA |
-| [MCP](https://modelcontextprotocol.io/) Server | Yes | Consumer only | Yes | Built-in, auto-start |
-| Memory consolidation | ADD-only | Sleeptime Agent | Contradiction resolve | **Automatic + conflict resolve** |
-| Forgetting / decay | No | No | Temporal invalidation | **Dynamic TTL** |
-| Zero-config deploy | API key required | API key + DB | Postgres + Neo4j | **SQLite + local embed** |
-
-## Features
-
-- **Brain-inspired memory partitions** — Semantic, Episodic, Preference, Procedural, and Custom partitions modeled after cognitive science ([CoALA framework](https://arxiv.org/abs/2309.02427))
-- **Automatic consolidation** — Agentic RAG pipeline classifies, resolves conflicts, and extracts tags into a knowledge graph
-- **Dynamic forgetting** — TTL-based decay: frequently used memories survive, neglected ones fade
-- **Hybrid retrieval** — Three-path search (vector + keyword + graph) with recency/importance/relevance scoring
-- **Zero-config setup** — SQLite + local embedding, no external services required
-- **Multi-model support** — Works with OpenAI, Anthropic, Qwen, GLM, Kimi, and 100+ providers via LiteLLM
-- **Built-in Web Console** — Memory CRUD, search, and graph visualization in a single-page app
-- **MCP Server** — Native integration with Claude Code and other MCP-compatible clients
-- **Claude Code Hooks** — Automatic cross-session memory: writes on every turn, recalls at session start
+<!-- TODO(asset): screenshot of /index.html web console with sample memories -->
+<p align="center">
+  <img src="repo_pages/public/web-console-hero.png" alt="Hebb Mind Web Console showing partitioned memories and tag graph" width="760">
+</p>
 
 ## Quick Start
 
+### Try in 60 seconds — no API key needed
+
+Ingest and hybrid search work fully offline with the bundled local embedding.
+
 ```bash
-pip install -U afx-hippocampus      # Install
-hippocampus setup                 # Initialize + choose/download the default embedding model
-hippocampus start                 # Start server → http://localhost:8321/
+pip install -U hebb-mind
+hebb setup        # picks an embedding model based on your OS locale
+hebb start        # serves http://localhost:8321/
 ```
 
-Open http://localhost:8321/ for the **Web Console**, or http://localhost:8321/docs for the API docs.
-
-`setup` detects your content language from the OS locale and download region from network reachability. Language selects the embedding model; region only selects the HuggingFace download source.
-
-## Installation
-
-### pip (recommended)
+In another shell:
 
 ```bash
-pip install -U afx-hippocampus
-```
-
-### Claude Code (auto-memory)
-
-Give Claude Code persistent memory across sessions — three commands:
-
-```bash
-pip install -U afx-hippocampus
-hippocampus setup
-hippocampus cc install --scope user
-```
-
-Restart Claude Code. Hippocampus will automatically recall cross-session memories at session start, write each user message to memory, and consolidate when the session ends.
-
-See [Claude Code Integration](https://afx-team.github.io/hippocampus/guide/claude-code.html) for details.
-
-### Codex (MCP memory tools)
-
-Add Hippocampus memory tools to Codex:
-
-```bash
-pip install -U afx-hippocampus
-hippocampus setup
-hippocampus codex install --scope user
-```
-
-Verify with:
-
-```bash
-codex mcp list
-```
-
-Codex uses MCP tools for explicit memory operations. Claude Code additionally supports hooks-based automatic write/recall.
-
-### Docker
-
-```bash
-git clone https://github.com/afx-team/hippocampus.git && cd hippocampus
-docker compose -f docker/docker-compose.yml up
-```
-
-### One-line install
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/afx-team/hippocampus/main/scripts/install.sh | sh
-```
-
-### PostgreSQL backend (production)
-
-```bash
-pip install -U afx-hippocampus[pg]
-hippocampus config set storage_type postgresql
-hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
-```
-
-## Usage
-
-### Store and search memories
-
-```bash
-# Store a memory
 curl -X POST http://localhost:8321/api/v1/memories \
-  -H "Content-Type: application/json" \
-  -d '{"content": "User prefers dark mode", "tags": ["preference", "ui"], "importance_score": 7.5}'
+  -H 'Content-Type: application/json' \
+  -d '{"content": "User prefers dark mode and compact layout", "tags": ["preference", "ui"]}'
 
-# Search memories
 curl -X POST http://localhost:8321/api/v1/search \
-  -H "Content-Type: application/json" \
+  -H 'Content-Type: application/json' \
   -d '{"query": "UI preferences", "top_k": 5}'
+```
 
-# Trigger consolidation manually
+Open <http://localhost:8321/> for the Web Console. <!-- TODO(asset): repo_pages/public/quickstart-cast.gif (asciinema of the 60-second path) -->
+
+<p align="center">
+  <img src="repo_pages/public/quickstart-cast.gif" alt="Asciinema recording: install, setup, start, ingest, search in 60 seconds" width="720">
+</p>
+
+### Full experience (5 min) — with LLM consolidation
+
+Consolidation, conflict resolution, and tag extraction need an LLM. Without a key, those endpoints are a **no-op** (this is a known v0.1.1 gap — see [#consolidation-no-op](https://afx-team.github.io/hebb-mind/troubleshooting.html)).
+
+```bash
+hebb config set llm_api_key sk-...
+hebb config set llm_model openai/gpt-4o-mini
+# For Qwen / GLM / Kimi via LiteLLM:
+hebb config set llm_base_url https://dashscope.aliyuncs.com/compatible-mode/v1
+```
+
+Then trigger consolidation manually or wait for the daily 18:00 job:
+
+```bash
 curl -X POST http://localhost:8321/api/v1/admin/consolidate
-
-# Explore the knowledge graph
-curl http://localhost:8321/api/v1/graph/tags
-curl http://localhost:8321/api/v1/graph/neighbors/python?depth=2
 ```
 
-### How it works
+## Why "Hebb Mind"?
 
-Memories flow through four stages — inspired by how the human hippocampus consolidates short-term experiences into long-term knowledge:
+In 1949, Canadian psychologist **Donald O. Hebb** (1904–1985) published *The Organization of Behavior* and proposed the rule that became the foundation of how we understand learning in the brain. When one neuron repeatedly takes part in firing another, he argued, the connection between them strengthens. Half a century later it is still taught in four words:
 
-| Stage | What Happens | Trigger |
-|-------|-------------|---------|
-| **Ingest** | New memories land in the working memory inbox (`mem_hippocampus`) | API write |
-| **Consolidate** | Agent classifies into partition, resolves conflicts, extracts tags → Knowledge Graph | Periodic / manual |
-| **Retrieve** | Three-path hybrid search (vector + keyword + graph) with recency/importance/relevance scoring | API search |
-| **Forget** | Dynamic TTL: `base × (1 + log(access)) × importance × exp(-decay × days)` — frequently used memories survive, neglected ones fade | Periodic |
+> **Neurons that fire together, wire together.**
 
-> Full details: [Memory Lifecycle](https://afx-team.github.io/hippocampus/concepts/memory-lifecycle.html) · [Consolidation](https://afx-team.github.io/hippocampus/concepts/consolidation.html) · [Hybrid Search](https://afx-team.github.io/hippocampus/concepts/hybrid-search.html) · [Forgetting](https://afx-team.github.io/hippocampus/concepts/forgetting.html)
+Hebb's insight was that a memory is not a *place* you look something up — it is a *pattern of connection*. Concepts that co-occur get physically linked into **cell assemblies**, and lighting up part of an assembly recalls the rest. Repetition strengthens the wiring; disuse lets it fade. That single rule — Hebbian learning — is the ancestor of every artificial neural network and every associative-memory system since.
 
-### Architecture
+**Hebb Mind runs on that rule.** Its tag **knowledge graph** *is* a cell assembly: tags that appear together gain an edge, and every time they co-occur that edge grows stronger. Retrieval walks those edges, so a partial cue completes the whole pattern. Consolidation keeps what gets reinforced; forgetting prunes what does not — *fire together, wire together; neglect it, lose it.*
 
-```mermaid
-flowchart TB
-    subgraph Interface["Interface Layer"]
-        direction LR
-        A1["REST API"]
-        A2["MCP Server"]
-        A3["CLI"]
-        A4["Web Console"]
-    end
+The **hippocampus** has a place here too — it names the working-memory partition (`mem_hippocampus`), the inbox where every new memory lands before consolidation. The name fits the job: in the brain, the hippocampus is the gateway that holds new experience until it is wired into long-term cortical memory. The partition does exactly that.
 
-    subgraph Core["Hippocampus Core"]
-        B1["Working Memory Inbox"]
-        B2["Consolidation Agent"]
-        B3["Recall Agent · Agentic RAG"]
-        B4["Scheduler · APScheduler"]
-    end
+## Inspired by the brain (not just the name)
 
-    subgraph Engine["Processing Engine"]
-        direction LR
-        C1["Hybrid Retrieval\nVector · FTS · Graph"]
-        C2["Knowledge Graph\nTag-based · NetworkX"]
-        C3["Scoring\nRecency · Importance · Relevance"]
-        C4["Dynamic Forgetting\nEbbinghaus TTL Decay"]
-    end
+Each piece of the system maps to a mechanism cognitive neuroscience has spent fifty years describing. The point isn't fidelity to biology — it's that the brain has already solved the problem of *which* memories to keep, *when* to consolidate them, and *how* to recall them from a partial cue. We borrow the answers.
 
-    subgraph Infra["Infrastructure"]
-        direction LR
-        D1["Storage\nSQLite + sqlite-vec\nPostgreSQL + pgvector"]
-        D2["Embedding\nLocal · sentence-transformers\nAPI · LiteLLM"]
-        D3["LLM\n100+ providers\nvia LiteLLM"]
-    end
+| Brain mechanism | What the brain does | What Hebb Mind does |
+|---|---|---|
+| **Sharp-wave ripples & replay** [(Wilson & McNaughton, 1994; Buzsáki, 2015)](#acknowledgments) | During slow-wave sleep the hippocampus replays the day's experiences, transferring them to neocortex. | A daily 18:00 consolidation job replays the working-memory inbox, classifies each item into a partition, resolves conflicts, and writes tags into the knowledge graph. |
+| **Multiple memory systems** [(Tulving, 1972; Squire, 1992)](#acknowledgments) | Episodic, semantic, procedural memory live in distinct sub-systems. | Five named partitions — `episodic`, `semantic`, `preference`, `procedural`, `custom` — modeled on the [CoALA](https://arxiv.org/abs/2309.02427) cognitive architecture. |
+| **Forgetting curve** [(Ebbinghaus, 1885)](#acknowledgments) | Unrehearsed memories decay exponentially; rehearsal flattens the curve. | TTL = `base × (1 + log(access)) × importance × exp(-decay × days)`. Frequently used memories survive; neglected ones fade. |
+| **Pattern separation + completion** [(O'Reilly & McClelland, 1994)](#acknowledgments) | DG distinguishes similar memories; CA3 reconstructs whole memories from partial cues. | Hybrid retrieval combines vector similarity (separation), keyword match, and tag-graph walk (completion) — three paths, one composite score. |
 
-    subgraph Parts["Memory Partitions"]
-        direction LR
-        E1["Semantic"]
-        E2["Episodic"]
-        E3["Preference"]
-        E4["Procedural"]
-        E5["Custom"]
-    end
+Why this matters in practice: a system that *only* appends never resolves contradictions, and a system that *never forgets* drowns its own retrieval in noise. The brain solved both. So do we.
 
-    Interface --> Core
-    Core --> Engine
-    Engine --> Infra
-    Infra --> Parts
+## Why Hebb Mind? (the engineering view)
+
+- **Zero external services** — `sqlite-vec` for vectors, NetworkX for the tag graph, sentence-transformers for embedding. No Postgres, no Neo4j, no Redis. See [Storage Backends](https://afx-team.github.io/hebb-mind/advanced/storage-backends.html).
+- **Honest forgetting** — the Ebbinghaus formula above, applied as a periodic job. See [Forgetting](https://afx-team.github.io/hebb-mind/concepts/forgetting.html).
+- **Conflict-resolving consolidation** — the agent doesn't just append; it merges duplicates and overwrites stale facts. See [Consolidation](https://afx-team.github.io/hebb-mind/concepts/consolidation.html).
+- **Drop-in for Claude Code** — three-line install gives Claude Code cross-session memory via hooks; one command adds the same as MCP tools to Codex. See [Claude Code Integration](https://afx-team.github.io/hebb-mind/guide/claude-code.html).
+
+## Benchmarks
+
+v0.1.1, single run on the [LoCoMo](https://github.com/snap-research/LoCoMo) long-conversation benchmark:
+
+| Metric | Value |
+|---|---|
+| Accuracy | **37.6%** (187 / 497) |
+| Avg latency | 102 ms / query |
+| Best category | Adversarial 66.1% |
+| Weakest category | Multi-hop 5.6% |
+
+Multi-hop reasoning over the tag graph is a known weak spot. Full numbers, methodology, and per-category breakdown: [Benchmarks](https://afx-team.github.io/hebb-mind/benchmarks.html). This is a work in progress — comparison runs against `mem0` and `zep` are tracked in [#TBD].
+
+## 30-second Python SDK
+
+<!-- requires v0.1.2 facade — see PR #N -->
+
+```python
+from hebb import HebbMind
+
+mem = HebbMind()  # uses ~/.hebb/hebb.json
+
+mem.add("User prefers dark mode", tags=["preference", "ui"], importance=7.5)
+mem.add("User uses VS Code with the One Dark theme", tags=["preference", "tools"])
+
+for hit in mem.search("UI preferences", top_k=5):
+    print(hit.score, hit.content)
 ```
 
-## API Documentation
+The `HebbMind()` facade wraps the same REST endpoints used above; it also boots an in-process server when no daemon is running.
 
-Hippocampus provides a RESTful API for memory management:
+## Installation Paths
 
-- **Interactive docs**: http://localhost:8321/docs (Swagger UI)
-- **Full API reference**: [API Documentation](https://afx-team.github.io/hippocampus/api/)
+```bash
+pip install -U hebb-mind               # pip
+pip install -U hebb-mind[pg]           # + PostgreSQL/pgvector
+hebb cc install --scope user          # Claude Code: hooks-based auto memory
+hebb codex install --scope user       # Codex: MCP memory tools
+```
 
-Key endpoints:
+Docker, one-line install, and source build: [Installation Guide](https://afx-team.github.io/hebb-mind/guide/installation.html).
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/v1/memories` | Store a new memory |
-| `GET` | `/api/v1/memories/{id}` | Get memory by ID |
-| `DELETE` | `/api/v1/memories/{id}` | Delete a memory |
-| `POST` | `/api/v1/search` | Hybrid search |
-| `POST` | `/api/v1/admin/consolidate` | Trigger consolidation |
-| `GET` | `/api/v1/graph/tags` | List knowledge graph tags |
-| `GET` | `/api/v1/graph/neighbors/{tag}` | Explore tag relationships |
+## The memory loop
+
+The same four stages, every day, in roughly the same order the brain runs them:
+
+| Stage | Brain analogue | What happens here | Trigger |
+|-------|----------------|-------------------|---------|
+| **Encoding** | Hippocampal CA1 captures the moment | New memories land in the working-memory inbox (`mem_hippocampus`) | API write |
+| **Replay & consolidation** | Sharp-wave ripples during slow-wave sleep | Agent classifies into a partition, resolves conflicts, extracts tags | Daily 18:00 / manual |
+| **Retrieval** | Pattern completion in CA3 | Three-path hybrid search (vector + keyword + graph), scored on recency / importance / relevance | API search |
+| **Forgetting** | Synaptic pruning + the Ebbinghaus curve | Dynamic TTL on access count and importance — neglected memories fade | Periodic |
+
+Walkthroughs: [Memory Lifecycle](https://afx-team.github.io/hebb-mind/concepts/memory-lifecycle.html) · [Hybrid Search](https://afx-team.github.io/hebb-mind/concepts/hybrid-search.html) · [Architecture diagram](https://afx-team.github.io/hebb-mind/#architecture)
+
+## Comparison
+
+Honest summary; full table on the [docs site](https://afx-team.github.io/hebb-mind/#why-hebb-mind).
+
+| Feature | Mem0 | Letta | Zep | **Hebb Mind** |
+|---|---|---|---|---|
+| Self-hosted Web UI | Cloud only ([discussion](https://github.com/mem0ai/mem0/discussions/3599)) | Cloud only | Cloud only | **Built-in SPA** |
+| Knowledge graph | Pluggable ([removed in v3](https://docs.mem0.ai/migration/oss-v2-to-v3)) | No | Yes (Graphiti) | Tag-based (NetworkX) |
+| Memory consolidation | Append-only | Sleeptime Agent | Contradiction resolve | **Auto + conflict resolve** |
+| Forgetting / decay | No | No | Temporal invalidation | **Dynamic TTL** |
+| Zero-config local deploy | Needs API key | Needs API key + DB | Needs Postgres + Neo4j | **SQLite + local embed** |
 
 ## Configuration
 
-All config lives in **`hippocampus.json`** — no environment variables needed.
+All config lives in `hebb.json`. Common settings:
 
 ```bash
-hippocampus config list                    # View all settings
-hippocampus config set llm_model openai/gpt-4o  # Change model
-hippocampus config set llm_base_url https://dashscope.aliyuncs.com/compatible-mode/v1  # Qwen/GLM/Kimi
+hebb config list
+hebb config set llm_model openai/gpt-4o-mini
+hebb config set storage_type postgresql
+hebb config set pg_url postgresql://user:pass@localhost/hebb
 ```
 
-| Field | Default | Description |
-|-------|---------|-------------|
-| `llm_model` | `null` | LLM model identifier (via [LiteLLM](https://github.com/BerriAI/litellm)); optional until consolidation is enabled |
-| `llm_api_key` | `null` | LLM provider API key (required for consolidation) |
-| `llm_base_url` | `null` | Custom LLM API endpoint (for Qwen/GLM/Kimi) |
-| `storage_type` | `sqlite` | `sqlite` or `postgresql` |
-| `embedding_enabled` | `true` | Set `false` to disable vector search |
-| `embedding_model` | language-aware | `setup` chooses `BAAI/bge-large-en-v1.5` for English and `BAAI/bge-m3` for Chinese/multilingual |
-| `hf_endpoint` | `null` | HuggingFace mirror endpoint; `setup --region cn` sets `https://hf-mirror.com` |
-| `port` | `8321` | Server port |
-| `consolidation_time` | `18:00` | Daily consolidation clock time (`HH:MM`) |
-| `base_ttl_hours` | `168` | Base memory TTL before decay |
+Full reference: [Configuration Guide](https://afx-team.github.io/hebb-mind/guide/configuration.html).
 
-> Full config reference: [Configuration Guide](https://afx-team.github.io/hippocampus/guide/configuration.html)
+## API
 
-## Supported Models
+REST docs at `http://localhost:8321/docs` once the server is running. Key endpoints:
 
-Via [LiteLLM](https://github.com/BerriAI/litellm), Hippocampus works with any major LLM provider:
-
-| Provider | Model Example | Config |
-|----------|--------------|--------|
-| OpenAI | `openai/gpt-4o-mini` | `llm_api_key` |
-| Anthropic | `anthropic/claude-3-haiku-20240307` | `llm_api_key` |
-| Qwen (Alibaba) | `openai/qwen-plus` | `llm_api_key` + `llm_base_url` |
-| GLM (Zhipu) | `openai/glm-4` | `llm_api_key` + `llm_base_url` |
-| Kimi (Moonshot) | `openai/moonshot-v1-8k` | `llm_api_key` + `llm_base_url` |
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| `POST` | `/api/v1/memories` | Store a memory |
+| `POST` | `/api/v1/search` | Hybrid search |
+| `POST` | `/api/v1/admin/consolidate` | Run consolidation now (requires `llm_api_key`) |
+| `GET`  | `/api/v1/graph/tags` | List knowledge-graph tags |
+| `GET`  | `/api/v1/graph/neighbors/{tag}?depth=2` | Walk the tag graph |
 
 ## Contributing
 
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines including development setup, testing, and pull request process.
-
-### Development setup
-
-```bash
-git clone https://github.com/afx-team/hippocampus.git
-cd hippocampus
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-
-# Run tests
-pytest tests/ -v
-
-# Lint
-ruff check src/
-
-# Type check
-mypy src/hippocampus/
-```
-
-## Roadmap
-
-- [x] Core memory model with 5 brain-inspired partitions
-- [x] SQLite + sqlite-vec storage backend
-- [x] PostgreSQL + pgvector storage backend
-- [x] Memory consolidation agent (Agentic RAG)
-- [x] Dynamic forgetting with exponential decay
-- [x] Tag-based knowledge graph
-- [x] FastAPI REST API
-- [x] CLI tooling + Docker deployment
-- [x] Built-in Web Console (memory CRUD, search, graph visualization)
-- [x] Evaluation benchmarks (LoCoMo, LongMemEval, ConvoMem, PersonaMem)
-- [x] MCP server for Claude Code / OpenClaw integration
-- [x] Claude Code hooks — automatic cross-session memory
-- [ ] Multi-agent shared memory
-- [ ] Emotional tagging and memory importance learning
+Setup: `pip install -e ".[dev]" && pytest tests/ -v`. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Acknowledgments
 
-This project builds on research from:
+**Cognitive neuroscience.** Ebbinghaus, H. (1885). *Über das Gedächtnis*. · **Hebb, D. O. (1949). *The Organization of Behavior*. Wiley** — the namesake; the postulate behind "fire together, wire together." · Tulving, E. (1972). Episodic and semantic memory. · Squire, L. R. (1992). Memory and the hippocampus: a synthesis from findings with rats, monkeys, and humans. *Psychological Review*, 99(2). · O'Reilly, R. C., & McClelland, J. L. (1994). Hippocampal conjunctive encoding, storage, and recall. *Hippocampus*, 4(6). · Wilson, M. A., & McNaughton, B. L. (1994). Reactivation of hippocampal ensemble memories during sleep. *Science*, 265(5172). · Tulving, E. (2002). Episodic memory: from mind to brain. *Annual Review of Psychology*, 53. · Buzsáki, G. (2015). Hippocampal sharp wave-ripple. *Hippocampus*, 25(10).
 
-- [Generative Agents](https://arxiv.org/abs/2304.03442) — Recency-importance-relevance retrieval scoring
-- [MemGPT / Letta](https://arxiv.org/abs/2310.08560) — Agent-driven memory management
-- [CoALA](https://arxiv.org/abs/2309.02427) — Episodic/semantic/procedural taxonomy
-- [Zep / Graphiti](https://github.com/getzep/graphiti) — Temporal knowledge graph
+**AI memory systems.** [Generative Agents](https://arxiv.org/abs/2304.03442) (scoring) · [MemGPT / Letta](https://arxiv.org/abs/2310.08560) (agent-driven memory) · [CoALA](https://arxiv.org/abs/2309.02427) (partition taxonomy) · [Graphiti](https://github.com/getzep/graphiti) (temporal KG). Survey notes in [`reports/papers/`](reports/papers/).
 
-See [research notes](https://github.com/afx-team/hippocampus/tree/main/repo_pages/papers/) for detailed survey.
+> *"Memory is the scribe of the soul." — Aristotle*
+> The brain solved this in deep time. We're just porting the loop.
 
 ## License
 
-[MIT License](LICENSE)
+[MIT](LICENSE)

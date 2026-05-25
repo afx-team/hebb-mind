@@ -1,6 +1,6 @@
 # 混合检索
 
-Hippocampus 采用三路并行检索策略，综合向量语义、关键词匹配和知识图谱三种能力，确保高召回率和精准排序。
+Hebb Mind 采用三路并行检索策略，综合向量语义、关键词匹配和知识图谱三种能力，确保高召回率和精准排序。
 
 ## 检索架构
 
@@ -42,7 +42,7 @@ sqlite-vec     FTS5           知识图谱
 
 - **SQLite 后端**：使用 sqlite-vec 扩展进行向量检索
 - **PostgreSQL 后端**：使用 pgvector 进行向量检索
-- 默认 Embedding 模型由 `hippocampus setup` 根据语言选择：英语为 `BAAI/bge-large-en-v1.5`，中文/多语言为 `BAAI/bge-m3`
+- 默认 Embedding 模型由 `hebb setup` 根据语言选择：英语为 `BAAI/bge-large-en-v1.5`，中文/多语言为 `BAAI/bge-m3`
 
 ### 2. 关键词路
 

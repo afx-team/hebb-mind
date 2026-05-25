@@ -1,13 +1,13 @@
 {
-  "name": "hippocampus",
+  "name": "hebb-mind",
   "version": "0.1.0",
   "description": "Neuroscience-inspired long-term memory for Claude Code — auto-captures and recalls cross-session context",
   "author": "afx-team",
-  "homepage": "https://github.com/afx-team/hippocampus",
+  "homepage": "https://github.com/afx-team/hebb-mind",
   "mcpServers": {
-    "hippocampus": {
+    "hebb": {
       "type": "stdio",
-      "command": "hippocampus-mcp"
+      "command": "hebb-mcp"
     }
   },
   "hooks": {
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hippocampus cc recall",
+            "command": "hebb cc recall",
             "timeout": 30
           }
         ]
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hippocampus cc write",
+            "command": "hebb cc write",
             "timeout": 10
           }
         ]
@@ -41,7 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hippocampus cc stop",
+            "command": "hebb cc stop",
             "timeout": 30
           }
         ]

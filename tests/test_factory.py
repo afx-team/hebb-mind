@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from hippocampus.config.settings import Settings
-from hippocampus.storage.factory import create_stores
+from hebb.config.settings import Settings
+from hebb.storage.factory import create_stores
 
 
 class TestStorageFactory:
@@ -16,7 +16,7 @@ class TestStorageFactory:
         assert ctx.memory_store is not None
         assert ctx.partition_store is not None
         # Verify it's actually SQLite
-        from hippocampus.storage.sqlite_store import SQLiteMemoryStore
+        from hebb.storage.sqlite_store import SQLiteMemoryStore
 
         assert isinstance(ctx.memory_store, SQLiteMemoryStore)
         await ctx.close()
@@ -37,7 +37,7 @@ class TestStorageFactory:
     async def test_postgresql_missing_package(self, monkeypatch):
         """PG backend raises ImportError when asyncpg is not installed."""
         settings = Settings(storage_type="postgresql", pg_url="postgresql://localhost/test")
-        import hippocampus.storage.factory as factory_mod
+        import hebb.storage.factory as factory_mod
 
         async def _mock_pg(s):
             raise ImportError("asyncpg not installed")

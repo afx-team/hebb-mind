@@ -1,6 +1,6 @@
 # 记忆生命周期
 
-Hippocampus 中的每条记忆都会经历四个阶段：**写入 → 巩固 → 检索 → 遗忘**，模拟人类大脑的记忆处理过程。
+Hebb Mind 中的每条记忆都会经历四个阶段：**写入 → 巩固 → 检索 → 遗忘**，模拟人类大脑的记忆处理过程。
 
 ## 架构概览
 
@@ -59,10 +59,10 @@ curl -X POST http://localhost:8321/api/v1/memories \
 
 ## 阶段二：巩固
 
-巩固代理按照 `consolidation_time` 设定的每日时间运行（默认 `18:00`），也可通过 API 手动触发：
+巩固代理按照 `consolidation_time` 设定的每日时间运行（默认 `18:00`，使用服务器本地时区），也可通过 API 手动触发：
 
 ```bash
-curl -X POST http://localhost:8321/api/v1/consolidate
+curl -X POST http://localhost:8321/api/v1/admin/consolidate
 ```
 
 巩固流程详见 [记忆巩固](./consolidation.md)。
@@ -84,7 +84,7 @@ curl -X POST http://localhost:8321/api/v1/search \
 遗忘任务按照 `forget_interval_seconds` 设定的间隔定期执行（默认 30 分钟），计算每条记忆的动态 TTL，清理过期记忆：
 
 ```bash
-curl -X POST http://localhost:8321/api/v1/forget
+curl -X POST http://localhost:8321/api/v1/admin/forget
 ```
 
 遗忘机制详见 [动态遗忘](./forgetting.md)。

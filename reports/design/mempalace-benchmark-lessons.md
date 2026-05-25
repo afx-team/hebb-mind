@@ -1,15 +1,15 @@
-# MemPalace Benchmark Lessons: Improving Hippocampus Evaluation Metrics
+# MemPalace Benchmark Lessons: Improving Hebb Mind Evaluation Metrics
 
 ## Problem
 
-Hippocampus's current benchmark scores are significantly lower than MemPalace's:
+Hebb Mind's current benchmark scores are significantly lower than MemPalace's:
 
-| Benchmark | Hippocampus | MemPalace | Gap |
+| Benchmark | Hebb Mind | MemPalace | Gap |
 |-----------|-------------|-----------|-----|
 | LoCoMo | 37.6% (QA acc, 497q) | 60.3% R@10 raw / 88.9% hybrid | ~23-51 pp |
 | LongMemEval | 33.3% (QA acc, 3q) | 96.6% R@5 raw | ~63 pp |
 
-**Important caveat**: MemPalace reports retrieval recall (R@k), Hippocampus reports QA accuracy (end-to-end). QA accuracy is strictly harder since it requires both correct retrieval AND correct answer generation. Even so, Hippocampus's `avg_top1_relevance = 0.52` confirms that retrieval quality itself is the primary bottleneck.
+**Important caveat**: MemPalace reports retrieval recall (R@k), Hebb Mind reports QA accuracy (end-to-end). QA accuracy is strictly harder since it requires both correct retrieval AND correct answer generation. Even so, Hebb Mind's `avg_top1_relevance = 0.52` confirms that retrieval quality itself is the primary bottleneck.
 
 ---
 
@@ -36,7 +36,7 @@ Error examples reveal two failure modes:
 
 ### Change 1: Preserve Verbatim Content (Expected: +15-20 pp on LoCoMo)
 
-**The single biggest lever.** Hippocampus's consolidation agent rewrites memories "for clarity" (via `CONSOLIDATION_SYSTEM_PROMPT`). This is lossy — the LLM strips details it deems unimportant. When LoCoMo asks "When did Caroline go to the LGBTQ support group?" and expects "7 May 2023", a consolidated memory that says "Caroline attended a support group" has destroyed the answer.
+**The single biggest lever.** Hebb Mind's consolidation agent rewrites memories "for clarity" (via `CONSOLIDATION_SYSTEM_PROMPT`). This is lossy — the LLM strips details it deems unimportant. When LoCoMo asks "When did Caroline go to the LGBTQ support group?" and expects "7 May 2023", a consolidated memory that says "Caroline attended a support group" has destroyed the answer.
 
 MemPalace's core thesis — "verbatim always" — is validated by their 96.6% R@5. Their AAAK summarization layer exists only as an index, never replacing the original text.
 
@@ -120,7 +120,7 @@ RRF is the standard fusion technique used in production search systems (Elastics
 
 ### Change 3: Context Window Expansion — Fetch Neighbor Turns (Expected: +5-10 pp)
 
-When Hippocampus retrieves a memory, it returns only that single memory. But conversational memories are sequential — the answer often spans multiple turns.
+When Hebb Mind retrieves a memory, it returns only that single memory. But conversational memories are sequential — the answer often spans multiple turns.
 
 MemPalace's Stage 3 (drawer-grep enrichment) fetches ALL chunks from the same source file when a hit is found, returning the best chunk plus its neighbors (chunk[i-1] + chunk[i] + chunk[i+1]).
 
@@ -263,7 +263,7 @@ overfetch = query.top_k * query.overfetch_factor  # default 3, eval uses 5
 
 ### Change 7: Embedding Model Upgrade Path (Expected: +3-5 pp)
 
-MemPalace uses all-MiniLM-L6-v2 (384-dim, ~80M params). Hippocampus has a clean `EmbeddingProvider` protocol. Switching to a stronger model can significantly improve vector retrieval:
+MemPalace uses all-MiniLM-L6-v2 (384-dim, ~80M params). Hebb Mind has a clean `EmbeddingProvider` protocol. Switching to a stronger model can significantly improve vector retrieval:
 
 | Model | Dim | MTEB Avg | Size |
 |-------|-----|----------|------|
@@ -324,8 +324,8 @@ MemPalace logs all write operations to a WAL file. Useful for debugging consolid
 
 ### Closet Boosting as "Signal, Not Gate"
 
-The architectural principle that secondary indexes (closets, graph) can only BOOST scores, never FILTER results, is important. Hippocampus's graph search already follows this by adding to the candidate set, but the graph relevance scoring (`similarity = min(0.5 + 0.5 * (max_weight / max(max_weight, 5.0)), 0.9)`) is somewhat arbitrary and should be tuned.
+The architectural principle that secondary indexes (closets, graph) can only BOOST scores, never FILTER results, is important. Hebb Mind's graph search already follows this by adding to the candidate set, but the graph relevance scoring (`similarity = min(0.5 + 0.5 * (max_weight / max(max_weight, 5.0)), 0.9)`) is somewhat arbitrary and should be tuned.
 
 ### Temporal Validity on Knowledge Graph
 
-MemPalace's `valid_from`/`valid_to` design on KG triples is simple and effective. Hippocampus's graph currently uses NetworkX with co-occurrence edges but no temporal validity. Adding this would help temporal questions (currently 28.6%).
+MemPalace's `valid_from`/`valid_to` design on KG triples is simple and effective. Hebb Mind's graph currently uses NetworkX with co-occurrence edges but no temporal validity. Adding this would help temporal questions (currently 28.6%).

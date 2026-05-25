@@ -2,16 +2,18 @@
 
 管理端点用于手动触发系统任务和查看运行状态。
 
+管理端点统一挂载在 `/api/v1/admin/` 下；健康检查与状态接口位于根路径。
+
 ## 触发巩固
 
-```
-POST /api/v1/consolidate
-```
+立即执行一次记忆巩固，处理 `mem_hippocampus` 分区中所有待巩固的记忆，同步返回结果。
 
-立即执行一次记忆巩固，处理 `mem_hippocampus` 分区中所有待巩固的记忆。
+```
+POST /api/v1/admin/consolidate
+```
 
 ```bash
-curl -X POST http://localhost:8321/api/v1/consolidate
+curl -X POST http://localhost:8321/api/v1/admin/consolidate
 ```
 
 响应：
@@ -32,14 +34,14 @@ curl -X POST http://localhost:8321/api/v1/consolidate
 
 ## 触发遗忘
 
-```
-POST /api/v1/forget
-```
+按动态 TTL 评估所有记忆并删除已过期的，同步返回删除数量。
 
-立即执行一次遗忘清理，删除所有已过期的记忆。
+```
+POST /api/v1/admin/forget
+```
 
 ```bash
-curl -X POST http://localhost:8321/api/v1/forget
+curl -X POST http://localhost:8321/api/v1/admin/forget
 ```
 
 响应：
@@ -52,14 +54,14 @@ curl -X POST http://localhost:8321/api/v1/forget
 
 ## 系统统计
 
-```
-GET /api/v1/stats
-```
+返回各分区的记忆数量、知识图谱规模与调度器状态。
 
-获取系统运行状态概览。
+```
+GET /api/v1/admin/stats
+```
 
 ```bash
-curl http://localhost:8321/api/v1/stats
+curl http://localhost:8321/api/v1/admin/stats
 ```
 
 响应：
@@ -81,8 +83,8 @@ curl http://localhost:8321/api/v1/stats
   "scheduler": {
     "running": true,
     "jobs": {
-      "consolidation": {"next_run_time": "2026-04-17T11:00:00Z"},
-      "forgetting": {"next_run_time": "2026-04-17T10:30:00Z"}
+      "consolidation_job": {"next_run_time": "2026-04-18T18:00:00+08:00"},
+      "forgetting_job":    {"next_run_time": "2026-04-17T11:00:00+08:00"}
     }
   }
 }
@@ -90,11 +92,11 @@ curl http://localhost:8321/api/v1/stats
 
 ## 健康检查
 
+用于监控和负载均衡器的轻量探针。
+
 ```
 GET /health
 ```
-
-用于监控和负载均衡器的健康检查端点。
 
 ```bash
 curl http://localhost:8321/health
@@ -105,6 +107,40 @@ curl http://localhost:8321/health
 ```json
 {
   "status": "ok",
-  "version": "0.1.0"
+  "version": "0.1.1"
+}
+```
+
+## 服务状态
+
+扩展状态：调度器任务和 embedding 就绪情况。
+
+```
+GET /status
+```
+
+```bash
+curl http://localhost:8321/status
+```
+
+响应：
+
+```json
+{
+  "version": "0.1.1",
+  "scheduler": {
+    "running": true,
+    "jobs": {
+      "consolidation_job": {"next_run_time": "2026-04-18T18:00:00+08:00"},
+      "forgetting_job":    {"next_run_time": "2026-04-17T11:00:00+08:00"}
+    }
+  },
+  "embedding": {
+    "enabled": true,
+    "provider": "local",
+    "model": "all-MiniLM-L6-v2",
+    "dimension": 384,
+    "available": true
+  }
 }
 ```

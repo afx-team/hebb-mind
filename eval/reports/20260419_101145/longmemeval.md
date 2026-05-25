@@ -1,4 +1,4 @@
-# Hippocampus Evaluation Report: LongMemEval
+# Hebb Mind Evaluation Report: LongMemEval
 
 **Date**: 2026-04-19T10:12:22.473601+00:00
 **Mode**: raw

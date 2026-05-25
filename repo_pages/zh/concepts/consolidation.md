@@ -1,6 +1,6 @@
 # 记忆巩固
 
-记忆巩固是 Hippocampus 的核心机制，灵感来自人类大脑中海马体将短期记忆转化为长期记忆的过程。巩固代理（Consolidation Agent）自动将工作记忆分类到合适的长期分区中。
+记忆巩固是 Hebb Mind 的核心机制，灵感来自人类大脑中海马体将短期记忆转化为长期记忆的过程。巩固代理（Consolidation Agent）自动将工作记忆分类到合适的长期分区中。
 
 ## 巩固流程
 
@@ -29,7 +29,7 @@ mem_hippocampus 中的未处理记忆
          │
          ▼
    ⑤ 写入目标分区 + 更新知识图谱
-   从 hippocampus 移动到长期分区
+   从 mem_hippocampus 移动到长期分区
    标签自动添加到知识图谱
 ```
 
@@ -64,7 +64,7 @@ curl -X POST http://localhost:8321/api/v1/partitions \
 除了等待定时任务自动执行，你也可以通过 API 立即触发一次巩固：
 
 ```bash
-curl -X POST http://localhost:8321/api/v1/consolidate
+curl -X POST http://localhost:8321/api/v1/admin/consolidate
 ```
 
 响应示例：
@@ -79,11 +79,11 @@ curl -X POST http://localhost:8321/api/v1/consolidate
 
 ## 调整巩固时间
 
-在 `hippocampus.json` 中修改 `consolidation_time`：
+在 `hebb.json` 中修改 `consolidation_time`：
 
 ```bash
 # 每天下午 6 点巩固一次
-hippocampus config set consolidation_time 18:00
+hebb config set consolidation_time 18:00
 ```
 
 ## LLM 依赖

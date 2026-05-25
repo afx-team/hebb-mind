@@ -2,9 +2,11 @@
 
 The admin API provides endpoints for triggering background jobs and monitoring system health.
 
+All admin endpoints are mounted under `/api/v1/admin/`. Health and status endpoints are mounted at the root.
+
 ## Trigger Consolidation
 
-Manually trigger the memory consolidation process. This processes all unprocessed memories in `mem_hippocampus`.
+Run consolidation immediately. Processes unprocessed memories in `mem_hippocampus` and returns the result synchronously.
 
 ```
 POST /api/v1/admin/consolidate
@@ -20,14 +22,21 @@ curl -X POST http://localhost:8321/api/v1/admin/consolidate
 
 ```json
 {
-  "status": "started",
-  "message": "Consolidation job triggered"
+  "processed": 8,
+  "succeeded": 7,
+  "failed": 1
 }
 ```
 
+| Field | Description |
+|-------|-------------|
+| `processed` | Number of memories evaluated |
+| `succeeded` | Number consolidated successfully |
+| `failed` | Number that failed (typically LLM errors) |
+
 ## Trigger Forgetting
 
-Manually trigger the forgetting job. This evaluates all memories against their dynamic TTL and removes expired ones.
+Evaluate every memory's dynamic TTL and delete the expired ones. Returns the count of deleted memories.
 
 ```
 POST /api/v1/admin/forget
@@ -43,14 +52,13 @@ curl -X POST http://localhost:8321/api/v1/admin/forget
 
 ```json
 {
-  "status": "started",
-  "message": "Forgetting job triggered"
+  "deleted": 12
 }
 ```
 
 ## System Statistics
 
-Retrieve system-wide statistics including memory counts per partition, total memories, and knowledge graph size.
+Retrieve memory counts per partition, total memories, knowledge-graph size, and scheduler status.
 
 ```
 GET /api/v1/admin/stats
@@ -66,24 +74,31 @@ curl http://localhost:8321/api/v1/admin/stats
 
 ```json
 {
-  "total_memories": 1523,
-  "partitions": {
-    "mem_hippocampus": 12,
-    "mem_semantic": 634,
-    "mem_episodic": 421,
-    "mem_preference": 89,
-    "mem_procedural": 367
+  "partitions": [
+    {"id": "mem_hippocampus", "name": "Hippocampus", "memory_count": 3, "enabled": true},
+    {"id": "mem_semantic", "name": "Semantic Memory", "memory_count": 45, "enabled": true},
+    {"id": "mem_episodic", "name": "Episodic Memory", "memory_count": 22, "enabled": true},
+    {"id": "mem_preference", "name": "Preference Memory", "memory_count": 15, "enabled": true},
+    {"id": "mem_procedural", "name": "Procedural Memory", "memory_count": 8, "enabled": true}
+  ],
+  "total_memories": 93,
+  "graph": {
+    "tag_count": 67,
+    "edge_count": 142
   },
-  "knowledge_graph": {
-    "total_tags": 245,
-    "total_edges": 1102
+  "scheduler": {
+    "running": true,
+    "jobs": {
+      "consolidation_job": {"next_run_time": "2026-04-18T18:00:00+08:00"},
+      "forgetting_job":    {"next_run_time": "2026-04-17T11:00:00+08:00"}
+    }
   }
 }
 ```
 
 ## Health Check
 
-Simple health check endpoint. Returns 200 if the server is running.
+Lightweight liveness check for monitoring and load balancers.
 
 ```
 GET /health
@@ -99,13 +114,14 @@ curl http://localhost:8321/health
 
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "version": "0.1.1"
 }
 ```
 
 ## Status
 
-Extended status information including scheduler state and background job details.
+Extended status: scheduler jobs and embedding readiness.
 
 ```
 GET /status
@@ -121,21 +137,20 @@ curl http://localhost:8321/status
 
 ```json
 {
-  "status": "running",
-  "version": "0.1.0",
-  "storage_type": "sqlite",
-  "embedding_enabled": true,
+  "version": "0.1.1",
   "scheduler": {
-    "consolidation": {
-      "interval_seconds": 3600,
-      "last_run": "2026-04-17T14:00:00Z",
-      "next_run": "2026-04-17T15:00:00Z"
-    },
-    "forgetting": {
-      "interval_seconds": 1800,
-      "last_run": "2026-04-17T14:30:00Z",
-      "next_run": "2026-04-17T15:00:00Z"
+    "running": true,
+    "jobs": {
+      "consolidation_job": {"next_run_time": "2026-04-18T18:00:00+08:00"},
+      "forgetting_job":    {"next_run_time": "2026-04-17T11:00:00+08:00"}
     }
+  },
+  "embedding": {
+    "enabled": true,
+    "provider": "local",
+    "model": "all-MiniLM-L6-v2",
+    "dimension": 384,
+    "available": true
   }
 }
 ```

@@ -18,7 +18,7 @@ The consolidation agent performs five steps for each unprocessed memory:
 
 ## Partitions
 
-Hippocampus ships with five built-in partitions inspired by cognitive science:
+Hebb Mind ships with five built-in partitions inspired by cognitive science:
 
 | Partition | Purpose | Example |
 |-----------|---------|---------|
@@ -50,7 +50,7 @@ Consolidation runs automatically once per day. The clock time is configured via 
 
 ```bash
 # Run consolidation every day at 6 PM
-hippocampus config set consolidation_time 18:00
+hebb config set consolidation_time 18:00
 ```
 
 ## Manual Trigger

@@ -4,8 +4,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from hippocampus.embedding.utils import cosine_similarity
-from hippocampus.retrieval.scorer import (
+from hebb.embedding.utils import cosine_similarity
+from hebb.retrieval.scorer import (
     compute_composite_score,
     compute_importance_score,
     compute_recency_score,

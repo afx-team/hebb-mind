@@ -1,4 +1,4 @@
-# Hippocampus Evaluation Report: LoCoMo
+# Hebb Mind Evaluation Report: LoCoMo
 
 **Date**: 2026-04-19T12:53:56.533896+00:00
 **Mode**: consolidated

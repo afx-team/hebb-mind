@@ -10,6 +10,10 @@ permissions:
   contents: write   # For creating git tags
   id-token: write   # For Trusted Publisher
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   check-version:
     runs-on: ubuntu-latest
@@ -35,7 +39,7 @@ jobs:
         id: check
         run: |
           VERSION="${{ steps.extract.outputs.version }}"
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://pypi.org/pypi/afx-hippocampus/${VERSION}/json")
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://pypi.org/pypi/hebb-mind/${VERSION}/json")
           if [ "$HTTP_CODE" = "200" ]; then
             echo "Version $VERSION already published, skipping."
             echo "should_publish=false" >> "$GITHUB_OUTPUT"
@@ -44,8 +48,38 @@ jobs:
             echo "should_publish=true" >> "$GITHUB_OUTPUT"
           fi
 
-  build:
+  test:
+    # Re-run the test matrix before publishing so a broken main never ships.
     needs: check-version
+    if: needs.check-version.outputs.should_publish == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+      fail-fast: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check src/
+
+      - name: Type check (mypy)
+        run: mypy src/hebb/
+
+      - name: Test
+        run: pytest tests/ -v --tb=short
+
+  build:
+    needs: [check-version, test]
     if: needs.check-version.outputs.should_publish == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -54,6 +88,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: pyproject.toml
 
       - name: Install build tools
         run: pip install build
@@ -72,7 +108,7 @@ jobs:
           path: dist/
 
   publish:
-    needs: [check-version, build]
+    needs: [check-version, test, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -83,7 +119,7 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         # Uses Trusted Publisher — no API token needed.
-        # Set up at: https://pypi.org/manage/project/afx-hippocampus/settings/publishing/
+        # Set up at: https://pypi.org/manage/project/hebb-mind/settings/publishing/
 
   tag:
     needs: [check-version, publish]

@@ -4,7 +4,7 @@ import { useData } from 'vitepress'
 
 const { page, lang } = useData()
 
-const REPO_RAW = 'https://raw.githubusercontent.com/afx-team/hippocampus/main/repo_pages/'
+const REPO_RAW = 'https://raw.githubusercontent.com/afx-team/hebb-mind/main/repo_pages/'
 
 const state = ref<'idle' | 'loading' | 'copied' | 'error'>('idle')
 

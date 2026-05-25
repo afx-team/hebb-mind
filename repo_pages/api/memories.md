@@ -1,15 +1,15 @@
 # Memories API
 
-The memories API provides full CRUD operations for managing memories in Hippocampus.
+The memories API provides full CRUD operations for managing memories in Hebb Mind.
 
 Base URL: `http://localhost:8321`
 
 ## List Memories
 
-Retrieve a paginated list of memories, optionally filtered by partition or tag.
+Retrieve a paginated list of memories, optionally filtered by partition or tags.
 
 ```
-GET /api/v1/memories?partition_id=xxx&tag=xxx&skip=0&limit=20
+GET /api/v1/memories
 ```
 
 **Query Parameters:**
@@ -17,9 +17,9 @@ GET /api/v1/memories?partition_id=xxx&tag=xxx&skip=0&limit=20
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `partition_id` | string | -- | Filter by partition ID |
-| `tag` | string | -- | Filter by tag |
-| `skip` | integer | 0 | Number of records to skip |
-| `limit` | integer | 20 | Maximum records to return |
+| `tags` | string | -- | Comma-separated tags (memory must contain all listed tags) |
+| `offset` | integer | 0 | Number of records to skip |
+| `limit` | integer | 50 | Maximum records to return (1-200) |
 
 **Example:**
 
@@ -30,27 +30,54 @@ curl http://localhost:8321/api/v1/memories
 # List memories in semantic partition
 curl "http://localhost:8321/api/v1/memories?partition_id=mem_semantic"
 
-# List memories with a specific tag
-curl "http://localhost:8321/api/v1/memories?tag=python&limit=10"
+# Filter by tag
+curl "http://localhost:8321/api/v1/memories?tags=python&limit=10"
+
+# Filter by multiple tags (intersection)
+curl "http://localhost:8321/api/v1/memories?tags=python,web&offset=20"
+```
+
+**Response:**
+
+```json
+{
+  "items": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "partition_id": "mem_semantic",
+      "content": "Python is a high-level interpreted language",
+      "importance_score": 6.0,
+      "tags": ["python", "programming"],
+      "metadata": {},
+      "source": "consolidation",
+      "created_at": "2026-04-17T10:00:00Z",
+      "updated_at": "2026-04-17T10:00:00Z",
+      "last_accessed_at": "2026-04-17T12:30:00Z",
+      "access_count": 3,
+      "expires_at": "2026-04-24T10:00:00Z"
+    }
+  ],
+  "total": 128,
+  "offset": 0,
+  "limit": 50
+}
 ```
 
 ## Get Memory
 
-Retrieve a single memory by ID.
+Retrieve a single memory by ID. Each call also bumps `last_accessed_at` and `access_count`, which influences the dynamic forgetting TTL.
 
 ```
 GET /api/v1/memories/{memory_id}
 ```
 
-**Example:**
-
 ```bash
-curl http://localhost:8321/api/v1/memories/abc123
+curl http://localhost:8321/api/v1/memories/550e8400-e29b-41d4-a716-446655440000
 ```
 
 ## Create Memory
 
-Create a new memory. It will be placed in the `mem_hippocampus` (working memory) partition by default.
+Create a new memory. By default it lands in `mem_hippocampus` (the working-memory inbox).
 
 ```
 POST /api/v1/memories
@@ -58,14 +85,14 @@ POST /api/v1/memories
 
 **Request Body:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `content` | string | Yes | Memory content text |
-| `tags` | array | No | List of tag strings |
-| `importance_score` | float | No | Importance rating (0-10) |
-| `partition_id` | string | No | Target partition (default: `mem_hippocampus`) |
-
-**Example:**
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `content` | string | Yes | -- | Memory content (1-10000 chars) |
+| `partition_id` | string | No | `mem_hippocampus` | Target partition |
+| `importance_score` | float | No | 5.0 | 0-10 |
+| `tags` | string[] | No | `[]` | Tag list |
+| `metadata` | object | No | `{}` | Free-form metadata; reserved keys: `session_id`, `turn` |
+| `source` | string | No | `null` | Origin label (`api`, `agent`, `consolidation`, ...) |
 
 ```bash
 curl -X POST http://localhost:8321/api/v1/memories \
@@ -77,102 +104,82 @@ curl -X POST http://localhost:8321/api/v1/memories \
   }'
 ```
 
-**Response:**
-
-```json
-{
-  "id": "mem_abc123",
-  "content": "User prefers dark mode and compact layout",
-  "tags": ["preference", "ui"],
-  "importance_score": 7.5,
-  "partition_id": "mem_hippocampus",
-  "access_count": 0,
-  "created_at": "2026-04-17T10:30:00Z",
-  "updated_at": "2026-04-17T10:30:00Z"
-}
-```
+Returns `201` with the full memory record (including `id`, `created_at`, `updated_at`, `last_accessed_at`, `access_count`, `expires_at`).
 
 ## Create Batch
 
-Create multiple memories in a single request.
+Create multiple memories in one request; embeddings are computed in a single batched call.
 
 ```
 POST /api/v1/memories/batch
 ```
 
-**Request Body:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `memories` | array | Yes | List of memory objects (same schema as Create) |
-
-**Example:**
+**Request Body:** a JSON array of memory-create objects (same schema as Create).
 
 ```bash
 curl -X POST http://localhost:8321/api/v1/memories/batch \
   -H "Content-Type: application/json" \
-  -d '{
-    "memories": [
-      {
-        "content": "User prefers Python for backend development",
-        "tags": ["preference", "python"],
-        "importance_score": 6.0
-      },
-      {
-        "content": "Project uses PostgreSQL in production",
-        "tags": ["infrastructure", "database"],
-        "importance_score": 8.0
-      }
-    ]
-  }'
+  -d '[
+    {"content": "User prefers Python for backend", "tags": ["preference", "python"]},
+    {"content": "Project uses PostgreSQL", "tags": ["infra", "database"], "importance_score": 8.0}
+  ]'
 ```
 
-## Update Memory
+Returns `201` with a JSON array of created memories.
 
-Update an existing memory's content, tags, or other fields.
+## Ingest Conversation
+
+Ingest a raw conversation export (auto-detect format, normalize, store as memories).
 
 ```
-PATCH /api/v1/memories/{memory_id}
+POST /api/v1/ingest
 ```
 
 **Request Body:**
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `content` | string | No | Updated content |
-| `tags` | array | No | Updated tags |
-| `importance_score` | float | No | Updated importance |
-
-**Example:**
-
-```bash
-curl -X PATCH http://localhost:8321/api/v1/memories/abc123 \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content": "User prefers light mode and spacious layout",
-    "tags": ["preference", "ui", "updated"]
-  }'
-```
-
-## Delete Memory
-
-Delete a memory by ID.
-
-```
-DELETE /api/v1/memories/{memory_id}
-```
-
-**Example:**
-
-```bash
-curl -X DELETE http://localhost:8321/api/v1/memories/abc123
-```
+| `content` | string | Yes | Raw conversation text |
+| `format_hint` | string | No | Optional format hint (e.g. `claude_code_jsonl`, `openai_chat`) |
+| `partition_id` | string | No | Target partition (default `mem_hippocampus`) |
+| `importance_score` | float | No | Default 5.0 |
+| `source` | string | No | Source label |
 
 **Response:**
 
 ```json
 {
-  "status": "deleted",
-  "id": "abc123"
+  "format_detected": "claude_code_jsonl",
+  "turns_parsed": 12,
+  "memories_created": 12,
+  "warnings": []
 }
 ```
+
+## Update Memory
+
+Partial update. If `content` changes, the embedding is recomputed automatically.
+
+```
+PATCH /api/v1/memories/{memory_id}
+```
+
+**Request Body:** any subset of `content`, `importance_score`, `tags`, `metadata`.
+
+```bash
+curl -X PATCH http://localhost:8321/api/v1/memories/550e8400-... \
+  -H "Content-Type: application/json" \
+  -d '{"importance_score": 9.0, "tags": ["python", "favorite"]}'
+```
+
+## Delete Memory
+
+```
+DELETE /api/v1/memories/{memory_id}
+```
+
+```bash
+curl -X DELETE http://localhost:8321/api/v1/memories/550e8400-...
+```
+
+Returns `204 No Content`. The memory's tags are also unlinked from the knowledge graph.

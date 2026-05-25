@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest a new capability or enhancement for Hebb Mind.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing an improvement. Please describe the user-facing
+        problem first — implementation details can come later in discussion.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user need or pain point is this feature addressing?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How would the new behaviour work? API sketches and example usage are welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you tried, related projects you looked at, or designs you rejected.
+    validations:
+      required: false

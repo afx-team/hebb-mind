@@ -33,7 +33,7 @@ async def _mock_create_embedder(settings):
 @pytest.fixture
 def client(tmp_path: Path):
     """Create a test client with temporary DB and mocked embedder."""
-    config_path = tmp_path / "hippocampus.json"
+    config_path = tmp_path / "hebb.json"
     config_path.write_text(
         json.dumps(
             {
@@ -43,10 +43,10 @@ def client(tmp_path: Path):
     )
 
     with (
-        patch("hippocampus.config.loader.find_config_file", return_value=config_path),
-        patch("hippocampus.embedding.factory.create_embedder", side_effect=_mock_create_embedder),
+        patch("hebb.config.loader.find_config_file", return_value=config_path),
+        patch("hebb.embedding.factory.create_embedder", side_effect=_mock_create_embedder),
     ):
-        from hippocampus.server.app import create_app
+        from hebb.server.app import create_app
 
         app = create_app()
         with TestClient(app) as c:

@@ -7,10 +7,10 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from hippocampus.config.settings import Settings
-from hippocampus.storage.migrations import get_connection, initialize_schema
-from hippocampus.storage.partition_store import SQLitePartitionStore
-from hippocampus.storage.sqlite_store import SQLiteMemoryStore
+from hebb.config.settings import Settings
+from hebb.storage.migrations import get_connection, initialize_schema
+from hebb.storage.partition_store import SQLitePartitionStore
+from hebb.storage.sqlite_store import SQLiteMemoryStore
 
 
 @pytest.fixture

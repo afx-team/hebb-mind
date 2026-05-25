@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hippocampus cc recall",
+            "command": "hebb cc recall",
             "timeout": 30
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hippocampus cc write",
+            "command": "hebb cc write",
             "timeout": 10
           }
         ]
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hippocampus cc stop",
+            "command": "hebb cc stop",
             "timeout": 30
           }
         ]

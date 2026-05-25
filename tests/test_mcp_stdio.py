@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import sys
 
-from hippocampus.utils.stdio_guard import (
+from hebb.utils.stdio_guard import (
     capture_stdout,
     restore_stdout,
     suppress_stdout_stderr,

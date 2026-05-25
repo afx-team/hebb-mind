@@ -1,13 +1,13 @@
 # Codex Integration
 
-Hippocampus integrates with Codex through MCP tools. Codex can call `write_memory`, `search_memory`, `consolidate`, and `ingest_conversation` when useful.
+Hebb Mind integrates with Codex through MCP tools. Codex can call `write_memory`, `search_memory`, `consolidate`, and `ingest_conversation` when useful.
 
 ## Install
 
 ```bash
-pip install -U afx-hippocampus
-hippocampus setup
-hippocampus codex install --scope user
+pip install -U hebb-mind
+hebb setup
+hebb codex install --scope user
 ```
 
 Verify:
@@ -21,13 +21,13 @@ codex mcp list
 If you prefer to manage MCP servers directly:
 
 ```bash
-codex mcp add hippocampus -- hippocampus-mcp
+codex mcp add hebb -- hebb-mcp
 ```
 
-For a remote Hippocampus service:
+For a remote Hebb Mind service:
 
 ```bash
-codex mcp add hippocampus --env HIPPOCAMPUS_URL=http://127.0.0.1:8321 -- hippocampus-mcp
+codex mcp add hebb --env HEBB_URL=http://127.0.0.1:8321 -- hebb-mcp
 ```
 
 ## Capability Boundary
@@ -37,11 +37,11 @@ Codex uses MCP tools for explicit memory operations. Claude Code has an addition
 For best results, add project guidance that tells Codex when durable memory should be used:
 
 ```text
-Use the Hippocampus MCP server when durable user preferences, project facts, or cross-session decisions should be remembered or recalled.
+Use the Hebb Mind MCP server when durable user preferences, project facts, or cross-session decisions should be remembered or recalled.
 ```
 
 ## Uninstall
 
 ```bash
-hippocampus codex uninstall --scope user
+hebb codex uninstall --scope user
 ```

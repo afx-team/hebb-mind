@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitepress'
 
-const GITHUB_REPO = 'https://github.com/afx-team/hippocampus'
+const GITHUB_REPO = 'https://github.com/afx-team/hebb-mind'
 
 /* ---------- shared sidebar ---------- */
 function guideSidebar(prefix = '') {
@@ -17,6 +17,8 @@ function guideSidebar(prefix = '') {
         { text: 'Claude Code', link: `${prefix}/guide/claude-code` },
         { text: 'Codex', link: `${prefix}/guide/codex` },
         { text: prefix ? 'MCP 集成' : 'MCP Integration', link: `${prefix}/guide/mcp-integration` },
+        { text: prefix ? 'Web 控制台' : 'Web Console', link: `${prefix}/guide/web-console` },
+        { text: prefix ? '从其他系统迁移' : 'Migration from mem0 / Letta / Zep', link: `${prefix}/guide/migration` },
       ],
     },
     {
@@ -48,15 +50,23 @@ function guideSidebar(prefix = '') {
         { text: prefix ? '多模型支持' : 'Multi-model', link: `${prefix}/advanced/multi-model` },
       ],
     },
+    {
+      text: prefix ? '资源' : 'Resources',
+      items: [
+        { text: prefix ? '故障排查' : 'Troubleshooting', link: `${prefix}/troubleshooting` },
+        { text: prefix ? '常见问题' : 'FAQ', link: `${prefix}/faq` },
+        { text: prefix ? '基准测试' : 'Benchmarks', link: `${prefix}/benchmarks` },
+      ],
+    },
   ]
 }
 
 export default defineConfig({
-  title: 'Hippocampus',
+  title: 'Hebb Mind',
   description: 'Neuroscience-inspired memory framework for AI agents',
 
   /* GitHub Pages sub-path */
-  base: '/hippocampus/',
+  base: '/hebb-mind/',
 
   /* dark mode default */
   appearance: 'dark',
@@ -67,7 +77,7 @@ export default defineConfig({
   ],
 
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/hippocampus/logo.svg' }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/hebb-mind/logo.svg' }],
   ],
 
   /* i18n */
@@ -79,6 +89,8 @@ export default defineConfig({
         nav: [
           { text: 'Quick Start', link: '/quick-start' },
           { text: 'API', link: '/api/memories' },
+          { text: 'Benchmarks', link: '/benchmarks' },
+          { text: 'FAQ', link: '/faq' },
         ],
         sidebar: guideSidebar(),
       },
@@ -86,12 +98,14 @@ export default defineConfig({
     zh: {
       label: '中文',
       lang: 'zh-CN',
-      title: 'Hippocampus 海马体',
+      title: 'Hebb Mind',
       description: '受神经科学启发的 AI Agent 记忆框架',
       themeConfig: {
         nav: [
           { text: '快速上手', link: '/zh/quick-start' },
           { text: 'API', link: '/zh/api/memories' },
+          { text: '基准测试', link: '/zh/benchmarks' },
+          { text: '常见问题', link: '/zh/faq' },
         ],
         sidebar: { '/zh/': guideSidebar('/zh') },
         outline: { label: '本页目录' },
@@ -106,7 +120,7 @@ export default defineConfig({
 
   themeConfig: {
     logo: '/logo.svg',
-    siteTitle: 'Hippocampus',
+    siteTitle: 'Hebb Mind',
 
     socialLinks: [
       { icon: 'github', link: GITHUB_REPO },

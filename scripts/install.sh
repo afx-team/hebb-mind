@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -e
 
-PACKAGE="afx-hippocampus"
+PACKAGE="hebb-mind"
 MIN_PYTHON_MAJOR=3
 MIN_PYTHON_MINOR=10
 INTERACTIVE=false
@@ -19,7 +19,7 @@ for arg in "$@"; do
     esac
 done
 
-echo "==> Hippocampus Installer"
+echo "==> Hebb Mind Installer"
 echo ""
 
 # Find Python
@@ -67,7 +67,7 @@ if [ "$INTERACTIVE" = true ]; then
             STORAGE_TYPE="postgresql"
             EXTRAS="[pg]"
             echo ""
-            printf "  PostgreSQL URL (e.g. postgresql://user:pass@localhost/hippocampus): "
+            printf "  PostgreSQL URL (e.g. postgresql://user:pass@localhost/hebb): "
             read -r PG_URL
             ;;
         *)
@@ -82,39 +82,39 @@ echo "  Installing ${PACKAGE}${EXTRAS}..."
 $PYTHON -m pip install --quiet "${PACKAGE}${EXTRAS}"
 
 # Setup
-HIPPOCAMPUS_HOME="${HIPPOCAMPUS_HOME:-$HOME/.hippocampus}"
-mkdir -p "$HIPPOCAMPUS_HOME"
+HEBB_HOME="${HEBB_HOME:-$HOME/.hebb}"
+mkdir -p "$HEBB_HOME"
 
-cd "$HIPPOCAMPUS_HOME"
-hippocampus setup --language "$LANGUAGE" --region "$REGION" --profile "$PROFILE"
+cd "$HEBB_HOME"
+hebb setup --language "$LANGUAGE" --region "$REGION" --profile "$PROFILE"
 
 # Update config with storage type if postgresql
 if [ "$STORAGE_TYPE" = "postgresql" ]; then
-    hippocampus config set storage_type postgresql
+    hebb config set storage_type postgresql
     if [ -n "$PG_URL" ]; then
-        hippocampus config set pg_url "$PG_URL"
+        hebb config set pg_url "$PG_URL"
     fi
 fi
 
 echo ""
-echo "Hippocampus installed successfully!"
+echo "Hebb Mind installed successfully!"
 echo "  Storage: $STORAGE_TYPE"
 echo ""
 echo "Next steps:"
 echo "  1. Optional: enable memory consolidation with an LLM:"
-echo "     hippocampus config set llm_api_key your-key-here"
+echo "     hebb config set llm_api_key your-key-here"
 
 if [ "$STORAGE_TYPE" = "postgresql" ] && [ -z "$PG_URL" ]; then
     echo ""
     echo "  2. Set your PostgreSQL URL:"
-    echo "     hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus"
+    echo "     hebb config set pg_url postgresql://user:pass@localhost/hebb"
     echo ""
     echo "  3. Start the server:"
-    echo "     hippocampus start"
+    echo "     hebb start"
 else
     echo ""
     echo "  2. Start the server:"
-    echo "     hippocampus start"
+    echo "     hebb start"
 fi
 
 echo ""

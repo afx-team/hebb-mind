@@ -1,4 +1,4 @@
-# Hippocampus Evaluation Report: PersonaMem
+# Hebb Mind Evaluation Report: PersonaMem
 
 **Date**: 2026-04-19T10:22:02.140656+00:00
 **Mode**: raw

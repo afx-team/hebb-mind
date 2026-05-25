@@ -32,7 +32,7 @@ def render_markdown(result: BenchmarkResult, output_path: Path) -> Path:
 
     config = result.config
     lines: list[str] = []
-    lines.append(f"# Hippocampus Evaluation Report: {result.dataset_name}")
+    lines.append(f"# Hebb Mind Evaluation Report: {result.dataset_name}")
     lines.append("")
     lines.append(f"**Date**: {result.timestamp}")
     eval_mode = config.get('mode', 'raw')
@@ -130,7 +130,7 @@ def render_markdown(result: BenchmarkResult, output_path: Path) -> Path:
 def render_summary_table(results: list[BenchmarkResult]) -> str:
     """Generate a combined summary table for multiple benchmark runs."""
     lines: list[str] = []
-    lines.append("# Hippocampus Evaluation Summary")
+    lines.append("# Hebb Mind Evaluation Summary")
     lines.append("")
     mode = results[0].config.get("mode", "raw") if results else "raw"
     lines.append(f"**Mode**: {mode}")

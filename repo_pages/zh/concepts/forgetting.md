@@ -1,6 +1,6 @@
 # 动态遗忘
 
-Hippocampus 的遗忘机制受艾宾浩斯遗忘曲线启发，为每条记忆动态计算存活时间（TTL）。频繁访问的重要记忆存活更久，被忽略的低价值记忆自然消失。
+Hebb Mind 的遗忘机制受艾宾浩斯遗忘曲线启发，为每条记忆动态计算存活时间（TTL）。频繁访问的重要记忆存活更久，被忽略的低价值记忆自然消失。
 
 ## TTL 计算公式
 
@@ -55,7 +55,7 @@ TTL = 168 * (1 + log(1)) * (3 / 5) * exp(-0.693 * 7)
 手动触发：
 
 ```bash
-curl -X POST http://localhost:8321/api/v1/forget
+curl -X POST http://localhost:8321/api/v1/admin/forget
 ```
 
 响应：
@@ -70,18 +70,18 @@ curl -X POST http://localhost:8321/api/v1/forget
 
 ```bash
 # 延长基础存活时间到 2 周
-hippocampus config set base_ttl_hours 336
+hebb config set base_ttl_hours 336
 
 # 降低衰减速度（记忆消失更慢）
-hippocampus config set decay_factor 0.3
+hebb config set decay_factor 0.3
 
 # 加快遗忘任务检查频率（每 10 分钟）
-hippocampus config set forget_interval_seconds 600
+hebb config set forget_interval_seconds 600
 ```
 
 ## 设计思考
 
-人类大脑不会记住所有信息，遗忘是正常且必要的认知机制。通过动态 TTL，Hippocampus 实现了：
+人类大脑不会记住所有信息，遗忘是正常且必要的认知机制。通过动态 TTL，Hebb Mind 实现了：
 
 - **自适应保留**：重要且常用的记忆自然存活更久
 - **自动清理**：低价值记忆不会无限积累

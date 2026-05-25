@@ -1,0 +1,291 @@
+"""Embedding model catalog, language selection, and download source selection."""
+
+from __future__ import annotations
+
+import locale
+import os
+import time
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+from pathlib import Path
+
+import httpx
+
+HF_MIRROR_ENDPOINT = "https://hf-mirror.com"
+HF_OFFICIAL_ENDPOINT = "https://huggingface.co"
+
+LANGUAGE_CHOICES = ("auto", "en", "zh", "multi")
+REGION_CHOICES = ("auto", "cn", "global")
+PROFILE_CHOICES = ("default", "fast", "best")
+
+LEGACY_DEFAULT_MODELS = {
+    "all-MiniLM-L6-v2",
+    "sentence-transformers/all-MiniLM-L6-v2",
+}
+
+
+@dataclass(frozen=True)
+class ModelSpec:
+    """Embedding model metadata."""
+
+    model_id: str
+    dimension: int
+    language: str
+    profile: str
+
+
+@dataclass(frozen=True)
+class LanguageSelection:
+    """Resolved language selection."""
+
+    language: str
+    source: str
+    raw: str | None = None
+
+
+@dataclass(frozen=True)
+class RegionSelection:
+    """Resolved download region and HuggingFace endpoint."""
+
+    region: str
+    hf_endpoint: str | None
+    source: str
+    message: str | None = None
+
+
+@dataclass(frozen=True)
+class ProbeResult:
+    """Network probe result for a download endpoint."""
+
+    region: str
+    endpoint: str
+    available: bool
+    latency_ms: float | None
+    error: str | None = None
+
+
+MODEL_DIMS: dict[str, int] = {
+    "BAAI/bge-large-en-v1.5": 1024,
+    "BAAI/bge-m3": 1024,
+    "sentence-transformers/all-MiniLM-L6-v2": 384,
+    "all-MiniLM-L6-v2": 384,
+    "intfloat/multilingual-e5-small": 384,
+}
+
+
+def resolve_language(language: str = "auto", environ: dict[str, str] | None = None) -> LanguageSelection:
+    """Resolve the content language strategy.
+
+    Args:
+        language: Explicit language value: auto, en, zh, or multi.
+        environ: Optional environment mapping for tests.
+
+    Returns:
+        The resolved language and detection source.
+
+    Raises:
+        ValueError: If language is not one of the supported choices.
+    """
+    if language not in LANGUAGE_CHOICES:
+        raise ValueError(f"Unsupported language: {language!r}")
+    if language != "auto":
+        return LanguageSelection(language=language, source="explicit")
+
+    raw_locale = _detect_locale(os.environ if environ is None else environ)
+    detected = _language_from_locale(raw_locale)
+    return LanguageSelection(language=detected, source="locale", raw=raw_locale)
+
+
+def choose_model(language: str, profile: str = "default") -> ModelSpec:
+    """Choose the default embedding model for a language and profile.
+
+    Args:
+        language: Resolved language: en, zh, or multi.
+        profile: Model profile: default, fast, or best.
+
+    Returns:
+        Model metadata containing model ID and vector dimension.
+
+    Raises:
+        ValueError: If language or profile is unsupported.
+    """
+    if language not in ("en", "zh", "multi"):
+        raise ValueError(f"Unsupported resolved language: {language!r}")
+    if profile not in PROFILE_CHOICES:
+        raise ValueError(f"Unsupported profile: {profile!r}")
+
+    if profile == "fast":
+        model_id = "sentence-transformers/all-MiniLM-L6-v2"
+    elif language == "en":
+        model_id = "BAAI/bge-large-en-v1.5"
+    else:
+        model_id = "BAAI/bge-m3"
+
+    return ModelSpec(
+        model_id=model_id,
+        dimension=MODEL_DIMS[model_id],
+        language=language,
+        profile=profile,
+    )
+
+
+def model_cache_dir(workspace: Path, model_id: str) -> Path:
+    """Return the workspace-local cache directory for a model.
+
+    Args:
+        workspace: Resolved Hebb Mind workspace directory.
+        model_id: HuggingFace repository ID or local model name.
+
+    Returns:
+        Directory where the model should be stored.
+    """
+    return workspace / "models" / model_id
+
+
+def workspace_model_available(workspace: Path, model_id: str) -> bool:
+    """Check whether a model is available in the Hebb Mind workspace.
+
+    Args:
+        workspace: Resolved Hebb Mind workspace directory.
+        model_id: HuggingFace repository ID or local model name.
+
+    Returns:
+        True when the local model directory has a config file.
+    """
+    path = model_cache_dir(workspace, model_id)
+    return path.is_dir() and (path / "config.json").is_file()
+
+
+def resolve_region(region: str = "auto", existing_hf_endpoint: str | None = None) -> RegionSelection:
+    """Resolve the model download region and HuggingFace endpoint.
+
+    Args:
+        region: Explicit region value: auto, cn, or global.
+        existing_hf_endpoint: Existing configured HuggingFace endpoint.
+
+    Returns:
+        Region and endpoint selection.
+
+    Raises:
+        ValueError: If region is not one of the supported choices.
+    """
+    if region not in REGION_CHOICES:
+        raise ValueError(f"Unsupported region: {region!r}")
+
+    if region == "cn":
+        return RegionSelection(region="cn", hf_endpoint=HF_MIRROR_ENDPOINT, source="explicit")
+    if region == "global":
+        return RegionSelection(region="global", hf_endpoint=None, source="explicit")
+
+    if existing_hf_endpoint:
+        normalized = existing_hf_endpoint.rstrip("/")
+        if normalized == HF_MIRROR_ENDPOINT:
+            return RegionSelection(region="cn", hf_endpoint=normalized, source="existing")
+        return RegionSelection(region="custom", hf_endpoint=normalized, source="existing")
+
+    official, mirror = _probe_download_endpoints()
+    if official.available and mirror.available:
+        if (mirror.latency_ms or float("inf")) < (official.latency_ms or float("inf")):
+            return RegionSelection(region="cn", hf_endpoint=HF_MIRROR_ENDPOINT, source="probe")
+        return RegionSelection(region="global", hf_endpoint=None, source="probe")
+    if mirror.available:
+        return RegionSelection(region="cn", hf_endpoint=HF_MIRROR_ENDPOINT, source="probe")
+    if official.available:
+        return RegionSelection(region="global", hf_endpoint=None, source="probe")
+
+    return RegionSelection(
+        region="global",
+        hf_endpoint=None,
+        source="probe-failed",
+        message=(
+            "Could not reach HuggingFace or hf-mirror. Keeping the official endpoint. "
+            "If downloads fail in China, run: hebb setup --region cn"
+        ),
+    )
+
+
+def prefetch_model(model_id: str, workspace: Path, hf_endpoint: str | None = None) -> Path:
+    """Download a HuggingFace model into the Hebb Mind workspace.
+
+    Args:
+        model_id: HuggingFace repository ID.
+        workspace: Resolved Hebb Mind workspace directory.
+        hf_endpoint: Optional HuggingFace-compatible endpoint.
+
+    Returns:
+        Local model directory.
+
+    Raises:
+        ImportError: If huggingface_hub is not installed.
+        Exception: Propagates HuggingFace download failures.
+    """
+    from huggingface_hub import snapshot_download
+
+    local_dir = model_cache_dir(workspace, model_id)
+    local_dir.parent.mkdir(parents=True, exist_ok=True)
+
+    old_endpoint = os.environ.get("HF_ENDPOINT")
+    if hf_endpoint:
+        os.environ["HF_ENDPOINT"] = hf_endpoint.rstrip("/")
+    else:
+        os.environ.pop("HF_ENDPOINT", None)
+
+    try:
+        snapshot_download(
+            repo_id=model_id,
+            local_dir=str(local_dir),
+            local_dir_use_symlinks=False,
+        )
+    finally:
+        if old_endpoint is None:
+            os.environ.pop("HF_ENDPOINT", None)
+        else:
+            os.environ["HF_ENDPOINT"] = old_endpoint
+
+    return local_dir
+
+
+def _detect_locale(environ: dict[str, str]) -> str | None:
+    for key in ("LC_ALL", "LC_MESSAGES", "LANGUAGE", "LANG"):
+        value = environ.get(key)
+        if value:
+            return value.split(":")[0]
+
+    loc, _encoding = locale.getlocale()
+    return loc
+
+
+def _language_from_locale(raw_locale: str | None) -> str:
+    if not raw_locale:
+        return "multi"
+
+    normalized = raw_locale.split(".", 1)[0].split("@", 1)[0].lower()
+    if normalized in ("c", "posix"):
+        return "multi"
+    if normalized.startswith("en"):
+        return "en"
+    if normalized.startswith("zh"):
+        return "zh"
+    return "multi"
+
+
+def _probe_download_endpoints(timeout: float = 2.0) -> tuple[ProbeResult, ProbeResult]:
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        official_future = executor.submit(_probe_endpoint, "global", HF_OFFICIAL_ENDPOINT, timeout)
+        mirror_future = executor.submit(_probe_endpoint, "cn", HF_MIRROR_ENDPOINT, timeout)
+        return official_future.result(), mirror_future.result()
+
+
+def _probe_endpoint(region: str, endpoint: str, timeout: float) -> ProbeResult:
+    started = time.perf_counter()
+    try:
+        response = httpx.get(endpoint, timeout=timeout, follow_redirects=True)
+        latency_ms = (time.perf_counter() - started) * 1000
+        return ProbeResult(
+            region=region,
+            endpoint=endpoint,
+            available=response.status_code < 500,
+            latency_ms=latency_ms,
+        )
+    except Exception as exc:
+        return ProbeResult(region=region, endpoint=endpoint, available=False, latency_ms=None, error=str(exc))

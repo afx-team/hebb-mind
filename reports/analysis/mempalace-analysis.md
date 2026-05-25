@@ -483,23 +483,23 @@ All 29 tools are available via JSON-RPC. The key search tool:
 
 ---
 
-## Implications for Hippocampus
+## Implications for Hebb Mind
 
 ### Patterns to Adopt
 
-1. **Verbatim-first storage with optional summarization layers**. MemPalace demonstrates that keeping original text and building index layers on top outperforms extract-and-discard. Hippocampus should store verbatim content at the base layer and build semantic indexes separately.
+1. **Verbatim-first storage with optional summarization layers**. MemPalace demonstrates that keeping original text and building index layers on top outperforms extract-and-discard. Hebb Mind should store verbatim content at the base layer and build semantic indexes separately.
 
-2. **Pluggable backend abstraction**. The `BaseBackend`/`BaseCollection` contract is clean and minimal. Hippocampus should adopt a similar abstraction from the start, supporting ChromaDB, PostgreSQL+pgvector, and potentially SQLite+FTS5 for lightweight deployments.
+2. **Pluggable backend abstraction**. The `BaseBackend`/`BaseCollection` contract is clean and minimal. Hebb Mind should adopt a similar abstraction from the start, supporting ChromaDB, PostgreSQL+pgvector, and potentially SQLite+FTS5 for lightweight deployments.
 
 3. **Multi-stage retrieval with BM25 hybrid**. The vector + BM25 convex combination with configurable weights is effective and well-established. The "signal, not gate" pattern for secondary indexes is a good architectural principle.
 
-4. **Temporal knowledge graph**. The `valid_from`/`valid_to` design is simple and effective for tracking evolving facts. Hippocampus should include temporal validity from the start, but with automatic extraction rather than manual population.
+4. **Temporal knowledge graph**. The `valid_from`/`valid_to` design is simple and effective for tracking evolving facts. Hebb Mind should include temporal validity from the start, but with automatic extraction rather than manual population.
 
 5. **MCP as the primary integration surface**. MemPalace's 29-tool MCP server demonstrates that MCP is the right integration protocol for LLM-facing memory systems.
 
 ### Patterns to Improve
 
-1. **Implement automatic memory consolidation**. MemPalace's lack of forgetting/decay is a significant gap. Hippocampus should implement time-decay scoring, importance-based retention, and periodic consolidation (merging related memories, promoting frequently-accessed ones).
+1. **Implement automatic memory consolidation**. MemPalace's lack of forgetting/decay is a significant gap. Hebb Mind should implement time-decay scoring, importance-based retention, and periodic consolidation (merging related memories, promoting frequently-accessed ones).
 
 2. **Use semantic chunking**. Replace fixed-window chunking with topic-boundary-aware segmentation. Consider using the LLM to identify natural break points, or at minimum detect semantic shifts via embedding similarity between adjacent sentences.
 
@@ -511,4 +511,4 @@ All 29 tools are available via JSON-RPC. The key search tool:
 
 6. **Per-wing or per-project collections**. Instead of a single global collection with metadata filtering, consider separate vector indexes per wing/project to improve search performance at scale.
 
-7. **Address the L1 importance scoring problem**. The current Layer 1 generation is effectively random because `importance` metadata is almost never set. Hippocampus should compute importance scores automatically based on access frequency, emotional markers, temporal relevance, and entity density.
+7. **Address the L1 importance scoring problem**. The current Layer 1 generation is effectively random because `importance` metadata is almost never set. Hebb Mind should compute importance scores automatically based on access frequency, emotional markers, temporal relevance, and entity density.

@@ -1,6 +1,6 @@
 # Memory Lifecycle
 
-Hippocampus processes memories through four stages, inspired by how the human hippocampus consolidates short-term experiences into long-term knowledge.
+Hebb Mind processes memories through four stages, inspired by how the human hippocampus consolidates short-term experiences into long-term knowledge.
 
 ## Architecture Overview
 
@@ -70,7 +70,7 @@ A periodic consolidation agent processes unprocessed memories from `mem_hippocam
 3. **Conflict resolution** -- detects contradictions with existing memories and resolves them (e.g., "user now prefers light mode" supersedes "user prefers dark mode")
 4. **Tag extraction** -- extracts meaningful tags and adds them to the knowledge graph
 
-Consolidation runs on a configurable schedule (default: every 3600 seconds / 1 hour). It can also be triggered manually:
+Consolidation runs once per day at the time configured by `consolidation_time` (default `18:00`, server's local timezone). It can also be triggered manually:
 
 ```bash
 curl -X POST http://localhost:8321/api/v1/admin/consolidate
@@ -80,7 +80,7 @@ See [Consolidation](./consolidation.md) for details.
 
 ## Stage 3: Retrieve
 
-When searching memories, Hippocampus combines three signals into a composite score:
+When searching memories, Hebb Mind combines three signals into a composite score:
 
 - **Recency** -- exponential decay based on time since last access. Recently accessed memories score higher.
 - **Importance** -- LLM-rated score from 0 to 10 assigned during creation or consolidation.

@@ -1,6 +1,6 @@
 # Knowledge Graph
 
-Hippocampus maintains a tag-based knowledge graph that captures relationships between concepts across all memories. The graph is backed by **NetworkX** and persisted as a JSON file.
+Hebb Mind maintains a tag-based knowledge graph that captures relationships between concepts across all memories. The graph is backed by **NetworkX** and persisted as a JSON file.
 
 ## Structure
 
@@ -15,13 +15,13 @@ The knowledge graph is stored as `knowledge_graph.json` in the workspace directo
 
 ```bash
 # Check the current workspace directory
-hippocampus workspace
+hebb workspace
 
 # Override the workspace directory
-hippocampus config set home /data/hippocampus
+hebb config set home /data/hebb
 
-# Or use the HIPPOCAMPUS_HOME environment variable
-export HIPPOCAMPUS_HOME=/data/hippocampus
+# Or use the HEBB_HOME environment variable
+export HEBB_HOME=/data/hebb
 ```
 
 ## API

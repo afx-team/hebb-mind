@@ -1,6 +1,6 @@
 # Hybrid Search
 
-Hippocampus uses a hybrid search strategy that combines three retrieval paths in parallel, then merges and scores results using a composite formula.
+Hebb Mind uses a hybrid search strategy that combines three retrieval paths in parallel, then merges and scores results using a composite formula.
 
 ## Three-Path Retrieval
 
@@ -61,14 +61,14 @@ The three weights are configurable to tune search behavior for your use case:
 
 ```bash
 # Emphasize relevance (good for knowledge retrieval)
-hippocampus config set weight_relevance 2.0
-hippocampus config set weight_importance 1.0
-hippocampus config set weight_recency 0.5
+hebb config set weight_relevance 2.0
+hebb config set weight_importance 1.0
+hebb config set weight_recency 0.5
 
 # Emphasize recency (good for conversational agents)
-hippocampus config set weight_recency 2.0
-hippocampus config set weight_relevance 1.0
-hippocampus config set weight_importance 1.0
+hebb config set weight_recency 2.0
+hebb config set weight_relevance 1.0
+hebb config set weight_importance 1.0
 ```
 
 Weights can also be overridden per search request:

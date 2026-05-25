@@ -1,0 +1,8 @@
+# Default reviewers for everything in the repository.
+# Lines later in the file take precedence over earlier ones.
+
+* @afx-team
+
+# Documentation site has the same owners but is called out so changes there
+# are routed explicitly.
+repo_pages/ @afx-team

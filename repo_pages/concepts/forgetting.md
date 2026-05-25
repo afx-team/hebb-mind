@@ -1,6 +1,6 @@
 # Dynamic Forgetting
 
-Hippocampus implements a dynamic forgetting mechanism inspired by the **Ebbinghaus forgetting curve**. Memories that are rarely accessed and low in importance gradually decay and are removed, while frequently accessed, high-importance memories persist.
+Hebb Mind implements a dynamic forgetting mechanism inspired by the **Ebbinghaus forgetting curve**. Memories that are rarely accessed and low in importance gradually decay and are removed, while frequently accessed, high-importance memories persist.
 
 ## The Formula
 
@@ -48,13 +48,13 @@ The forgetting job runs periodically and evaluates every memory:
 
 ```bash
 # Memories live longer (14 days base)
-hippocampus config set base_ttl_hours 336
+hebb config set base_ttl_hours 336
 
 # Slower decay (memories fade more gradually)
-hippocampus config set decay_factor 0.3
+hebb config set decay_factor 0.3
 
 # Run forgetting less frequently (every hour)
-hippocampus config set forget_interval_seconds 3600
+hebb config set forget_interval_seconds 3600
 ```
 
 ## Manual Trigger
@@ -93,7 +93,7 @@ This memory has effectively expired and will be removed.
 
 ## Design Rationale
 
-Traditional memory systems either keep everything forever or require manual cleanup. Hippocampus's dynamic forgetting provides:
+Traditional memory systems either keep everything forever or require manual cleanup. Hebb Mind's dynamic forgetting provides:
 
 - **Automatic cleanup** -- no manual memory management needed
 - **Adaptive retention** -- important, frequently-used memories survive naturally

@@ -1,157 +1,144 @@
 # Quick Start
 
-Get Hippocampus up and running in under a minute.
+Two paths. The 60-second path needs **no API key**. The 5-minute path adds LLM-powered consolidation.
 
-## 1. Install
+## Path A — 60 seconds, no API key
 
-```bash
-pip install -U afx-hippocampus
-```
+Ingest and hybrid search work fully offline using the bundled local embedding model.
 
-Requires **Python >= 3.10**. No external database needed — SQLite is built in.
-
-## 2. Setup
+### 1. Install
 
 ```bash
-hippocampus setup
+pip install -U hebb-mind
 ```
 
-This creates `hippocampus.json` and `hippocampus.db`, detects your content language, selects an embedding model, detects the best download source, and prefetches the model.
+Requires **Python >= 3.10**. SQLite is built in — no external database needed.
 
-Language and region are independent:
+### 2. Setup
 
 ```bash
-hippocampus setup --language en --region cn      # English model, China mirror
-hippocampus setup --language zh --region global  # Multilingual model, official HuggingFace
+hebb setup
 ```
 
-## 3. Start
+Creates `hebb.json` and `hebb.db` under the workspace, picks an embedding model from your OS locale, and pre-downloads it. Language and region are independent flags:
 
 ```bash
-hippocampus start
+hebb setup --language en --region cn      # English model, China mirror
+hebb setup --language zh --region global  # Multilingual model, official HuggingFace
 ```
 
-Open [http://localhost:8321/](http://localhost:8321/) for the Web Console, or [http://localhost:8321/docs](http://localhost:8321/docs) for the API docs.
-
-To see where your data is stored, run:
+### 3. Start the server
 
 ```bash
-hippocampus workspace
+hebb start
 ```
 
-## Keep It Running
+Open <http://localhost:8321/> for the Web Console, or <http://localhost:8321/docs> for the OpenAPI page. To see where data lives, run `hebb workspace`.
 
-`hippocampus start` runs in the foreground. To run in the background:
+<!-- TODO(asset): repo_pages/public/quickstart-cast.gif (asciinema of the 60-second path) -->
 
-```bash
-hippocampus start -d
-```
+<p align="center">
+  <img src="/quickstart-cast.gif" alt="Asciinema: install, setup, start, ingest, search in 60 seconds" width="720">
+</p>
 
-To auto-start on boot:
-
-```bash
-hippocampus service install
-```
-
-This generates the appropriate config (systemd on Linux, launchd on macOS) and enables the service. To remove:
-
-```bash
-hippocampus service uninstall
-```
-
-For Docker deployment, see [Storage Backends](./advanced/storage-backends.md#docker-deployment).
-
-## Store & Search
-
-Write a memory:
+### 4. Store and search a memory
 
 ```bash
 curl -X POST http://localhost:8321/api/v1/memories \
-  -H "Content-Type: application/json" \
+  -H 'Content-Type: application/json' \
   -d '{
     "content": "User prefers dark mode and compact layout",
     "tags": ["preference", "ui"],
     "importance_score": 7.5
   }'
-```
 
-Search memories:
-
-```bash
 curl -X POST http://localhost:8321/api/v1/search \
-  -H "Content-Type: application/json" \
+  -H 'Content-Type: application/json' \
   -d '{"query": "UI preferences", "top_k": 5}'
 ```
 
-## Enable Consolidation
+That's it — vector + keyword + tag-graph hybrid search runs locally with no third-party calls.
 
-Memory consolidation (auto-classifying memories into partitions) requires an LLM:
+## Path B — 5 minutes, with LLM consolidation
 
-```bash
-hippocampus config set llm_api_key sk-your-key-here
-```
+Consolidation, conflict resolution, and tag extraction need an LLM. **Without an `llm_api_key` set, those endpoints return an empty result silently** (known v0.1.1 gap, see [Troubleshooting](./troubleshooting.md#consolidation-no-op)).
 
-Switch models via [LiteLLM](https://github.com/BerriAI/litellm):
+### 1. Configure an LLM
 
 ```bash
-hippocampus config set llm_model openai/gpt-4o          # OpenAI
-hippocampus config set llm_model anthropic/claude-3-haiku-20240307  # Anthropic
-hippocampus config set llm_base_url https://dashscope.aliyuncs.com/compatible-mode/v1  # Qwen/GLM/Kimi
-hippocampus config set llm_model openai/qwen-plus
+hebb config set llm_api_key sk-your-key
+hebb config set llm_model openai/gpt-4o-mini
 ```
 
-Trigger consolidation manually:
+Switch providers via [LiteLLM](https://github.com/BerriAI/litellm):
+
+```bash
+# Anthropic
+hebb config set llm_model anthropic/claude-3-haiku-20240307
+
+# Qwen / GLM / Kimi (OpenAI-compatible endpoint)
+hebb config set llm_base_url https://dashscope.aliyuncs.com/compatible-mode/v1
+hebb config set llm_model openai/qwen-plus
+```
+
+### 2. Trigger consolidation
 
 ```bash
 curl -X POST http://localhost:8321/api/v1/admin/consolidate
 ```
 
-## MCP Integration
+Or wait for the daily 18:00 scheduler. Tags extracted during consolidation populate the knowledge graph at `GET /api/v1/graph/tags`.
 
-Use Hippocampus as an MCP tool in Claude Code, Cursor, or other MCP clients:
+## 30-second Python SDK
+
+<!-- requires v0.1.2 facade — see PR #N -->
+
+```python
+from hebb import HebbMind
+
+mem = HebbMind()  # uses ~/.hebb/hebb.json
+
+mem.add("User prefers dark mode", tags=["preference", "ui"], importance=7.5)
+
+for hit in mem.search("UI preferences", top_k=5):
+    print(hit.score, hit.content)
+```
+
+## Keep it running
+
+`hebb start` runs in the foreground. Background and auto-start:
+
+```bash
+hebb start -d            # daemon
+hebb service install     # systemd (Linux) / launchd (macOS)
+hebb service uninstall   # remove
+```
+
+For Docker, see [Storage Backends](./advanced/storage-backends.md#docker-deployment).
+
+## MCP and editor integrations
+
+```bash
+hebb cc install --scope user      # Claude Code: hooks-based auto memory
+hebb codex install --scope user   # Codex: MCP memory tools
+codex mcp list                           # verify
+```
+
+For raw MCP clients (Cursor, etc.):
 
 ```json
 {
   "mcpServers": {
-    "hippocampus": {
-      "command": "hippocampus-mcp"
-    }
+    "hebb": { "command": "hebb-mcp" }
   }
 }
 ```
 
-See [MCP Integration](./guide/mcp-integration.md) for full setup instructions.
+Details: [MCP Integration](./guide/mcp-integration.md) · [Claude Code Integration](./guide/claude-code.md) · [Codex Integration](./guide/codex.md)
 
-## Claude Code Auto-Memory
+## Next steps
 
-Give Claude Code persistent memory across sessions with hooks:
-
-```bash
-hippocampus cc install --scope user
-```
-
-This registers three hooks in `.claude/settings.json`:
-
-- **SessionStart** — recalls cross-session memories into context
-- **UserPromptSubmit** — writes each user message to memory (with noise stripping and dedup)
-- **Stop** — triggers consolidation when the session ends
-
-See [Claude Code Integration](./guide/claude-code.md) for details.
-
-## Codex MCP Tools
-
-Add Hippocampus memory tools to Codex:
-
-```bash
-hippocampus codex install --scope user
-codex mcp list
-```
-
-See [Codex Integration](./guide/codex.md) for details.
-
-## Next Steps
-
-- [Installation](./guide/installation.md) — optional extras, from-source install
 - [Configuration](./guide/configuration.md) — full config reference
 - [Memory Lifecycle](./concepts/memory-lifecycle.md) — how memories flow through the system
-- [API Reference](./api/memories.md) — complete API documentation
+- [Benchmarks](./benchmarks.md) — LoCoMo / LongMemEval results
+- [API Reference](./api/memories.md) — complete API docs

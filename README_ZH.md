@@ -1,334 +1,216 @@
 <p align="center">
-  <h1 align="center"><a href="https://afx-team.github.io/hippocampus/zh/">海马体 Hippocampus</a></h1>
-  <p align="center">受神经科学启发的 AI Agent 记忆框架</p>
-  <p align="center"><a href="https://afx-team.github.io/hippocampus/zh/">📖 文档</a> · <a href="README.md">English</a> | <a href="README_ZH.md">中文</a></p>
+  <h1 align="center"><a href="https://afx-team.github.io/hebb-mind/zh/">Hebb Mind</a></h1>
+  <p align="center"><strong>一套受神经科学启发的 AI Agent 记忆框架 — 以神经心理学家唐纳德·赫布命名，建立在他给出的法则之上：一起放电的神经元，会连到一起。</strong></p>
+  <p align="center"><em>编码、回放、巩固、遗忘。沿着大脑走过的路径。</em></p>
+  <p align="center"><a href="https://afx-team.github.io/hebb-mind/zh/">文档</a> · <a href="README.md">English</a> | <a href="README_ZH.md">中文</a></p>
 </p>
 
 <p align="center">
-  <a href="https://afx-team.github.io/hippocampus/zh/"><img src="https://img.shields.io/badge/docs-afx--team.github.io-blue" alt="Documentation"></a>
-  <a href="https://github.com/afx-team/hippocampus/actions"><img src="https://github.com/afx-team/hippocampus/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://pypi.org/project/afx-hippocampus/"><img src="https://img.shields.io/pypi/v/afx-hippocampus" alt="PyPI"></a>
-  <a href="https://github.com/afx-team/hippocampus/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"></a>
-  <img src="https://img.shields.io/pypi/pyversions/afx-hippocampus" alt="Python">
+  <a href="https://afx-team.github.io/hebb-mind/zh/"><img src="https://img.shields.io/badge/docs-afx--team.github.io-blue" alt="Documentation"></a>
+  <a href="https://github.com/afx-team/hebb-mind/actions"><img src="https://github.com/afx-team/hebb-mind/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://pypi.org/project/hebb-mind/"><img src="https://img.shields.io/pypi/v/hebb-mind" alt="PyPI"></a>
+  <a href="https://github.com/afx-team/hebb-mind/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"></a>
+  <img src="https://img.shields.io/pypi/pyversions/hebb-mind" alt="Python">
 </p>
 
 ---
 
-Hippocampus 为你的 AI Agent 提供**类脑记忆系统**。正如人类大脑中的海马体将短期经验巩固为长期知识，本框架能自动组织、排序和遗忘记忆，让你的 Agent 始终保持敏锐。
+1957 年，神经外科医生为治疗一位代号 H.M. 的癫痫患者切除了他双侧的海马体。手术让发作停止了，但他从此再也无法形成新的长期记忆 — 每一顿饭、每一张面孔，对他来说都是初见。半个多世纪的认知神经科学研究 [(Squire, 1992; Tulving, 2002)](#致谢) 由此一步步揭开了海马体的工作方式：它**编码**当下的经验片段、在静息时**回放**这些片段 [(Wilson & McNaughton, 1994)](#致谢)、把重要的部分**巩固**为长期知识、并**任由其余消退** [(Ebbinghaus, 1885)](#致谢)。
 
-## 目录
+今天的 AI Agent 就是 H.M. — 它们每一次对话都从零开始。
 
-- [背景与动机](#背景与动机)
-- [特性](#特性)
-- [快速开始](#快速开始)
-- [安装说明](#安装说明)
-- [使用方法](#使用方法)
-- [API 文档](#api-文档)
-- [配置](#配置)
-- [支持的模型](#支持的模型)
-- [贡献指南](#贡献指南)
-- [路线图](#路线图)
-- [致谢](#致谢)
-- [许可证](#许可证)
+**Hebb Mind** 这个项目要为你的 Agent 补上这条缺失的回路。`pip install` 后一行命令即可在本地拉起 REST + MCP 端点，跑同样的四阶段循环：编码 → 回放 → 巩固 → 遗忘。SQLite 充当存储，sentence-transformers 充当"皮层"做嵌入，NetworkX 维护标签图谱。**零外部服务。** 只有当你希望巩固阶段真正"工作"时，才需要配置一个 LLM Key。
 
-## 背景与动机
+与同类相比：`mem0` 是云优先、只追加；`letta` 需要外部数据库 + 独立的 sleeptime agent；`zep` 依赖 Postgres + Neo4j。Hebb Mind 是一个二进制、一条生物学意义上的回路。
 
-当前的 AI Agent 将每次对话视为无状态——每次会话后遗忘一切。虽然已有记忆解决方案，但都存在明显局限：
-
-- **Mem0** 仅添加记忆，从不巩固或解决冲突
-- **Letta** 需要独立的"睡眠代理"和外部数据库
-- **Zep** 依赖 PostgreSQL + Neo4j，部署复杂
-
-Hippocampus 借鉴神经科学，通过**零配置、自动化的记忆生命周期**解决这些问题。人类海马体不仅存储记忆——它还分类、巩固和修剪记忆。本框架将同样的智能带给 AI Agent。
-
-| 特性 | Mem0 | Letta | Zep | **Hippocampus** |
-|------|------|-------|-----|-----------------|
-| 多模型支持 | Yes | Yes | Yes | 通过 [LiteLLM](https://github.com/BerriAI/litellm) |
-| 知识图谱 | Partial | No | Yes | 基于标签 |
-| Web 管理界面 | Yes | Cloud only | Cloud only | 内置 SPA |
-| [MCP](https://modelcontextprotocol.io/) Server | Yes | Consumer only | Yes | 内置，自动启动 |
-| 记忆巩固 | 仅添加 | Sleeptime Agent | 冲突解决 | **自动 + 冲突解决** |
-| 遗忘/衰减 | No | No | 时间失效 | **动态 TTL** |
-| 零配置部署 | API key required | API key + DB | Postgres + Neo4j | **SQLite + 本地嵌入** |
-
-## 特性
-
-- **类脑记忆分区** — 语义、情景、偏好、程序性和自定义分区，基于认知科学（[CoALA 框架](https://arxiv.org/abs/2309.02427)）
-- **自动巩固** — Agentic RAG 管道自动分类、解决冲突、提取标签到知识图谱
-- **动态遗忘** — 基于 TTL 的衰减：常用记忆存活，被忽略的自然消失
-- **混合检索** — 三路搜索（向量 + 关键词 + 图谱），结合时效/重要性/相关性评分
-- **零配置设置** — SQLite + 本地嵌入，无需外部服务
-- **多模型支持** — 通过 LiteLLM 支持 OpenAI、Anthropic、通义千问、GLM、Kimi 等 100+ 提供商
-- **内置 Web 控制台** — 记忆增删改查、搜索和图谱可视化
-- **MCP Server** — 原生集成 Claude Code 及其他 MCP 兼容客户端
-- **Claude Code Hooks** — 跨会话自动记忆：每轮对话自动写入，会话开始时自动召回
+<!-- TODO(asset): screenshot of /index.html web console with sample memories -->
+<p align="center">
+  <img src="repo_pages/public/web-console-hero.png" alt="Hebb Mind Web 控制台 — 分区记忆与标签图谱" width="760">
+</p>
 
 ## 快速开始
 
+### 60 秒上手 — 不需要 API Key
+
+写入和混合检索完全离线运行（基于内置的本地 Embedding 模型）。
+
 ```bash
-pip install -U afx-hippocampus      # 安装
-hippocampus setup                 # 初始化并选择/下载默认 Embedding 模型
-hippocampus start                 # 启动服务 → http://localhost:8321/
+pip install -U hebb-mind
+hebb setup        # 根据系统语言选择 Embedding 模型
+hebb start        # 服务地址 http://localhost:8321/
 ```
 
-打开 http://localhost:8321/ 使用 **Web 管理控制台**，或访问 http://localhost:8321/docs 查看 API 文档。
-
-`setup` 会根据操作系统语言识别内容语言，根据网络可达性识别下载区域。language 只决定 Embedding 模型，region 只决定 HuggingFace 下载源。
-
-## 安装说明
-
-### pip（推荐）
+另开一个终端：
 
 ```bash
-pip install -U afx-hippocampus
-```
-
-### Claude Code（自动记忆）
-
-让 Claude Code 拥有跨会话持久记忆 — 三条命令：
-
-```bash
-pip install -U afx-hippocampus
-hippocampus setup
-hippocampus cc install --scope user
-```
-
-重启 Claude Code 即可。Hippocampus 会自动在会话开始时召回跨会话记忆，每条用户消息自动写入记忆，会话结束时触发巩固。
-
-详见 [Claude Code 集成](https://afx-team.github.io/hippocampus/zh/guide/claude-code.html)。
-
-### Codex（MCP 记忆工具）
-
-为 Codex 添加 Hippocampus 记忆工具：
-
-```bash
-pip install -U afx-hippocampus
-hippocampus setup
-hippocampus codex install --scope user
-```
-
-验证：
-
-```bash
-codex mcp list
-```
-
-Codex 通过 MCP 工具进行显式记忆操作；Claude Code 额外支持 hooks 自动写入/召回。
-
-### Docker 部署
-
-```bash
-git clone https://github.com/afx-team/hippocampus.git && cd hippocampus
-docker compose -f docker/docker-compose.yml up
-```
-
-### 一键安装
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/afx-team/hippocampus/main/scripts/install.sh | sh
-
-# 交互模式（选择 PostgreSQL 后端等）
-curl -fsSL https://raw.githubusercontent.com/afx-team/hippocampus/main/scripts/install.sh | sh -s -- --interactive
-```
-
-### PostgreSQL 后端（生产环境）
-
-```bash
-pip install -U afx-hippocampus[pg]
-hippocampus config set storage_type postgresql
-hippocampus config set pg_url postgresql://user:pass@localhost/hippocampus
-```
-
-## 使用方法
-
-### 存储和搜索记忆
-
-```bash
-# 存储记忆
 curl -X POST http://localhost:8321/api/v1/memories \
-  -H "Content-Type: application/json" \
-  -d '{"content": "用户偏好暗色模式", "tags": ["preference", "ui"], "importance_score": 7.5}'
+  -H 'Content-Type: application/json' \
+  -d '{"content": "用户偏好深色模式与紧凑布局", "tags": ["preference", "ui"]}'
 
-# 搜索记忆
 curl -X POST http://localhost:8321/api/v1/search \
-  -H "Content-Type: application/json" \
-  -d '{"query": "UI偏好设置", "top_k": 5}'
+  -H 'Content-Type: application/json' \
+  -d '{"query": "UI 偏好", "top_k": 5}'
+```
 
-# 手动触发巩固
+打开 <http://localhost:8321/> 即可使用 Web 控制台。<!-- TODO(asset): repo_pages/public/quickstart-cast.gif (asciinema of the 60-second path) -->
+
+<p align="center">
+  <img src="repo_pages/public/quickstart-cast.gif" alt="Asciinema 演示：60 秒完成安装、setup、启动、写入、检索" width="720">
+</p>
+
+### 完整体验（5 分钟）— 启用 LLM 巩固
+
+记忆巩固、冲突解决、标签提取需要一个 LLM 后端。**未配置 Key 时这些接口为静默 no-op**（这是 v0.1.1 已知问题，详见 [#consolidation-no-op](https://afx-team.github.io/hebb-mind/zh/troubleshooting.html)）。
+
+```bash
+hebb config set llm_api_key sk-...
+hebb config set llm_model openai/gpt-4o-mini
+# 通过 LiteLLM 接入通义千问 / GLM / Kimi：
+hebb config set llm_base_url https://dashscope.aliyuncs.com/compatible-mode/v1
+```
+
+手动触发巩固，或等待每日 18:00 的定时任务：
+
+```bash
 curl -X POST http://localhost:8321/api/v1/admin/consolidate
-
-# 探索知识图谱
-curl http://localhost:8321/api/v1/graph/tags
-curl http://localhost:8321/api/v1/graph/neighbors/python?depth=2
 ```
 
-### 工作原理
+## 为什么叫 "Hebb Mind"？
 
-记忆经历四个阶段 — 模拟人类海马体将短期经验巩固为长期知识的过程：
+1949 年，加拿大心理学家 **唐纳德·O·赫布（Donald O. Hebb，1904–1985）** 出版《行为的组织》（*The Organization of Behavior*），提出了一条奠定我们对大脑学习方式认知的法则：当一个神经元持续参与激发另一个神经元时，两者之间的连接就会增强。半个多世纪后，它被浓缩成一句话：
 
-| 阶段 | 发生了什么 | 触发方式 |
-|------|-----------|---------|
-| **写入** | 新记忆进入工作记忆收件箱 (`mem_hippocampus`) | API 写入 |
-| **巩固** | 代理分类到分区、解决冲突、提取标签 → 知识图谱 | 周期性 / 手动 |
-| **检索** | 三路混合搜索（向量 + 关键词 + 图谱），结合时效/重要性/相关性评分 | API 搜索 |
-| **遗忘** | 动态 TTL：`base × (1 + log(访问次数)) × 重要度 × exp(-衰减率 × 天数)` — 常用记忆存活，被忽略的自然消失 | 周期性 |
+> **一起放电的神经元，会连到一起（neurons that fire together, wire together）。**
 
-> 详细说明：[记忆生命周期](https://afx-team.github.io/hippocampus/zh/concepts/memory-lifecycle.html) · [记忆巩固](https://afx-team.github.io/hippocampus/zh/concepts/consolidation.html) · [混合检索](https://afx-team.github.io/hippocampus/zh/concepts/hybrid-search.html) · [动态遗忘](https://afx-team.github.io/hippocampus/zh/concepts/forgetting.html)
+赫布的洞见是：记忆不是一个"存放的地点"，而是一种"连接的模式"。共同出现的概念会被物理地连成**细胞集群（cell assembly）**，激活其中一部分就能唤回全部。重复会强化连接，弃用则任其消退。这条法则 — 赫布学习（Hebbian learning）— 是此后一切人工神经网络与联想记忆系统的源头。
 
-### 架构
+**Hebb Mind 正是跑在这条法则上。** 它的标签**知识图谱**本身就是一个细胞集群：一起出现的标签之间会建立连边，每共现一次，这条边就更强一分。检索沿着这些连边游走，于是一个局部线索就能补全整个模式。巩固保留被反复强化的部分，遗忘修剪没被强化的部分 — *一起放电就连到一起；无人问津便随之消逝。*
 
-```mermaid
-flowchart TB
-    subgraph Interface["接口层"]
-        direction LR
-        A1["REST API"]
-        A2["MCP Server"]
-        A3["CLI"]
-        A4["Web Console"]
-    end
+**海马体（hippocampus）** 在这里也有一席之地 —— 它是工作记忆分区（`mem_hippocampus`）的名字：每条新记忆在巩固之前最先落入的收件箱。这个名字名副其实：在大脑中，海马体正是把新经验暂存、再逐步固化进长期皮层记忆的"门户"，而这个分区做的正是同一件事。
 
-    subgraph Core["Hippocampus 核心"]
-        B1["工作记忆收件箱"]
-        B2["巩固代理"]
-        B3["回忆代理 · Agentic RAG"]
-        B4["调度器 · APScheduler"]
-    end
+## 受大脑启发（不止于名字）
 
-    subgraph Engine["处理引擎"]
-        direction LR
-        C1["混合检索\n向量 · 全文 · 图谱"]
-        C2["知识图谱\n标签图谱 · NetworkX"]
-        C3["评分引擎\n时效性 · 重要性 · 相关性"]
-        C4["动态遗忘\n艾宾浩斯 TTL 衰减"]
-    end
+系统中的每一块都对应着认知神经科学已经研究了五十年的某个机制。我们的目标不是对生物学的精确复刻 — 而是大脑早已解决了"该保留哪些记忆、何时巩固、如何凭只言片语唤回"这些问题。我们沿用它的答案。
 
-    subgraph Infra["基础设施"]
-        direction LR
-        D1["存储\nSQLite + sqlite-vec\nPostgreSQL + pgvector"]
-        D2["嵌入\n本地 · sentence-transformers\nAPI · LiteLLM"]
-        D3["LLM\n100+ 提供商\nvia LiteLLM"]
-    end
+| 大脑机制 | 大脑做了什么 | Hebb Mind 怎么做 |
+|---|---|---|
+| **尖波涟漪与记忆回放** [(Wilson & McNaughton, 1994; Buzsáki, 2015)](#致谢) | 慢波睡眠期间，海马体回放白天的经历，将其转录到新皮层。 | 每日 18:00 的巩固任务"回放"工作记忆收件箱，将每条记忆归类到分区、解决冲突、把标签写入知识图谱。 |
+| **多重记忆系统** [(Tulving, 1972; Squire, 1992)](#致谢) | 情景记忆、语义记忆、程序记忆分布在不同的子系统中。 | 五种命名分区 — `episodic` / `semantic` / `preference` / `procedural` / `custom` — 设计参照 [CoALA](https://arxiv.org/abs/2309.02427) 认知架构。 |
+| **遗忘曲线** [(Ebbinghaus, 1885)](#致谢) | 未经回顾的记忆按指数衰减；回顾会让曲线变平。 | TTL 公式：`base × (1 + log(访问次数)) × 重要度 × exp(-衰减率 × 天数)`。常用的记忆留下，被忽略的自然消退。 |
+| **模式分离与模式补全** [(O'Reilly & McClelland, 1994)](#致谢) | DG 区分相似记忆，CA3 凭部分线索补全完整记忆。 | 混合检索同时运行向量相似度（分离）、关键词匹配、标签图谱游走（补全）— 三条路径，一个综合分数。 |
 
-    subgraph Parts["记忆分区"]
-        direction LR
-        E1["语义"]
-        E2["情景"]
-        E3["偏好"]
-        E4["程序性"]
-        E5["自定义"]
-    end
+为什么这件事在工程上重要：一个**只追加**的系统永远解决不了矛盾；一个**永不遗忘**的系统会被自己的噪声淹没。大脑两边都解决了。我们也是。
 
-    Interface --> Core
-    Core --> Engine
-    Engine --> Infra
-    Infra --> Parts
+## 为什么选择 Hebb Mind？（工程视角）
+
+- **零外部服务** — `sqlite-vec` 存向量、NetworkX 存标签图谱、sentence-transformers 算 Embedding。无需 Postgres、Neo4j、Redis。详见 [存储后端](https://afx-team.github.io/hebb-mind/zh/advanced/storage-backends.html)。
+- **诚实的遗忘** — 上面那条 Ebbinghaus 公式，通过周期性任务执行。详见 [动态遗忘](https://afx-team.github.io/hebb-mind/zh/concepts/forgetting.html)。
+- **巩固时解决冲突** — 巩固代理不只是追加，会合并重复、覆盖过时事实。详见 [记忆巩固](https://afx-team.github.io/hebb-mind/zh/concepts/consolidation.html)。
+- **Claude Code 即插即用** — 三行命令为 Claude Code 启用基于 hooks 的跨会话记忆；一行命令为 Codex 注入相同能力的 MCP 工具。详见 [Claude Code 集成](https://afx-team.github.io/hebb-mind/zh/guide/claude-code.html)。
+
+## 基准测试
+
+v0.1.1 在 [LoCoMo](https://github.com/snap-research/LoCoMo) 长对话基准上的单次结果：
+
+| 指标 | 数值 |
+|---|---|
+| 准确率 | **37.6%**（187 / 497） |
+| 平均时延 | 102 ms / 查询 |
+| 最佳类别 | 对抗类 66.1% |
+| 最弱类别 | 多跳推理 5.6% |
+
+基于标签图谱的多跳推理是当前的明显短板。完整数据、方法学与分类细节见 [Benchmarks](https://afx-team.github.io/hebb-mind/zh/benchmarks.html)。这是一个仍在迭代中的结果 — 与 `mem0` / `zep` 的对照实验跟踪在 [#TBD]。
+
+## 30 秒 Python SDK
+
+<!-- requires v0.1.2 facade — see PR #N -->
+
+```python
+from hebb import HebbMind
+
+mem = HebbMind()  # 使用 ~/.hebb/hebb.json
+
+mem.add("用户偏好深色模式", tags=["preference", "ui"], importance=7.5)
+mem.add("用户使用 VS Code 与 One Dark 主题", tags=["preference", "tools"])
+
+for hit in mem.search("UI 偏好", top_k=5):
+    print(hit.score, hit.content)
 ```
 
-## API 文档
+`HebbMind()` 门面封装了上述 REST 接口；当本地未运行守护进程时，会自动在进程内拉起一个服务实例。
 
-Hippocampus 提供 RESTful API 用于记忆管理：
+## 安装方式
 
-- **交互式文档**：http://localhost:8321/docs（Swagger UI）
-- **完整 API 参考**：[API 文档](https://afx-team.github.io/hippocampus/api/)
+```bash
+pip install -U hebb-mind               # pip
+pip install -U hebb-mind[pg]           # 启用 PostgreSQL/pgvector
+hebb cc install --scope user          # Claude Code：基于 hooks 的自动记忆
+hebb codex install --scope user       # Codex：MCP 记忆工具
+```
 
-主要端点：
+Docker、一键脚本、源码安装详见 [安装指南](https://afx-team.github.io/hebb-mind/zh/guide/installation.html)。
 
-| 方法 | 端点 | 说明 |
-|------|------|------|
-| `POST` | `/api/v1/memories` | 存储新记忆 |
-| `GET` | `/api/v1/memories/{id}` | 按 ID 获取记忆 |
-| `DELETE` | `/api/v1/memories/{id}` | 删除记忆 |
-| `POST` | `/api/v1/search` | 混合搜索 |
-| `POST` | `/api/v1/admin/consolidate` | 触发巩固 |
-| `GET` | `/api/v1/graph/tags` | 列出知识图谱标签 |
-| `GET` | `/api/v1/graph/neighbors/{tag}` | 探索标签关系 |
+## 记忆回路
+
+每天，按照大脑大致相同的顺序运行同样四个阶段：
+
+| 阶段 | 大脑对应 | 在 Hebb Mind 里发生了什么 | 触发方式 |
+|------|---------|---------------------------|---------|
+| **编码** | 海马体 CA1 捕捉当下 | 新记忆进入工作记忆收件箱（`mem_hippocampus`） | API 写入 |
+| **回放与巩固** | 慢波睡眠中的尖波涟漪 | 巩固代理分类到分区、解决冲突、把标签写入知识图谱 | 每日 18:00 / 手动 |
+| **检索** | CA3 的模式补全 | 三路混合搜索（向量 + 关键词 + 图谱），按时效 / 重要性 / 相关性综合评分 | API 搜索 |
+| **遗忘** | 突触修剪 + 遗忘曲线 | 基于访问频率与重要性的动态 TTL — 被忽略的记忆自然消退 | 周期性 |
+
+详细说明：[记忆生命周期](https://afx-team.github.io/hebb-mind/zh/concepts/memory-lifecycle.html) · [混合检索](https://afx-team.github.io/hebb-mind/zh/concepts/hybrid-search.html) · [架构图](https://afx-team.github.io/hebb-mind/zh/#架构)
+
+## 横向对比
+
+简洁版本；完整对比表见 [文档站](https://afx-team.github.io/hebb-mind/zh/#为什么选-hebb-mind)。
+
+| 特性 | Mem0 | Letta | Zep | **Hebb Mind** |
+|---|---|---|---|---|
+| 自托管 Web UI | 仅云端（[相关讨论](https://github.com/mem0ai/mem0/discussions/3599)） | 仅云端 | 仅云端 | **内置 SPA** |
+| 知识图谱 | 可插拔（[v3 已移除](https://docs.mem0.ai/migration/oss-v2-to-v3)） | 无 | 有（Graphiti） | 标签图谱（NetworkX） |
+| 记忆巩固 | 仅追加 | Sleeptime Agent | 矛盾解决 | **自动 + 冲突解决** |
+| 遗忘 / 衰减 | 无 | 无 | 时序失效 | **动态 TTL** |
+| 零配置本地部署 | 需 API Key | 需 API Key + DB | 需 Postgres + Neo4j | **SQLite + 本地嵌入** |
 
 ## 配置
 
-所有配置统一在 **`hippocampus.json`** 文件中管理，不需要环境变量。
+所有配置统一在 `hebb.json` 中管理。常用命令：
 
 ```bash
-hippocampus config list                    # 查看所有配置
-hippocampus config set llm_model openai/gpt-4o  # 切换模型
-hippocampus config set llm_base_url https://dashscope.aliyuncs.com/compatible-mode/v1  # 通义千问/GLM/Kimi
+hebb config list
+hebb config set llm_model openai/gpt-4o-mini
+hebb config set storage_type postgresql
+hebb config set pg_url postgresql://user:pass@localhost/hebb
 ```
 
-| 字段 | 默认值 | 说明 |
-|------|--------|------|
-| `llm_model` | `null` | LLM 模型标识（通过 [LiteLLM](https://github.com/BerriAI/litellm)），仅启用巩固时需要 |
-| `llm_api_key` | `null` | LLM API 密钥（巩固功能必需）|
-| `llm_base_url` | `null` | 自定义 LLM API 端点（用于通义千问/GLM/Kimi）|
-| `storage_type` | `sqlite` | `sqlite` 或 `postgresql` |
-| `embedding_enabled` | `true` | 设为 `false` 禁用向量搜索 |
-| `embedding_model` | language-aware | `setup` 为英语选择 `BAAI/bge-large-en-v1.5`，为中文/多语言选择 `BAAI/bge-m3` |
-| `hf_endpoint` | `null` | HuggingFace 镜像地址；`setup --region cn` 会设置 `https://hf-mirror.com` |
-| `port` | `8321` | 服务端口 |
-| `consolidation_time` | `18:00` | 每日巩固时间（`HH:MM`） |
-| `base_ttl_hours` | `168` | 基础记忆 TTL |
+完整字段参考 [配置指南](https://afx-team.github.io/hebb-mind/zh/guide/configuration.html)。
 
-> 完整配置参考：[配置指南](https://afx-team.github.io/hippocampus/zh/guide/configuration.html)
+## API
 
-## 支持的模型
+服务启动后访问 `http://localhost:8321/docs` 查看完整 REST 文档。主要端点：
 
-通过 [LiteLLM](https://github.com/BerriAI/litellm)，Hippocampus 支持所有主流 LLM 提供商：
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| `POST` | `/api/v1/memories` | 写入记忆 |
+| `POST` | `/api/v1/search` | 混合搜索 |
+| `POST` | `/api/v1/admin/consolidate` | 立即触发巩固（需配置 `llm_api_key`） |
+| `GET`  | `/api/v1/graph/tags` | 列出知识图谱标签 |
+| `GET`  | `/api/v1/graph/neighbors/{tag}?depth=2` | 沿标签图谱游走 |
 
-| 提供商 | 模型示例 | 配置方式 |
-|--------|----------|----------|
-| OpenAI | `openai/gpt-4o-mini` | `llm_api_key` |
-| Anthropic | `anthropic/claude-3-haiku-20240307` | `llm_api_key` |
-| 通义千问 | `openai/qwen-plus` | `llm_api_key` + `llm_base_url` |
-| 智谱 GLM | `openai/glm-4` | `llm_api_key` + `llm_base_url` |
-| Kimi (Moonshot) | `openai/moonshot-v1-8k` | `llm_api_key` + `llm_base_url` |
+## 贡献
 
-## 贡献指南
-
-欢迎贡献！详见 [CONTRIBUTING.md](CONTRIBUTING.md) 了解开发环境搭建、测试和 PR 流程。
-
-### 开发环境搭建
-
-```bash
-git clone https://github.com/afx-team/hippocampus.git
-cd hippocampus
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-
-# 运行测试
-pytest tests/ -v
-
-# 代码检查
-ruff check src/
-
-# 类型检查
-mypy src/hippocampus/
-```
-
-## 路线图
-
-- [x] 5 个类脑记忆分区的核心模型
-- [x] SQLite + sqlite-vec 存储后端
-- [x] PostgreSQL + pgvector 存储后端
-- [x] 记忆巩固代理（Agentic RAG）
-- [x] 指数衰减动态遗忘
-- [x] 标签知识图谱
-- [x] FastAPI REST API
-- [x] CLI 工具 + Docker 部署
-- [x] 内置 Web 管理控制台
-- [x] 评估基准测试（LoCoMo、LongMemEval、ConvoMem、PersonaMem）
-- [x] MCP Server 集成 Claude Code / OpenClaw
-- [x] Claude Code Hooks — 跨会话自动记忆
-- [ ] 多 Agent 共享记忆
-- [ ] 情感标签与记忆重要性学习
+环境搭建：`pip install -e ".[dev]" && pytest tests/ -v`。详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 致谢
 
-本项目参考了以下研究：
+**认知神经科学。** Ebbinghaus, H. (1885). *Über das Gedächtnis*. · **Hebb, D. O. (1949). *The Organization of Behavior*. Wiley** —项目的命名来源，"fire together, wire together" 背后的赫布假说。 · Tulving, E. (1972). Episodic and semantic memory. · Squire, L. R. (1992). Memory and the hippocampus: a synthesis from findings with rats, monkeys, and humans. *Psychological Review*, 99(2). · O'Reilly, R. C., & McClelland, J. L. (1994). Hippocampal conjunctive encoding, storage, and recall. *Hippocampus*, 4(6). · Wilson, M. A., & McNaughton, B. L. (1994). Reactivation of hippocampal ensemble memories during sleep. *Science*, 265(5172). · Tulving, E. (2002). Episodic memory: from mind to brain. *Annual Review of Psychology*, 53. · Buzsáki, G. (2015). Hippocampal sharp wave-ripple. *Hippocampus*, 25(10).
 
-- [Generative Agents](https://arxiv.org/abs/2304.03442) — 时效-重要性-相关性检索评分
-- [MemGPT / Letta](https://arxiv.org/abs/2310.08560) — Agent 驱动的记忆管理
-- [CoALA](https://arxiv.org/abs/2309.02427) — 情景/语义/程序性分类体系
-- [Zep / Graphiti](https://github.com/getzep/graphiti) — 时序知识图谱
+**AI 记忆系统。** [Generative Agents](https://arxiv.org/abs/2304.03442)（评分模型）· [MemGPT / Letta](https://arxiv.org/abs/2310.08560)（Agent 驱动的记忆管理）· [CoALA](https://arxiv.org/abs/2309.02427)（分区分类法）· [Graphiti](https://github.com/getzep/graphiti)（时序知识图谱）。研究笔记见 [`reports/papers/`](reports/papers/)。
 
-详见[研究笔记](https://github.com/afx-team/hippocampus/tree/main/repo_pages/papers/)了解详细调研。
+> *"记忆是灵魂的书记官。" — 亚里士多德*
+> 大脑早已用亿万年解决了这个问题。我们只是在把那条回路移植过来。
 
 ## 许可证
 

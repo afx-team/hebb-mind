@@ -1,0 +1,30 @@
+name: Question
+description: Ask a usage question about Hebb Mind.
+title: "[Question] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For open-ended usage questions please prefer GitHub Discussions if it
+        is enabled on this repository — otherwise a question issue here is
+        fine. Bug reports and feature requests have their own templates.
+
+        - Documentation: <https://afx-team.github.io/hebb-mind/>
+        - Discussions (if enabled): <https://github.com/afx-team/hebb-mind/discussions>
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What are you trying to do, and what have you tried so far?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Hebb Mind version, Python version, OS, relevant config — anything that helps us answer.
+    validations:
+      required: false

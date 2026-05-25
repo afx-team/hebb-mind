@@ -1,20 +1,20 @@
 services:
-  hippocampus:
+  hebb:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     ports:
       - "8321:8321"
     volumes:
-      - hippocampus-data:/data
+      - hebb-data:/data
     environment:
-      - HIPPOCAMPUS_HOME=/data
-      - HIPPOCAMPUS_LANGUAGE=${HIPPOCAMPUS_LANGUAGE:-auto}
-      - HIPPOCAMPUS_REGION=${HIPPOCAMPUS_REGION:-auto}
-      - HIPPOCAMPUS_LLM_API_KEY=${HIPPOCAMPUS_LLM_API_KEY}
-      - HIPPOCAMPUS_LLM_MODEL=${HIPPOCAMPUS_LLM_MODEL:-openai/gpt-4o-mini}
-      - HIPPOCAMPUS_LLM_BASE_URL=${HIPPOCAMPUS_LLM_BASE_URL:-}
+      - HEBB_HOME=/data
+      - HEBB_LANGUAGE=${HEBB_LANGUAGE:-auto}
+      - HEBB_REGION=${HEBB_REGION:-auto}
+      - HEBB_LLM_API_KEY=${HEBB_LLM_API_KEY}
+      - HEBB_LLM_MODEL=${HEBB_LLM_MODEL:-openai/gpt-4o-mini}
+      - HEBB_LLM_BASE_URL=${HEBB_LLM_BASE_URL:-}
     restart: unless-stopped
 
 volumes:
-  hippocampus-data:
+  hebb-data:

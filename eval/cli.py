@@ -1,4 +1,4 @@
-"""CLI for hippocampus evaluation benchmarks."""
+"""CLI for hebb evaluation benchmarks."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import click
 
 from eval.benchmarks import BENCHMARKS
 from eval.client import (
-    HippocampusClient,
+    HebbClient,
     clean_storage,
     start_server,
     stop_server,
@@ -40,16 +40,16 @@ def _setup_logging(verbose: bool) -> None:
 
 
 def _get_server_port(settings: EvalSettings) -> int:
-    """Extract port from hippocampus_url."""
+    """Extract port from hebb_url."""
     from urllib.parse import urlparse
-    parsed = urlparse(settings.hippocampus_url)
+    parsed = urlparse(settings.hebb_url)
     return parsed.port or 8321
 
 
 @click.group()
 @click.option("-v", "--verbose", is_flag=True, help="Enable debug logging")
 def cli(verbose: bool) -> None:
-    """Hippocampus evaluation benchmarks."""
+    """Hebb Mind evaluation benchmarks."""
     _setup_logging(verbose)
 
 
@@ -107,7 +107,7 @@ async def _fresh_server(settings: EvalSettings) -> "subprocess.Popen":
         click.echo(f"  Deleted: {', '.join(Path(d).name for d in deleted)}")
     click.echo("Starting fresh server...")
     proc = start_server(settings.project_root)
-    await wait_for_server(settings.hippocampus_url)
+    await wait_for_server(settings.hebb_url)
     click.echo(f"Server ready (PID {proc.pid})")
     return proc
 
@@ -125,7 +125,7 @@ async def _fresh_server(settings: EvalSettings) -> "subprocess.Popen":
     default=None,
     help="Evaluation mode: raw (no consolidation) or consolidated (with consolidation)",
 )
-@click.option("--url", default=None, help="Hippocampus server URL")
+@click.option("--url", default=None, help="Hebb Mind server URL")
 @click.option("--top-k", default=None, type=int, help="Search top_k")
 @click.option("--llm-model", default=None, help="LLM model for judge")
 @click.option("--max-scenarios", default=None, type=int, help="Limit scenarios per dataset")
@@ -137,10 +137,10 @@ def run(
     llm_model: str | None,
     max_scenarios: int | None,
 ) -> None:
-    """Run evaluation benchmark(s) against a hippocampus instance."""
+    """Run evaluation benchmark(s) against a hebb instance."""
     settings = load_eval_settings()
     if url:
-        settings.hippocampus_url = url
+        settings.hebb_url = url
     if top_k:
         settings.search_top_k = top_k
     if llm_model:
@@ -204,9 +204,9 @@ def run(
                 total_q = sum(len(s.questions) for s in scenarios)
                 click.echo(f"Loaded {len(scenarios)} scenarios, {total_q} questions")
 
-                async with HippocampusClient(settings.hippocampus_url) as client:
+                async with HebbClient(settings.hebb_url) as client:
                     # 4. Ingest into mem_hippocampus
-                    click.echo("Ingesting memories into mem_hippocampus...")
+                    click.echo("Ingesting memories into mem_hebb...")
                     await benchmark.setup(client, scenarios)
 
                     # 5. Consolidation (if mode == consolidated)

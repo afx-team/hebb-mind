@@ -1,4 +1,4 @@
-"""Async HTTP client for the hippocampus API."""
+"""Async HTTP client for the hebb API."""
 
 from __future__ import annotations
 
@@ -33,16 +33,16 @@ def _find_pids_on_port(port: int) -> list[int]:
         return []
 
 
-def _read_hippocampus_config(project_root: Path | None = None) -> dict:
-    """Read hippocampus.json from project root."""
+def _read_hebb_config(project_root: Path | None = None) -> dict:
+    """Read hebb.json from project root."""
     root = project_root or Path.cwd()
-    cfg_path = root / "hippocampus.json"
+    cfg_path = root / "hebb.json"
     if cfg_path.exists():
         with open(cfg_path) as f:
             return json.load(f)
     # Fallback: try workspace resolution
     try:
-        from hippocampus.config.loader import find_config_file
+        from hebb.config.loader import find_config_file
 
         found = find_config_file(root)
         if found and found.exists():
@@ -54,7 +54,7 @@ def _read_hippocampus_config(project_root: Path | None = None) -> dict:
 
 
 def stop_server(port: int) -> bool:
-    """Stop any hippocampus server on the given port. Returns True if stopped."""
+    """Stop any hebb server on the given port. Returns True if stopped."""
     pids = _find_pids_on_port(port)
     if not pids:
         return False
@@ -85,7 +85,7 @@ def clean_storage(project_root: Path | None = None) -> list[str]:
     root = project_root or Path.cwd()
 
     # Data files are always in the workspace root
-    db_path = root / "hippocampus.db"
+    db_path = root / "hebb.db"
     kg_path = root / "knowledge_graph.json"
 
     deleted = []
@@ -112,12 +112,12 @@ def _find_python(project_root: Path) -> str:
 
 
 def start_server(project_root: Path | None = None) -> subprocess.Popen:
-    """Start hippocampus server as a background subprocess.
+    """Start hebb server as a background subprocess.
 
     Returns the Popen handle.
     """
     root = project_root or Path.cwd()
-    cfg = _read_hippocampus_config(root)
+    cfg = _read_hebb_config(root)
     host = cfg.get("host", "0.0.0.0")
     port = cfg.get("port", 8321)
     python = _find_python(root)
@@ -128,7 +128,7 @@ def start_server(project_root: Path | None = None) -> subprocess.Popen:
     env["TRANSFORMERS_OFFLINE"] = "1"
 
     proc = subprocess.Popen(
-        [python, "-m", "uvicorn", "hippocampus.server.app:app",
+        [python, "-m", "uvicorn", "hebb.server.app:app",
          "--host", host, "--port", str(port)],
         cwd=str(root),
         env=env,
@@ -163,8 +163,8 @@ async def wait_for_server(base_url: str, timeout: float = 120.0) -> None:
     raise TimeoutError(f"Server not ready at {base_url} after {timeout}s")
 
 
-class HippocampusClient:
-    """Async HTTP client wrapping every hippocampus API endpoint."""
+class HebbClient:
+    """Async HTTP client wrapping every hebb API endpoint."""
 
     def __init__(self, base_url: str = "http://localhost:8321", timeout: float = 30.0):
         self.base_url = base_url.rstrip("/")
@@ -176,7 +176,7 @@ class HippocampusClient:
     async def close(self) -> None:
         await self._client.aclose()
 
-    async def __aenter__(self) -> HippocampusClient:
+    async def __aenter__(self) -> HebbClient:
         return self
 
     async def __aexit__(self, *exc) -> None:

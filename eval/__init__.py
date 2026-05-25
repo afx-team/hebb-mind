@@ -1,1 +1,1 @@
-"""Hippocampus evaluation benchmarks."""
+"""Hebb Mind evaluation benchmarks."""

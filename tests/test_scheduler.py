@@ -7,11 +7,11 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from apscheduler.triggers.cron import CronTrigger
 
-from hippocampus.embedding.local import NoopEmbedder
-from hippocampus.graph.knowledge_graph import KnowledgeGraph
-from hippocampus.models.memory import Memory, MemoryCreate
-from hippocampus.scheduler.forgetting_job import compute_expires_at
-from hippocampus.scheduler.manager import SchedulerManager
+from hebb.embedding.local import NoopEmbedder
+from hebb.graph.knowledge_graph import KnowledgeGraph
+from hebb.models.memory import Memory, MemoryCreate
+from hebb.scheduler.forgetting_job import compute_expires_at
+from hebb.scheduler.manager import SchedulerManager
 
 
 class TestSchedulerManager:

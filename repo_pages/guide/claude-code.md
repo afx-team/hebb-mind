@@ -1,6 +1,6 @@
 # Claude Code Integration
 
-Hippocampus integrates with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) as both an **MCP server** (manual memory tools) and a **hooks-based auto-memory layer** (automatic write/recall across sessions).
+Hebb Mind integrates with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) as both an **MCP server** (manual memory tools) and a **hooks-based auto-memory layer** (automatic write/recall across sessions).
 
 ## Overview
 
@@ -14,12 +14,12 @@ Most users want both — MCP for explicit memory operations, hooks for seamless 
 ## Install
 
 ```bash
-pip install -U afx-hippocampus       # Install the package
-hippocampus setup                     # Initialize + prefetch embedding model
-hippocampus cc install --scope user   # Inject hooks + MCP into Claude Code
+pip install -U hebb-mind       # Install the package
+hebb setup                     # Initialize + prefetch embedding model
+hebb cc install --scope user   # Inject hooks + MCP into Claude Code
 ```
 
-That's it. Restart Claude Code and hippocampus will:
+That's it. Restart Claude Code and Hebb Mind will:
 
 - **Recall** cross-session memories at the start of each session
 - **Write** each user message to memory (with noise stripping and dedup)
@@ -27,38 +27,38 @@ That's it. Restart Claude Code and hippocampus will:
 
 ### Scope
 
-By default, `hippocampus cc install` writes hooks to the **project-level** `.claude/settings.json`. To install globally:
+By default, `hebb cc install` writes hooks to the **project-level** `.claude/settings.json`. To install globally:
 
 ```bash
-hippocampus cc install --scope user   # writes to ~/.claude/settings.json
+hebb cc install --scope user   # writes to ~/.claude/settings.json
 ```
 
 ### Uninstall
 
 ```bash
-hippocampus cc uninstall              # remove hooks + MCP from settings
+hebb cc uninstall              # remove hooks + MCP from settings
 ```
 
 ## How Hooks Work
 
-Claude Code [hooks](https://docs.anthropic.com/en/docs/claude-code/hooks) are shell commands that fire on session lifecycle events. Hippocampus registers three:
+Claude Code [hooks](https://docs.anthropic.com/en/docs/claude-code/hooks) are shell commands that fire on session lifecycle events. Hebb Mind registers three:
 
 ```
-SessionStart ──→ hippocampus cc recall ──→ search API ──→ stdout (injected into context)
-UserPromptSubmit ──→ hippocampus cc write ──→ strip noise + dedup ──→ write API (silent)
-Stop ──→ hippocampus cc stop ──→ consolidate API + cleanup (silent)
+SessionStart ──→ hebb cc recall ──→ search API ──→ stdout (injected into context)
+UserPromptSubmit ──→ hebb cc write ──→ strip noise + dedup ──→ write API (silent)
+Stop ──→ hebb cc stop ──→ consolidate API + cleanup (silent)
 ```
 
 ### Recall (SessionStart)
 
-When a new Claude Code session starts, `hippocampus cc recall` searches for relevant memories and outputs them to stdout. Claude Code injects this output into the conversation context.
+When a new Claude Code session starts, `hebb cc recall` searches for relevant memories and outputs them to stdout. Claude Code injects this output into the conversation context.
 
 - Searches with `top_k=20`, returns up to 10 results
 - **Filters out current session memories** — they're already in context
 - Output format:
 
 ```xml
-<cross-session-memory source="hippocampus" count="3">
+<cross-session-memory source="hebb" count="3">
 [mem_preference] (score=0.85 tags=[food, preference]) User likes salmon
 [mem_semantic] (score=0.72 tags=[coding]) User prefers TypeScript over JavaScript
 [mem_episodic] (score=0.68) Debugged auth middleware last session
@@ -67,7 +67,7 @@ When a new Claude Code session starts, `hippocampus cc recall` searches for rele
 
 ### Write (UserPromptSubmit)
 
-Each time the user sends a message, `hippocampus cc write` captures it:
+Each time the user sends a message, `hebb cc write` captures it:
 
 1. **Strips noise** — removes `<system-reminder>`, `<command-name>`, and other system tags
 2. **Skips trivial messages** — anything under 20 characters ("ok", "yes", "/clear")
@@ -78,7 +78,7 @@ Memories are written to the `mem_hippocampus` working inbox with `source: "hook"
 
 ### Stop
 
-When the session ends, `hippocampus cc stop`:
+When the session ends, `hebb cc stop`:
 
 1. Triggers memory consolidation (classifies working inbox memories into long-term partitions)
 2. Cleans up the per-session dedup state
@@ -89,7 +89,7 @@ The MCP server provides explicit memory tools that Claude can call during conver
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `write_memory` | Write a memory to the hippocampus inbox | `content`, `tags?`, `importance?` |
+| `write_memory` | Write a memory to the working-memory inbox | `content`, `tags?`, `importance?` |
 | `search_memory` | Hybrid retrieval (vector + keyword + graph) | `query`, `top_k?` |
 | `consolidate` | Trigger memory consolidation | none |
 
@@ -100,8 +100,8 @@ If you only want the MCP server without hooks, add to `.mcp.json`:
 ```json
 {
   "mcpServers": {
-    "hippocampus": {
-      "command": "hippocampus-mcp"
+    "hebb": {
+      "command": "hebb-mcp"
     }
   }
 }
@@ -110,7 +110,7 @@ If you only want the MCP server without hooks, add to `.mcp.json`:
 Or use Claude Code's MCP command:
 
 ```bash
-claude mcp add --transport stdio --scope user hippocampus -- hippocampus-mcp
+claude mcp add --transport stdio --scope user hebb -- hebb-mcp
 claude mcp list
 ```
 
@@ -118,14 +118,14 @@ See [MCP Integration](./mcp-integration.md) for details on Claude Desktop, Curso
 
 ## Configuration
 
-The hooks use the same `hippocampus.json` config as the main service. No additional configuration is needed.
+The hooks use the same `hebb.json` config as the main service. No additional configuration is needed.
 
-If the hippocampus service isn't running when a hook fires, it will be auto-started.
+If the hebb service isn't running when a hook fires, it will be auto-started.
 
-For remote services, set the `HIPPOCAMPUS_URL` environment variable:
+For remote services, set the `HEBB_URL` environment variable:
 
 ```bash
-export HIPPOCAMPUS_URL=http://192.168.1.100:8321
+export HEBB_URL=http://192.168.1.100:8321
 ```
 
 ## Troubleshooting
@@ -135,20 +135,20 @@ export HIPPOCAMPUS_URL=http://192.168.1.100:8321
 Verify hooks are registered:
 
 ```bash
-cat .claude/settings.json | grep "hippocampus cc"
+cat .claude/settings.json | grep "hebb cc"
 ```
 
-If empty, re-run `hippocampus cc install`.
+If empty, re-run `hebb cc install`.
 
 ### No memories recalled
 
 Check that the service is running and has memories:
 
 ```bash
-hippocampus status
+hebb status
 curl http://localhost:8321/api/v1/memories?limit=5
 ```
 
 ### Recall is slow
 
-The first recall after a cold start loads the embedding model. `hippocampus setup` prefetches the default model to make this path predictable. Keep the service running with `hippocampus start -d` or `hippocampus service install`.
+The first recall after a cold start loads the embedding model. `hebb setup` prefetches the default model to make this path predictable. Keep the service running with `hebb start -d` or `hebb service install`.

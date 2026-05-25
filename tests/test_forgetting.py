@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from hippocampus.scheduler.forgetting_job import compute_ttl_hours
+from hebb.scheduler.forgetting_job import compute_ttl_hours
 
 
 class TestForgettingFormula:

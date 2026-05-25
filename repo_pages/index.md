@@ -2,81 +2,130 @@
 layout: home
 
 hero:
-  name: Hippocampus
-  text: Agent Memory Framework
-  tagline: Give your AI agents a real memory — neuroscience-inspired consolidation, retrieval, and forgetting.
+  name: Hebb Mind
+  text: Memory that wires itself.
+  tagline: 'A memory framework for AI agents — named for Donald Hebb, whose rule the brain learns by: neurons that fire together, wire together. Encode · replay · consolidate · forget. Local SQLite, zero external services.'
   actions:
     - theme: brand
-      text: Get Started
+      text: Get Started in 60s
       link: /quick-start
     - theme: alt
       text: View on GitHub
-      link: https://github.com/afx-team/hippocampus
+      link: https://github.com/afx-team/hebb-mind
+    - theme: alt
+      text: Benchmarks
+      link: /benchmarks
 
 features:
-  - icon: 🧠
-    title: Memory Consolidation
-    details: Automatic agent classifies memories into semantic, episodic, preference, and procedural partitions — just like the human brain.
-  - icon: 🔄
-    title: Dynamic Forgetting
-    details: TTL formula inspired by Ebbinghaus — frequently accessed, high-importance memories live longer. Neglected memories fade naturally.
-  - icon: 🔍
-    title: Hybrid Search
-    details: Three-path retrieval (vector + keyword + knowledge graph) with recency, importance, and relevance scoring.
-  - icon: 🕸️
-    title: Knowledge Graph
-    details: Tags extracted during consolidation form a graph of connected concepts. Explore relationships visually in the Web Console.
   - icon: ⚡
-    title: Zero-Config Start
-    details: "SQLite backend: hippocampus setup && hippocampus start is all you need. Upgrade to PostgreSQL for production."
+    title: 60-second local start
+    details: "pip install + hebb setup + hebb start. SQLite + sentence-transformers, zero external services. No API key needed for ingest and hybrid search."
+  - icon: 🧠
+    title: Conflict-resolving consolidation
+    details: An agent merges duplicates and overwrites stale facts — not just append. Bring any LLM via LiteLLM (OpenAI, Claude, Qwen, GLM, Kimi, …).
+  - icon: 🔄
+    title: Honest forgetting
+    details: "TTL = base × (1 + log(access)) × importance × exp(-decay × days). Frequently used memories survive; neglected ones decay. Tunable per workspace."
+  - icon: 🔍
+    title: Three-path hybrid search
+    details: Vector + keyword + tag-graph retrieval, scored on recency, importance, and relevance. NetworkX-backed knowledge graph; explore neighbors via the API.
   - icon: 🖥️
-    title: Web Console
-    details: Built-in dark-themed dashboard for memory CRUD, semantic search, partition management, and graph visualization.
+    title: Built-in Web Console
+    details: Single-page app for memory CRUD, search, partitions, and graph view. Lives at http://localhost:8321/ — no separate deploy.
+  - icon: 🔌
+    title: REST + MCP + Claude Code hooks
+    details: Three-line install gives Claude Code cross-session memory; hebb codex install adds the same as MCP tools. REST docs at /docs.
 ---
 
 <div class="hippo-home hippo-snap">
 
+<!-- ─────────────── The Hebbian Idea ─────────────── -->
+<div class="hippo-section">
+<h2>Why "Hebb Mind"?</h2>
+<p class="hippo-section-sub">In 1949, Canadian psychologist <strong>Donald O. Hebb</strong> (1904–1985) described the rule the brain learns by. Hebb Mind is built on it.</p>
+
+<div class="hippo-hebb-quote">
+“When an axon of cell A … repeatedly or persistently takes part in firing cell B, … A's efficiency, as one of the cells firing B, is increased.”
+<span>— D. O. Hebb, <em>The Organization of Behavior</em> (1949) · remembered as <strong>“neurons that fire together, wire together.”</strong></span>
+</div>
+
+<p class="hippo-section-sub" style="margin-top:28px;">Hebb's insight: a memory is not a <em>place</em> — it is a <em>pattern of connection</em>. Concepts that co-occur wire into <strong>cell assemblies</strong>; a partial cue lights up the rest. Hebb Mind's tag knowledge graph runs exactly that loop.</p>
+
+<div class="hippo-lifecycle">
+  <div class="hippo-stage">
+    <div class="hippo-stage-icon">🔗</div>
+    <div class="hippo-stage-name">Wire</div>
+    <div class="hippo-stage-desc">Co-occurring tags gain a graph edge — a cell assembly</div>
+  </div>
+  <div class="hippo-arrow">→</div>
+  <div class="hippo-stage">
+    <div class="hippo-stage-icon">💪</div>
+    <div class="hippo-stage-name">Strengthen</div>
+    <div class="hippo-stage-desc">Each co-activation thickens the edge; consolidation keeps what's reinforced</div>
+  </div>
+  <div class="hippo-arrow">→</div>
+  <div class="hippo-stage">
+    <div class="hippo-stage-icon">🌐</div>
+    <div class="hippo-stage-name">Complete</div>
+    <div class="hippo-stage-desc">Retrieval walks the edges — a cue recalls the whole pattern</div>
+  </div>
+  <div class="hippo-arrow">→</div>
+  <div class="hippo-stage">
+    <div class="hippo-stage-icon">💨</div>
+    <div class="hippo-stage-name">Prune</div>
+    <div class="hippo-stage-desc">What is never co-activated weakens and fades</div>
+  </div>
+</div>
+
+<p class="hippo-section-sub" style="margin-top:28px;">And the <strong>hippocampus</strong> — the project's original name? It lives on as the working-memory partition (<code>mem_hippocampus</code>): the inbox every new memory enters before consolidation, just as the brain's hippocampus gates new experience into long-term memory. The brain <em>region</em> became one component; the <em>learning rule</em> became the name.</p>
+</div>
+
 <!-- ─────────────── Memory Lifecycle ─────────────── -->
 <div class="hippo-section">
-<h2>How It Works</h2>
-<p class="hippo-section-sub">Memories flow through four stages — just like the human hippocampus.</p>
+<h2>The Memory Loop</h2>
+<p class="hippo-section-sub">Four stages, in roughly the order the brain runs them — encoding in CA1, replay during slow-wave sleep (Wilson &amp; McNaughton, <em>Science</em>, 1994), pattern-completion in CA3, and the forgetting curve (Ebbinghaus, 1885) doing its quiet work.</p>
 
 <div class="hippo-lifecycle">
   <div class="hippo-stage">
     <div class="hippo-stage-icon">📥</div>
-    <div class="hippo-stage-name">Ingest</div>
-    <div class="hippo-stage-desc">New memories land in the working memory inbox</div>
+    <div class="hippo-stage-name">Encode</div>
+    <div class="hippo-stage-desc">Working-memory inbox <em>(CA1 capture)</em></div>
   </div>
   <div class="hippo-arrow">→</div>
   <div class="hippo-stage">
     <div class="hippo-stage-icon">🧠</div>
-    <div class="hippo-stage-name">Consolidate</div>
-    <div class="hippo-stage-desc">Agent classifies into partitions, extracts tags</div>
+    <div class="hippo-stage-name">Replay &amp; Consolidate</div>
+    <div class="hippo-stage-desc">Agent merges, classifies, tags <em>(sharp-wave ripples)</em></div>
   </div>
   <div class="hippo-arrow">→</div>
   <div class="hippo-stage">
     <div class="hippo-stage-icon">🔍</div>
     <div class="hippo-stage-name">Retrieve</div>
-    <div class="hippo-stage-desc">Three-path hybrid search with scoring</div>
+    <div class="hippo-stage-desc">Vector + keyword + graph <em>(pattern completion)</em></div>
   </div>
   <div class="hippo-arrow">→</div>
   <div class="hippo-stage">
     <div class="hippo-stage-icon">💨</div>
     <div class="hippo-stage-name">Forget</div>
-    <div class="hippo-stage-desc">Dynamic TTL — used memories live, neglected fade</div>
+    <div class="hippo-stage-desc">Dynamic TTL <em>(Ebbinghaus decay)</em></div>
   </div>
 </div>
 
 
 <!-- ─────────────── Quick Install ─────────────── -->
 <div class="hippo-install">
-  <div class="hippo-install-label">Install in 10 seconds</div>
+  <div class="hippo-install-label">60-second start — no API key</div>
   <div class="hippo-install-cmd">
-    <code>pip install afx-hippocampus && hippocampus setup && hippocampus start</code>
-    <button class="hippo-copy" onclick="navigator.clipboard.writeText('pip install afx-hippocampus && hippocampus setup && hippocampus start');this.innerHTML='<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;20 6 9 17 4 12&quot;/></svg>';setTimeout(()=>{this.innerHTML='<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><rect x=&quot;9&quot; y=&quot;9&quot; width=&quot;13&quot; height=&quot;13&quot; rx=&quot;2&quot;/><path d=&quot;M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1&quot;/></svg>'},1200)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+    <code>pip install hebb-mind && hebb setup && hebb start</code>
+    <button class="hippo-copy" onclick="navigator.clipboard.writeText('pip install hebb-mind && hebb setup && hebb start');this.innerHTML='<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;20 6 9 17 4 12&quot;/></svg>';setTimeout(()=>{this.innerHTML='<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><rect x=&quot;9&quot; y=&quot;9&quot; width=&quot;13&quot; height=&quot;13&quot; rx=&quot;2&quot;/><path d=&quot;M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1&quot;/></svg>'},1200)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
   </div>
-  <div class="hippo-install-hint">Open <a href="http://localhost:8321/">http://localhost:8321/</a> — that's it.</div>
+  <div class="hippo-install-hint">Ingest + hybrid search work locally. Open <a href="http://localhost:8321/">http://localhost:8321/</a>. For LLM consolidation, see the <a href="/quick-start#path-b-5-minutes-with-llm-consolidation">5-minute path</a>.</div>
 </div>
+
+<!-- TODO(asset): screenshot of /index.html web console with sample memories -->
+<p style="text-align:center; margin: 32px 0 0;">
+  <img src="/web-console-hero.png" alt="Hebb Mind Web Console showing partitioned memories and tag graph" width="760" style="border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.18);">
+</p>
 </div>
 
 <!-- ─────────────── Architecture ─────────────── -->
@@ -93,7 +142,7 @@ features:
   </div>
   <div class="hippo-arch-connector">▼</div>
   <div class="hippo-arch-core">
-    <span class="hippo-arch-core-label">HIPPOCAMPUS CORE</span>
+    <span class="hippo-arch-core-label">HEBB MIND CORE</span>
     <span class="hippo-arch-core-sub">Working Memory Inbox · Consolidation Agent · Recall Agent (Agentic RAG) · Scheduler</span>
   </div>
   <div class="hippo-arch-connector">▼</div>
@@ -161,19 +210,19 @@ features:
 
 <!-- ─────────────── Comparison ─────────────── -->
 <div class="hippo-section hippo-section-compare">
-<h2>Why Hippocampus</h2>
-<p class="hippo-section-sub">Core capabilities you'd expect — plus what only we do.</p>
+<h2>Why Hebb Mind</h2>
+<p class="hippo-section-sub">Core capabilities you'd expect — plus what only we do. <a href="/benchmarks">v0.1.1 LoCoMo: 37.6% accuracy, 102 ms/query</a> (work in progress).</p>
 
 <div class="hippo-compare">
   <div class="hippo-compare-table">
     <table>
       <thead>
-        <tr><th>Feature</th><th>Mem0</th><th>Letta</th><th>Zep</th><th class="hippo-highlight">Hippocampus</th></tr>
+        <tr><th>Feature</th><th>Mem0</th><th>Letta</th><th>Zep</th><th class="hippo-highlight">Hebb Mind</th></tr>
       </thead>
       <tbody>
         <tr><td>Multi-model support</td><td class="hippo-yes">Yes</td><td class="hippo-yes">Yes</td><td class="hippo-yes">Yes</td><td class="hippo-highlight">Via LiteLLM</td></tr>
-        <tr><td>Knowledge graph</td><td class="hippo-partial">Partial</td><td class="hippo-no">No</td><td class="hippo-yes">Yes</td><td class="hippo-highlight">Tag-based</td></tr>
-        <tr><td>Web management UI</td><td class="hippo-yes">Yes</td><td class="hippo-partial">Cloud only</td><td class="hippo-partial">Cloud only</td><td class="hippo-highlight">Built-in SPA</td></tr>
+        <tr><td>Knowledge graph</td><td class="hippo-partial">Pluggable (removed in v3)</td><td class="hippo-no">No</td><td class="hippo-yes">Yes (Graphiti)</td><td class="hippo-highlight">Tag-based (NetworkX)</td></tr>
+        <tr><td>Self-hosted Web UI</td><td class="hippo-partial">Cloud only</td><td class="hippo-partial">Cloud only</td><td class="hippo-partial">Cloud only</td><td class="hippo-highlight">Built-in SPA</td></tr>
         <tr><td>MCP Server</td><td class="hippo-yes">Yes</td><td class="hippo-no">Consumer only</td><td class="hippo-yes">Yes</td><td class="hippo-highlight">Built-in, auto-start</td></tr>
         <tr class="hippo-divider-row"><td colspan="5"></td></tr>
         <tr><td>Memory consolidation</td><td class="hippo-partial">ADD-only</td><td class="hippo-partial">Sleeptime Agent</td><td class="hippo-partial">Contradiction resolve</td><td class="hippo-highlight">Automatic + conflict resolve</td></tr>
@@ -233,6 +282,19 @@ features:
 .hippo-copy:hover { opacity: 1; border-color: var(--vp-c-brand-1); }
 .hippo-install-hint { font-size: 13px; color: var(--vp-c-text-3); margin-top: 12px; }
 .hippo-install-hint a { color: var(--vp-c-brand-1); text-decoration: underline; }
+
+/* ── Hebb quote ── */
+.hippo-hebb-quote {
+  max-width: 720px; margin: 0 auto; padding: 22px 28px;
+  border-left: 3px solid var(--vp-c-brand-1);
+  background: var(--vp-c-bg-soft); border-radius: 0 10px 10px 0;
+  font-size: 15px; line-height: 1.7; color: var(--vp-c-text-2);
+  font-style: italic;
+}
+.hippo-hebb-quote span {
+  display: block; margin-top: 10px; font-size: 13px;
+  color: var(--vp-c-text-3); font-style: normal;
+}
 
 /* ── Sections ── */
 .hippo-section {

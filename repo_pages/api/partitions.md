@@ -1,6 +1,6 @@
 # Partitions API
 
-Partitions organize memories into logical categories. Hippocampus ships with five built-in partitions and supports custom user-defined partitions.
+Partitions organize memories into logical categories. Hebb Mind ships with five built-in partitions and supports custom user-defined partitions.
 
 ## List Partitions
 

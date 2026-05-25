@@ -1,12 +1,12 @@
-# Contributing to Hippocampus
+# Contributing to Hebb Mind
 
 Thanks for your interest in contributing! This guide will help you get started.
 
 ## Development Setup
 
 ```bash
-git clone https://github.com/afx-team/hippocampus.git
-cd hippocampus
+git clone https://github.com/afx-team/hebb-mind.git
+cd hebb-mind
 python -m venv .venv
 source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 pip install -e ".[dev]"
@@ -19,7 +19,7 @@ pip install -e ".[dev]"
 pytest tests/ -v
 
 # With coverage
-pytest tests/ -v --cov=hippocampus
+pytest tests/ -v --cov=hebb
 
 # Single file
 pytest tests/test_storage.py -v
@@ -37,13 +37,13 @@ ruff check src/
 ruff check src/ --fix
 
 # Type check
-mypy src/hippocampus/
+mypy src/hebb/
 ```
 
 ## Project Structure
 
 ```
-src/hippocampus/
+src/hebb/
     config/       Settings + config loading
     models/       Pydantic data models
     storage/      Storage backends (SQLite, PostgreSQL)
@@ -73,9 +73,23 @@ src/hippocampus/
 
 ## Reporting Issues
 
-- Use [GitHub Issues](https://github.com/afx-team/hippocampus/issues)
+- Use [GitHub Issues](https://github.com/afx-team/hebb-mind/issues)
 - Include steps to reproduce, expected behavior, and actual behavior
-- Include your Python version, OS, and hippocampus version
+- Include your Python version, OS, and Hebb Mind version
+
+## Reporting Security Issues
+
+Please **do not** file public issues for security vulnerabilities — see [SECURITY.md](SECURITY.md) for the private disclosure process.
+
+## Release Process
+
+Releases are cut from `main` and published to PyPI by `.github/workflows/publish.yml`. To ship a new version:
+
+1. Bump `version` in `pyproject.toml` and `src/hebb/__init__.py` (keep them in sync).
+2. Move entries from `## [Unreleased]` to a new `## [X.Y.Z]` section in `CHANGELOG.md` and update the link references at the bottom.
+3. Open a PR with the version bump + changelog; merge once CI is green.
+4. The push to `main` triggers `publish.yml`, which re-runs the test matrix, builds the package, uploads to PyPI via Trusted Publisher, and creates the `vX.Y.Z` git tag.
+5. After publish, draft a GitHub Release for the new tag using the changelog entry as the body.
 
 ## License
 

@@ -1,4 +1,4 @@
-# Hippocampus
+# Hebb Mind
 
 Agent memory framework — open-source project under [github.com/afx-team](https://github.com/afx-team).
 
@@ -22,7 +22,7 @@ When rules conflict, follow this priority order:
 ### Current Phase Focus
 - [ ] Survey academic papers on agent memory
 - [ ] Analyze open-source memory implementations  
-- [ ] Design hippocampus architecture
+- [ ] Design Hebb Mind architecture
 - [ ] Implement core components
 
 ---
@@ -30,7 +30,7 @@ When rules conflict, follow this priority order:
 ## Directory Architecture
 
 ```
-hippocampus/
+hebb-mind/
 ├── repo_pages/           # VuePress site → GitHub Pages (PUBLIC-FACING)
 │   ├── .vuepress/        # VuePress configuration
 │   └── *.md              # Public documentation pages
@@ -70,7 +70,7 @@ hippocampus/
 
 | Document Type | Required Sections | File Naming |
 |--------------|-------------------|-------------|
-| Paper Note | Summary, Key Insights, Implications for Hippocampus | `[AuthorYear]-[topic].md` |
+| Paper Note | Summary, Key Insights, Implications for Hebb Mind | `[AuthorYear]-[topic].md` |
 | Analysis Report | Overview, Architecture, Strengths, Weaknesses, Implications | `[project-name]-analysis.md` |
 | Design Doc | Problem, Solution, Trade-offs, Implementation Plan | `[feature-name]-design.md` |
 
@@ -106,7 +106,7 @@ def test_retrieve_returns_sorted_memories():
 - **DO NOT** use relative imports outside the same module
 - **DO NOT** hardcode API keys or secrets
 - **DO NOT** create files outside defined directory structure
-- **DO NOT** skip the "Implications for Hippocampus" section in analysis papers
+- **DO NOT** skip the "Implications for Hebb Mind" section in analysis papers
 - **DO NOT** use Chinese and English interchangeably in the same document — be consistent
 
 ---
@@ -127,7 +127,7 @@ def test_retrieve_returns_sorted_memories():
 
 ### Actionability Check
 - Every analysis document **SHOULD** end with actionable insights
-- Standard section: "## Implications for Hippocampus"
+- Standard section: "## Implications for Hebb Mind"
 
 ---
 

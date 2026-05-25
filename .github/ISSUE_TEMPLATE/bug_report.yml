@@ -1,0 +1,72 @@
+name: Bug report
+description: Report a defect in Hebb Mind.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. Please fill in the
+        sections below so we can reproduce and triage quickly.
+
+  - type: input
+    id: hebb-version
+    attributes:
+      label: Hebb Mind version
+      description: Output of `hebb --version` (or the installed `hebb-mind` PyPI version).
+      placeholder: "0.1.1"
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      description: Output of `python --version`.
+      placeholder: "3.12.4"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: OS name and version (e.g. macOS 14.4, Ubuntu 24.04, Windows 11).
+      placeholder: "macOS 14.4"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: A minimal sequence of commands or code that triggers the bug.
+      placeholder: |
+        1. `hebb init`
+        2. `hebb start`
+        3. `curl -X POST localhost:8000/api/v1/memories ...`
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / stack trace
+      description: Paste any relevant logs, tracebacks, or HTTP responses. Long output will be collapsed.
+      render: shell
+    validations:
+      required: false

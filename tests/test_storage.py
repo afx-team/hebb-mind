@@ -2,9 +2,9 @@
 
 import pytest
 
-from hippocampus.constants import PartitionType
-from hippocampus.models.memory import MemoryCreate, MemoryUpdate
-from hippocampus.models.partition import PartitionCreate, PartitionUpdate
+from hebb.constants import PartitionType
+from hebb.models.memory import MemoryCreate, MemoryUpdate
+from hebb.models.partition import PartitionCreate, PartitionUpdate
 
 
 class TestPartitionStore:
@@ -99,5 +99,5 @@ class TestMemoryStore:
         await memory_store.create(MemoryCreate(content="b", partition_id="mem_hippocampus"))
         await memory_store.create(MemoryCreate(content="c", partition_id="mem_semantic"))
 
-        hippocampus = await memory_store.get_by_partition("mem_hippocampus")
-        assert len(hippocampus) == 2
+        hebb = await memory_store.get_by_partition("mem_hippocampus")
+        assert len(hebb) == 2

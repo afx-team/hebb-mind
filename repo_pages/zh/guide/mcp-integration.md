@@ -1,14 +1,14 @@
 # MCP 集成
 
-Hippocampus 提供 MCP (Model Context Protocol) 服务，将记忆操作暴露为工具。Claude Code、Codex、Cursor 等 MCP 客户端可以直接使用。
+Hebb Mind 提供 MCP (Model Context Protocol) 服务，将记忆操作暴露为工具。Claude Code、Codex、Cursor 等 MCP 客户端可以直接使用。
 
 ## 前提条件
 
-需要先启动 hippocampus 服务。MCP 服务启动时会自动拉起未运行的服务：
+需要先启动 Hebb Mind 服务。MCP 服务启动时会自动拉起未运行的服务：
 
 ```bash
-hippocampus setup    # 首次使用
-hippocampus start    # 或：hippocampus start -d（后台模式）
+hebb setup    # 首次使用
+hebb start    # 或：hebb start -d（后台模式）
 ```
 
 ## 可用工具
@@ -21,16 +21,16 @@ hippocampus start    # 或：hippocampus start -d（后台模式）
 
 ## 配置
 
-MCP 服务自动从 `hippocampus.json` 发现服务地址。大多数情况下无需任何配置，只需添加命令即可。
+MCP 服务自动从 `hebb.json` 发现服务地址。大多数情况下无需任何配置，只需添加命令即可。
 
-如果服务运行在远程主机或非默认地址，可通过 `HIPPOCAMPUS_URL` 环境变量指定：
+如果服务运行在远程主机或非默认地址，可通过 `HEBB_URL` 环境变量指定：
 
 ### Claude Code
 
 推荐：
 
 ```bash
-hippocampus cc install --scope user
+hebb cc install --scope user
 ```
 
 仅 MCP：
@@ -40,8 +40,8 @@ hippocampus cc install --scope user
 ```json
 {
   "mcpServers": {
-    "hippocampus": {
-      "command": "hippocampus-mcp"
+    "hebb": {
+      "command": "hebb-mcp"
     }
   }
 }
@@ -54,10 +54,10 @@ hippocampus cc install --scope user
 ```json
 {
   "mcpServers": {
-    "hippocampus": {
-      "command": "hippocampus-mcp",
+    "hebb": {
+      "command": "hebb-mcp",
       "env": {
-        "HIPPOCAMPUS_URL": "http://192.168.1.100:8321"
+        "HEBB_URL": "http://192.168.1.100:8321"
       }
     }
   }
@@ -69,14 +69,14 @@ hippocampus cc install --scope user
 推荐：
 
 ```bash
-hippocampus codex install --scope user
+hebb codex install --scope user
 codex mcp list
 ```
 
 Codex 原生命令：
 
 ```bash
-codex mcp add hippocampus -- hippocampus-mcp
+codex mcp add hebb -- hebb-mcp
 ```
 
 ### Claude Desktop
@@ -86,8 +86,8 @@ codex mcp add hippocampus -- hippocampus-mcp
 ```json
 {
   "mcpServers": {
-    "hippocampus": {
-      "command": "hippocampus-mcp"
+    "hebb": {
+      "command": "hebb-mcp"
     }
   }
 }
@@ -100,8 +100,8 @@ codex mcp add hippocampus -- hippocampus-mcp
 ```json
 {
   "mcpServers": {
-    "hippocampus": {
-      "command": "hippocampus-mcp"
+    "hebb": {
+      "command": "hebb-mcp"
     }
   }
 }
@@ -113,22 +113,22 @@ codex mcp add hippocampus -- hippocampus-mcp
 Claude Code / Codex / Cursor
         │ (stdio)
         v
-  hippocampus-mcp (MCP 服务)
+  hebb-mcp (MCP 服务)
         │ (HTTP 调用)
         v
-  hippocampus start (REST API, 端口 8321)
+  hebb start (REST API, 端口 8321)
         │
   存储 / Embedding / 检索
 ```
 
-MCP 服务是一个薄包装层，将 MCP 工具调用转换为对运行中 Hippocampus 服务的 HTTP 请求。所有存储、向量和检索逻辑都在主服务中。
+MCP 服务是一个薄包装层，将 MCP 工具调用转换为对运行中 Hebb Mind 服务的 HTTP 请求。所有存储、向量和检索逻辑都在主服务中。
 
 ## CLI 使用
 
 也可以直接启动 MCP 服务：
 
 ```bash
-hippocampus mcp
+hebb mcp
 ```
 
 以 stdio 模式运行，适合与 MCP 客户端直接集成。

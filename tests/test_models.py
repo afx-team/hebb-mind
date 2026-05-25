@@ -1,9 +1,9 @@
 """Tests for Pydantic data models."""
 
-from hippocampus.models.common import PaginatedResponse
-from hippocampus.models.graph import KnowledgeGraphState, TagEdge, TagNode
-from hippocampus.models.memory import Memory, MemoryCreate, MemoryQuery, MemoryUpdate
-from hippocampus.models.partition import PartitionCreate, PartitionUpdate
+from hebb.models.common import PaginatedResponse
+from hebb.models.graph import KnowledgeGraphState, TagEdge, TagNode
+from hebb.models.memory import Memory, MemoryCreate, MemoryQuery, MemoryUpdate
+from hebb.models.partition import PartitionCreate, PartitionUpdate
 
 
 class TestMemoryModels:

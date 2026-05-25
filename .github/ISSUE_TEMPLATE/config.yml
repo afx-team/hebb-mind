@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://afx-team.github.io/hebb-mind/
+    about: Read the user guide, API reference, and tutorials.
+  - name: Security advisories
+    url: https://github.com/afx-team/hebb-mind/security/advisories/new
+    about: Report a security vulnerability privately. Do not file a public issue.
+  - name: GitHub Discussions (if enabled)
+    url: https://github.com/afx-team/hebb-mind/discussions
+    about: Ask open-ended questions and share ideas. If Discussions is enabled, use it; otherwise open a question issue.

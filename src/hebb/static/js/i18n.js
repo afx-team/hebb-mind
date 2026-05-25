@@ -1,0 +1,220 @@
+/**
+ * i18n — internationalization for EN and ZH.
+ */
+
+const translations = {
+  en: {
+    // Sidebar
+    'nav.dashboard': 'Dashboard',
+    'nav.memories': 'Memories',
+    'nav.search': 'Search',
+    'nav.partitions': 'Partitions',
+    'nav.graph': 'Graph',
+    'nav.settings': 'Settings',
+
+    // Dashboard
+    'dashboard.title': 'Dashboard',
+    'dashboard.subtitle': 'System overview and quick actions',
+    'dashboard.total_memories': 'Total Memories',
+    'dashboard.partitions': 'Partitions',
+    'dashboard.graph_nodes': 'Graph Nodes',
+    'dashboard.graph_edges': 'Graph Edges',
+    'dashboard.partition_dist': 'Partition Distribution',
+    'dashboard.quick_actions': 'Quick Actions',
+    'dashboard.run_consolidation': 'Run Consolidation',
+    'dashboard.run_forget': 'Run Forget',
+
+    // Memories
+    'memories.title': 'Memories',
+    'memories.new': '+ New Memory',
+    'memories.content': 'Content',
+    'memories.partition': 'Partition',
+    'memories.importance': 'Importance',
+    'memories.tags': 'Tags',
+    'memories.created': 'Created',
+    'memories.all_partitions': 'All partitions',
+    'memories.create_title': 'Create Memory',
+    'memories.edit_title': 'Edit Memory',
+    'memories.content_placeholder': 'Memory content...',
+    'memories.tags_placeholder': 'tag1, tag2',
+    'memories.no_memories': 'No memories found',
+    'memories.save': 'Save',
+    'memories.cancel': 'Cancel',
+    'memories.edit': 'Edit',
+    'memories.delete': 'Delete',
+    'memories.confirm_delete': 'Delete this memory?',
+    'memories.created_ok': 'Memory created',
+    'memories.updated_ok': 'Memory updated',
+    'memories.deleted_ok': 'Memory deleted',
+
+    // Search
+    'search.title': 'Search',
+    'search.subtitle': 'Semantic memory retrieval with tunable weights',
+    'search.placeholder': 'Enter your query...',
+    'search.button': 'Search',
+    'search.relevance': 'Relevance weight',
+    'search.importance': 'Importance weight',
+    'search.recency': 'Recency weight',
+    'search.top_k': 'Top K',
+    'search.no_results': 'No results found',
+    'search.score': 'Score',
+
+    // Partitions
+    'partitions.title': 'Partitions',
+    'partitions.subtitle': 'Memory spaces — descriptions guide the consolidation agent',
+    'partitions.new': '+ New Partition',
+    'partitions.create_title': 'Create Partition',
+    'partitions.id_label': 'ID',
+    'partitions.name_label': 'Name',
+    'partitions.desc_label': 'Description',
+    'partitions.desc_hint': 'guides consolidation agent',
+    'partitions.desc_placeholder': 'Describe what kind of memories belong here...',
+    'partitions.no_desc': 'Click to add description — guides the consolidation agent',
+    'partitions.confirm_delete': 'Delete this partition?',
+    'partitions.enabled_ok': 'Partition enabled',
+    'partitions.disabled_ok': 'Partition disabled',
+    'partitions.created_ok': 'Partition created',
+    'partitions.deleted_ok': 'Partition deleted',
+    'partitions.desc_updated': 'Description updated',
+
+    // Graph
+    'graph.title': 'Knowledge Graph',
+    'graph.subtitle': 'Tag relationships and memory associations',
+    'graph.search_placeholder': 'Search tags...',
+    'graph.no_nodes': 'No nodes in the knowledge graph yet.',
+
+    // Settings
+    'settings.title': 'Settings',
+    'settings.subtitle': 'Configuration from hebb.json',
+    'settings.llm_title': 'LLM Configuration',
+    'settings.configured': 'configured',
+    'settings.not_configured': 'not configured',
+    'settings.llm_guide': 'LLM is required for memory consolidation. Choose your provider, fill in the API key, and click Test Connection to verify.',
+    'settings.provider': 'Provider',
+    'settings.test': 'Test Connection',
+    'settings.save': 'Save',
+    'settings.testing': 'Testing...',
+    'settings.success': 'Connection successful',
+    'settings.failed': 'Connection failed',
+    'settings.restart_required': 'restart required',
+
+    // Common
+    'common.save': 'Save',
+    'common.cancel': 'Cancel',
+    'common.loading': 'Loading...',
+    'common.prev': 'Prev',
+    'common.next': 'Next',
+  },
+
+  zh: {
+    'nav.dashboard': '仪表盘',
+    'nav.memories': '记忆',
+    'nav.search': '搜索',
+    'nav.partitions': '分区',
+    'nav.graph': '图谱',
+    'nav.settings': '设置',
+
+    'dashboard.title': '仪表盘',
+    'dashboard.subtitle': '系统概览与快捷操作',
+    'dashboard.total_memories': '记忆总数',
+    'dashboard.partitions': '分区数',
+    'dashboard.graph_nodes': '图谱节点',
+    'dashboard.graph_edges': '图谱边数',
+    'dashboard.partition_dist': '分区分布',
+    'dashboard.quick_actions': '快捷操作',
+    'dashboard.run_consolidation': '执行巩固',
+    'dashboard.run_forget': '执行遗忘',
+
+    'memories.title': '记忆管理',
+    'memories.new': '+ 新建记忆',
+    'memories.content': '内容',
+    'memories.partition': '分区',
+    'memories.importance': '重要度',
+    'memories.tags': '标签',
+    'memories.created': '创建时间',
+    'memories.all_partitions': '全部分区',
+    'memories.create_title': '新建记忆',
+    'memories.edit_title': '编辑记忆',
+    'memories.content_placeholder': '记忆内容...',
+    'memories.tags_placeholder': '标签1, 标签2',
+    'memories.no_memories': '暂无记忆',
+    'memories.save': '保存',
+    'memories.cancel': '取消',
+    'memories.edit': '编辑',
+    'memories.delete': '删除',
+    'memories.confirm_delete': '确认删除这条记忆？',
+    'memories.created_ok': '记忆已创建',
+    'memories.updated_ok': '记忆已更新',
+    'memories.deleted_ok': '记忆已删除',
+
+    'search.title': '语义搜索',
+    'search.subtitle': '可调权重的记忆语义检索',
+    'search.placeholder': '输入查询内容...',
+    'search.button': '搜索',
+    'search.relevance': '相关性权重',
+    'search.importance': '重要性权重',
+    'search.recency': '时效性权重',
+    'search.top_k': '返回数量',
+    'search.no_results': '未找到结果',
+    'search.score': '评分',
+
+    'partitions.title': '分区管理',
+    'partitions.subtitle': '记忆空间 — 描述信息引导巩固代理进行分类',
+    'partitions.new': '+ 新建分区',
+    'partitions.create_title': '新建分区',
+    'partitions.id_label': 'ID',
+    'partitions.name_label': '名称',
+    'partitions.desc_label': '描述',
+    'partitions.desc_hint': '引导巩固代理分类',
+    'partitions.desc_placeholder': '描述该分区存放什么类型的记忆...',
+    'partitions.no_desc': '点击添加描述 — 引导巩固代理进行分类',
+    'partitions.confirm_delete': '确认删除该分区？',
+    'partitions.enabled_ok': '分区已启用',
+    'partitions.disabled_ok': '分区已禁用',
+    'partitions.created_ok': '分区已创建',
+    'partitions.deleted_ok': '分区已删除',
+    'partitions.desc_updated': '描述已更新',
+
+    'graph.title': '知识图谱',
+    'graph.subtitle': '标签关系与记忆关联',
+    'graph.search_placeholder': '搜索标签...',
+    'graph.no_nodes': '知识图谱暂无节点。',
+
+    'settings.title': '设置',
+    'settings.subtitle': '来自 hebb.json 的配置',
+    'settings.llm_title': 'LLM 配置',
+    'settings.configured': '已配置',
+    'settings.not_configured': '未配置',
+    'settings.llm_guide': 'LLM 用于记忆巩固（自动分类、标签提取、冲突解决）。选择提供商，填入 API Key，点击测试连接验证。',
+    'settings.provider': '提供商',
+    'settings.test': '测试连接',
+    'settings.save': '保存',
+    'settings.testing': '测试中...',
+    'settings.success': '连接成功',
+    'settings.failed': '连接失败',
+    'settings.restart_required': '需重启',
+
+    'common.save': '保存',
+    'common.cancel': '取消',
+    'common.loading': '加载中...',
+    'common.prev': '上一页',
+    'common.next': '下一页',
+  },
+};
+
+let currentLang = localStorage.getItem('hebb-lang') || 'en';
+
+export function t(key) {
+  return translations[currentLang]?.[key] || translations['en']?.[key] || key;
+}
+
+export function getLang() {
+  return currentLang;
+}
+
+export function setLang(lang) {
+  if (translations[lang]) {
+    currentLang = lang;
+    localStorage.setItem('hebb-lang', lang);
+  }
+}

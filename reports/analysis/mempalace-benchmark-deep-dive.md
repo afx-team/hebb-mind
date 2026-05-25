@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document provides a comprehensive, source-code-level analysis of MemPalace's benchmark methodology: which embedding models are used, how retrieval/recall is computed, what datasets are evaluated, and how each scoring improvement was built. The goal is to enable Hippocampus to replicate or contrast its own evaluation fairly.
+This document provides a comprehensive, source-code-level analysis of MemPalace's benchmark methodology: which embedding models are used, how retrieval/recall is computed, what datasets are evaluated, and how each scoring improvement was built. The goal is to enable Hebb Mind to replicate or contrast its own evaluation fairly.
 
 ---
 
@@ -444,7 +444,7 @@ boost_schedule = [0.40, 0.25, 0.15, 0.08, 0.04]  # ranks 0-4
 
 ---
 
-## 8. Implications for Hippocampus Benchmarking
+## 8. Implications for Hebb Mind Benchmarking
 
 ### What to Replicate
 

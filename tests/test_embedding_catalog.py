@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from hippocampus.embedding import catalog
-from hippocampus.embedding.catalog import ProbeResult
+from hebb.embedding import catalog
+from hebb.embedding.catalog import ProbeResult
 
 
 def test_language_auto_english_locale() -> None:

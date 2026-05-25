@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from hippocampus.retrieval.query_sanitizer import (
+from hebb.retrieval.query_sanitizer import (
     _extract_intent,
     _extract_question,
     _strip_tool_artifacts,

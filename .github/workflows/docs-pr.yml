@@ -1,0 +1,27 @@
+name: Docs build (PR)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'repo_pages/**'
+      - '.github/workflows/docs-pr.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: repo_pages/package-lock.json
+
+      - name: Verify documentation site builds
+        run: cd repo_pages && npm ci && npm run docs:build

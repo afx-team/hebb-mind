@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from hippocampus.graph.knowledge_graph import KnowledgeGraph
+from hebb.graph.knowledge_graph import KnowledgeGraph
 
 
 class TestKnowledgeGraph:
