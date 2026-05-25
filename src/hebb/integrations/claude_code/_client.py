@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+from typing import Any, cast
 
 import httpx
 
@@ -13,7 +14,7 @@ from hebb.utils.service import ensure_service_running, resolve_base_url
 logger = logging.getLogger(__name__)
 
 
-def read_hook_input() -> dict:
+def read_hook_input() -> dict[str, Any]:
     """Parse JSON from stdin provided by Claude Code hooks.
 
     Returns an empty dict on EOF, empty stdin, or malformed JSON.
@@ -22,7 +23,7 @@ def read_hook_input() -> dict:
         data = sys.stdin.read()
         if not data.strip():
             return {}
-        return json.loads(data)
+        return cast("dict[str, Any]", json.loads(data))
     except (json.JSONDecodeError, OSError):
         return {}
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import Any, cast
 
 from litellm import acompletion
 
@@ -24,10 +25,10 @@ class LLMClient:
         self,
         messages: list[dict[str, str]],
         temperature: float = 0.3,
-        response_format: dict | None = None,
+        response_format: dict[str, Any] | None = None,
     ) -> str:
         """Send a completion request and return the text content."""
-        kwargs: dict = {
+        kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "temperature": temperature,
@@ -46,7 +47,7 @@ class LLMClient:
         self,
         messages: list[dict[str, str]],
         temperature: float = 0.3,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Complete and parse the response as JSON."""
         text = await self.complete(
             messages=messages,
@@ -56,7 +57,7 @@ class LLMClient:
         return self._parse_json(text)
 
     @staticmethod
-    def _parse_json(text: str) -> dict:
+    def _parse_json(text: str) -> dict[str, Any]:
         """Robust JSON parsing — handles markdown fences, single quotes, etc."""
         # Strip markdown code fences
         cleaned = text.strip()
@@ -68,7 +69,7 @@ class LLMClient:
 
         # Try direct parse first
         try:
-            return json.loads(cleaned)
+            return cast("dict[str, Any]", json.loads(cleaned))
         except json.JSONDecodeError:
             pass
 
@@ -78,11 +79,11 @@ class LLMClient:
         if start >= 0 and end > start:
             fragment = cleaned[start:end]
             try:
-                return json.loads(fragment)
+                return cast("dict[str, Any]", json.loads(fragment))
             except json.JSONDecodeError:
                 # Try fixing single quotes → double quotes
                 try:
-                    return json.loads(fragment.replace("'", '"'))
+                    return cast("dict[str, Any]", json.loads(fragment.replace("'", '"')))
                 except json.JSONDecodeError:
                     pass
 

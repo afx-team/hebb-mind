@@ -32,10 +32,10 @@ def _needs_patch() -> bool:
 
 if _needs_patch():
     try:
-        import pysqlite3  # type: ignore[import-untyped]
+        import pysqlite3
 
         sys.modules["sqlite3"] = pysqlite3
-        sys.modules["sqlite3.dbapi2"] = pysqlite3.dbapi2  # type: ignore[attr-defined]
+        sys.modules["sqlite3.dbapi2"] = pysqlite3.dbapi2
         logger.debug(
             "Patched sqlite3 with pysqlite3 (SQLite %s) for extension loading support",
             pysqlite3.sqlite_version,

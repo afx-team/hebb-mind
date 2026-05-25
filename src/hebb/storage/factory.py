@@ -18,7 +18,7 @@ class StorageContext:
 
     memory_store: Any  # MemoryStore protocol
     partition_store: Any  # PartitionStore protocol
-    close: Callable[[], Coroutine]  # async cleanup
+    close: Callable[[], Coroutine[Any, Any, None]]  # async cleanup
 
 
 async def create_stores(settings: Settings) -> StorageContext:
@@ -49,7 +49,7 @@ async def _create_sqlite(settings: Settings) -> StorageContext:
     memory_store = SQLiteMemoryStore(db)
     partition_store = SQLitePartitionStore(db)
 
-    async def close():
+    async def close() -> None:
         await db.close()
 
     logger.info("Storage backend: SQLite (%s)", settings.db_path)
@@ -79,7 +79,7 @@ async def _create_postgresql(settings: Settings) -> StorageContext:
     memory_store = PGMemoryStore(pool)
     partition_store = PGPartitionStore(pool)
 
-    async def close():
+    async def close() -> None:
         await pool.close()
 
     logger.info("Storage backend: PostgreSQL (pool %d-%d)", settings.pg_pool_min, settings.pg_pool_max)

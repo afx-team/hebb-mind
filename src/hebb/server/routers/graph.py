@@ -15,7 +15,7 @@ router = APIRouter()
 async def list_tags(
     q: str | None = Query(default=None),
     kg: KnowledgeGraph = Depends(get_knowledge_graph),
-):
+) -> list[TagNode]:
     if q:
         return kg.search_tags(q)
     return kg.get_all_tags()
@@ -25,7 +25,7 @@ async def list_tags(
 async def get_tag(
     tag_id: str,
     kg: KnowledgeGraph = Depends(get_knowledge_graph),
-):
+) -> TagNode:
     tag = kg.get_tag(tag_id)
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
@@ -37,7 +37,7 @@ async def get_neighbors(
     tag_id: str,
     depth: int = Query(default=1, ge=1, le=5),
     kg: KnowledgeGraph = Depends(get_knowledge_graph),
-):
+) -> GraphQueryResult:
     return kg.query_neighbors(tag_id, depth)
 
 
@@ -46,12 +46,12 @@ async def find_path(
     source: str = Query(..., alias="from"),
     target: str = Query(..., alias="to"),
     kg: KnowledgeGraph = Depends(get_knowledge_graph),
-):
+) -> GraphQueryResult:
     return kg.search_path(source, target)
 
 
 @router.get("/graph/export", response_model=KnowledgeGraphState)
 async def export_graph(
     kg: KnowledgeGraph = Depends(get_knowledge_graph),
-):
+) -> KnowledgeGraphState:
     return kg.export()

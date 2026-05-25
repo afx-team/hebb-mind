@@ -15,5 +15,5 @@ router = APIRouter()
 async def search_memories(
     query: MemoryQuery,
     searcher: MemorySearcher = Depends(get_searcher),
-):
+) -> SearchResponse:
     return await searcher.search(query)

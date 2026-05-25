@@ -18,6 +18,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from hebb.ingest.noise import strip_noise
 
@@ -53,7 +54,7 @@ def extract_last_turn(transcript_path: str | Path) -> TurnSummary | None:
         logger.debug("Transcript not found: %s", path)
         return None
 
-    messages: list[dict] = []
+    messages: list[dict[str, Any]] = []
     try:
         with open(path, encoding="utf-8") as fh:
             for line in fh:
@@ -73,8 +74,8 @@ def extract_last_turn(transcript_path: str | Path) -> TurnSummary | None:
 
     # Walk backwards to find the last assistant message, then the user
     # message that precedes it.
-    last_assistant: dict | None = None
-    last_user: dict | None = None
+    last_assistant: dict[str, Any] | None = None
+    last_user: dict[str, Any] | None = None
 
     for msg in reversed(messages):
         msg_type = msg.get("type", "")
@@ -143,7 +144,7 @@ def format_turn_memory(summary: TurnSummary, session_id: str = "") -> str:
 # ---------------------------------------------------------------------------
 
 
-def _extract_user_text(msg: dict) -> str:
+def _extract_user_text(msg: dict[str, Any]) -> str:
     """Pull plain-text from a user message, stripping system noise."""
     content = msg.get("message", {}).get("content", [])
     texts: list[str] = []
@@ -157,7 +158,7 @@ def _extract_user_text(msg: dict) -> str:
     return cleaned
 
 
-def _extract_assistant(msg: dict, summary: TurnSummary, *, text: bool = True) -> None:
+def _extract_assistant(msg: dict[str, Any], summary: TurnSummary, *, text: bool = True) -> None:
     """Extract text and tool names from an assistant message into *summary*."""
     content = msg.get("message", {}).get("content", [])
     texts: list[str] = []
@@ -184,7 +185,7 @@ def _extract_assistant(msg: dict, summary: TurnSummary, *, text: bool = True) ->
         summary.assistant_output = raw
 
 
-def _iter_blocks(content) -> list[dict]:
+def _iter_blocks(content: Any) -> list[dict[str, Any]]:
     """Normalize content to a list of block dicts."""
     if isinstance(content, list):
         return [b for b in content if isinstance(b, dict)]

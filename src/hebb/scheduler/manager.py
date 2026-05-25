@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -111,9 +112,9 @@ class SchedulerManager:
         except Exception:
             logger.error("Forgetting job failed", exc_info=True)
 
-    def get_status(self) -> dict:
+    def get_status(self) -> dict[str, Any]:
         """Return scheduler status info."""
-        jobs = {}
+        jobs: dict[str, Any] = {}
         for job in self.scheduler.get_jobs():
             jobs[job.id] = {
                 "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,

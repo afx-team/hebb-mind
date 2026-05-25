@@ -6,6 +6,7 @@ import asyncio
 import logging
 from functools import partial
 from pathlib import Path
+from typing import cast
 
 from hebb.embedding.catalog import model_cache_dir, workspace_model_available
 
@@ -109,17 +110,17 @@ class LocalEmbedder:
 
     @property
     def dimension(self) -> int:
-        return self._dimension
+        return int(self._dimension)
 
     async def embed(self, text: str) -> list[float]:
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(None, partial(self._model.encode, text, normalize_embeddings=True))
-        return result.tolist()
+        return cast("list[float]", result.tolist())
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         loop = asyncio.get_event_loop()
         results = await loop.run_in_executor(None, partial(self._model.encode, texts, normalize_embeddings=True))
-        return results.tolist()
+        return cast("list[list[float]]", results.tolist())
 
 
 class NoopEmbedder:

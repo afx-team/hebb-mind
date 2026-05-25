@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 from hebb.config.settings import Settings
 from hebb.config.workspace import resolve_workspace
@@ -50,7 +51,7 @@ def load_settings(config_path: Path | None = None) -> Settings:
     Resolves the workspace root and sets ``settings.home_dir`` so that
     ``settings.db_path`` and ``settings.kg_path`` return absolute paths.
     """
-    values: dict = {}
+    values: dict[str, Any] = {}
 
     path = config_path or find_config_file()
     if path and path.exists():

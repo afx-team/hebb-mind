@@ -121,10 +121,12 @@ features:
   <div class="hippo-install-hint">写入与混合检索完全本地运行。打开 <a href="http://localhost:8321/">http://localhost:8321/</a>。需要 LLM 巩固时见 <a href="/zh/quick-start#路径-b-5-分钟-启用-llm-巩固">5 分钟路径</a>。</div>
 </div>
 
-<!-- TODO(asset): screenshot of /index.html web console with sample memories -->
+<!-- TODO(asset): screenshot of /index.html web console with sample memories. Save as repo_pages/public/web-console-hero.png, then uncomment the block below. -->
+<!--
 <p style="text-align:center; margin: 32px 0 0;">
   <img src="/web-console-hero.png" alt="Hebb Mind Web 控制台 — 分区记忆与标签图谱" width="760" style="border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.18);">
 </p>
+-->
 
 </div>
 

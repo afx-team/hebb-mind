@@ -34,6 +34,9 @@ jobs:
       - name: Lint (ruff)
         run: ruff check src/
 
+      - name: Format check (ruff)
+        run: ruff format --check src/
+
       - name: Type check (mypy)
         run: mypy src/hebb/
 

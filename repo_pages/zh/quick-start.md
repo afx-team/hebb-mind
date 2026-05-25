@@ -52,11 +52,12 @@ hebb service install
 
 打开 <http://localhost:8321/> 进入 Web 控制台，或访问 <http://localhost:8321/docs> 查看 OpenAPI 页。运行 `hebb config get workspace` 可查看数据存放位置。
 
-<!-- TODO(asset): repo_pages/public/quickstart-cast.gif (asciinema of the 60-second path) -->
-
+<!-- TODO(asset): 将 60 秒演示存为 repo_pages/public/quickstart-cast.gif，然后取消下面块的注释。 -->
+<!--
 <p align="center">
   <img src="/quickstart-cast.gif" alt="Asciinema 演示：60 秒完成安装、setup、启动、写入、检索" width="720">
 </p>
+-->
 
 ### 4. 写入与搜索
 

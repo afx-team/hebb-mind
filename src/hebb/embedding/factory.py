@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from hebb.config.settings import Settings
 from hebb.embedding.base import EmbeddingProvider
@@ -95,7 +96,7 @@ async def _detect_api_dimension(model: str, api_key: str | None, base_url: str |
         from litellm import aembedding
 
         logger.info("Probing embedding dimension for model: %s", model)
-        kwargs: dict = {"model": model, "input": ["dimension probe"]}
+        kwargs: dict[str, Any] = {"model": model, "input": ["dimension probe"]}
         if api_key:
             kwargs["api_key"] = api_key
         if base_url:

@@ -18,7 +18,7 @@ from hebb.config.settings import Settings
 from hebb.constants import PartitionType
 from hebb.embedding.base import EmbeddingProvider
 from hebb.graph.knowledge_graph import KnowledgeGraph
-from hebb.models.memory import Memory, MemoryCreate, MemoryUpdate
+from hebb.models.memory import Memory, MemoryCreate, MemoryMetadata, MemoryUpdate
 from hebb.storage.base import MemoryStore, PartitionStore
 
 logger = logging.getLogger(__name__)
@@ -284,7 +284,7 @@ class ConsolidationAgent:
                         partition_id=target_partition,
                         importance_score=importance,
                         tags=tags,
-                        metadata={"session_id": session_id},
+                        metadata=MemoryMetadata(session_id=session_id),
                         source="consolidation",
                     ),
                     embedding=embedding,

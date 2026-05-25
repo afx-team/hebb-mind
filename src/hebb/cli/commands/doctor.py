@@ -13,6 +13,7 @@ from rich.console import Console
 from rich.table import Table
 
 from hebb.config.loader import find_config_file, load_settings
+from hebb.config.settings import Settings
 from hebb.embedding.local import is_model_cached
 
 console = Console()
@@ -44,7 +45,7 @@ def _add_python_check(table: Table) -> None:
     table.add_row("Python", _status(ok), version)
 
 
-def _add_config_check(table: Table):
+def _add_config_check(table: Table) -> Settings | None:
     config_path = find_config_file()
     if not config_path:
         table.add_row("Config", _status(False), "No hebb.json found. Run: hebb setup")
@@ -65,7 +66,7 @@ def _add_static_check(table: Table) -> None:
     table.add_row("Web Console", _status(static_index.is_file()), str(static_index))
 
 
-def _add_model_check(table: Table, settings) -> None:
+def _add_model_check(table: Table, settings: Settings) -> None:
     if not settings.embedding_enabled:
         table.add_row("Embedding", "[WARN]", "Disabled by config")
         return
@@ -76,7 +77,7 @@ def _add_model_check(table: Table, settings) -> None:
     table.add_row("Embedding", _status(cached), detail)
 
 
-def _add_service_check(table: Table, settings) -> None:
+def _add_service_check(table: Table, settings: Settings) -> None:
     host = "127.0.0.1" if settings.host in ("0.0.0.0", "") else settings.host
     url = f"http://{host}:{settings.port}"
     try:

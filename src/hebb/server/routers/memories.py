@@ -27,7 +27,7 @@ async def list_memories(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
     store: MemoryStore = Depends(get_memory_store),
-):
+) -> PaginatedResponse[Memory]:
     tag_list = [t.strip() for t in tags.split(",")] if tags else None
     memories, total = await store.list(
         partition_id=partition_id,
@@ -42,7 +42,7 @@ async def list_memories(
 async def get_memory(
     memory_id: str,
     store: MemoryStore = Depends(get_memory_store),
-):
+) -> Memory:
     memory = await store.get(memory_id)
     if not memory:
         raise HTTPException(status_code=404, detail="Memory not found")
@@ -56,7 +56,7 @@ async def create_memory(
     data: MemoryCreate,
     store: MemoryStore = Depends(get_memory_store),
     embedder: EmbeddingProvider = Depends(get_embedder),
-):
+) -> Memory:
     embedding = await embedder.embed(data.content)
     return await store.create(data, embedding=embedding)
 
@@ -66,8 +66,8 @@ async def create_memories_batch(
     items: list[MemoryCreate],
     store: MemoryStore = Depends(get_memory_store),
     embedder: EmbeddingProvider = Depends(get_embedder),
-):
-    results = []
+) -> list[Memory]:
+    results: list[Memory] = []
     texts = [item.content for item in items]
     embeddings = await embedder.embed_batch(texts)
     for item, emb in zip(items, embeddings):
@@ -82,7 +82,7 @@ async def update_memory(
     data: MemoryUpdate,
     store: MemoryStore = Depends(get_memory_store),
     embedder: EmbeddingProvider = Depends(get_embedder),
-):
+) -> Memory:
     memory = await store.update(memory_id, data)
     if not memory:
         raise HTTPException(status_code=404, detail="Memory not found")
@@ -98,7 +98,7 @@ async def delete_memory(
     memory_id: str,
     store: MemoryStore = Depends(get_memory_store),
     kg: KnowledgeGraph = Depends(get_knowledge_graph),
-):
+) -> None:
     deleted = await store.delete(memory_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Memory not found")
@@ -111,7 +111,7 @@ async def ingest_conversation(
     data: IngestRequest,
     store: MemoryStore = Depends(get_memory_store),
     embedder: EmbeddingProvider = Depends(get_embedder),
-):
+) -> IngestResponse:
     """Ingest a conversation export: auto-detect format, normalize, and store as memories."""
     result = normalize(data.content, format_hint=data.format_hint)
 

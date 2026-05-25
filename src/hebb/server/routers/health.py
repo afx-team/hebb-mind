@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends
 
 from hebb import __version__
@@ -15,7 +17,7 @@ router = APIRouter()
 
 
 @router.get("/health")
-async def health():
+async def health() -> dict[str, Any]:
     return {"status": "ok", "version": __version__}
 
 
@@ -24,7 +26,7 @@ async def status(
     scheduler: SchedulerManager = Depends(get_scheduler),
     settings: Settings = Depends(get_settings),
     embedder: EmbeddingProvider = Depends(get_embedder),
-):
+) -> dict[str, Any]:
     return {
         "version": __version__,
         "scheduler": scheduler.get_status(),

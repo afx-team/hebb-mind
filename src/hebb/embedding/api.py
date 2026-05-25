@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any, cast
 
 from litellm import aembedding
 
@@ -30,18 +31,18 @@ class ApiEmbedder:
         return self._dimension
 
     async def embed(self, text: str) -> list[float]:
-        kwargs: dict = {"model": self.model, "input": [text]}
+        kwargs: dict[str, Any] = {"model": self.model, "input": [text]}
         if self.api_key:
             kwargs["api_key"] = self.api_key
         if self.base_url:
             kwargs["api_base"] = self.base_url
         response = await aembedding(**kwargs)
-        return response.data[0]["embedding"]
+        return cast("list[float]", response.data[0]["embedding"])
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-        kwargs: dict = {"model": self.model, "input": texts}
+        kwargs: dict[str, Any] = {"model": self.model, "input": texts}
         if self.api_key:
             kwargs["api_key"] = self.api_key
         if self.base_url:

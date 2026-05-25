@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 
+import httpx
+
 from hebb.integrations.claude_code._client import get_client, read_hook_input
 from hebb.integrations.claude_code.dedup import cleanup_session
 from hebb.integrations.claude_code.transcript import (
@@ -44,7 +46,7 @@ def handle() -> None:
         cleanup_session(session_id)
 
 
-def _record_turn(client, transcript_path: str, session_id: str) -> None:
+def _record_turn(client: httpx.Client, transcript_path: str, session_id: str) -> None:
     """Extract last turn from transcript and write it as a memory."""
     try:
         summary = extract_last_turn(transcript_path)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -17,7 +19,7 @@ class ConfigUpdateRequest(BaseModel):
 
 
 @router.get("/config")
-async def get_config() -> dict:
+async def get_config() -> dict[str, Any]:
     """Return all current configuration values."""
     settings = load_settings()
     data = settings.model_dump()
@@ -31,7 +33,7 @@ async def get_config() -> dict:
 @router.put("/config")
 async def update_config(
     req: ConfigUpdateRequest,
-) -> dict:
+) -> dict[str, Any]:
     """Update a single configuration field in hebb.json.
 
     Note: some changes (port, storage_type, embedding_model) require a server restart.
@@ -71,7 +73,7 @@ async def update_config(
 
 
 @router.get("/config/reveal/{key}")
-async def reveal_config_value(key: str) -> dict:
+async def reveal_config_value(key: str) -> dict[str, Any]:
     """Return the unmasked value of a sensitive config field."""
     if key not in ("llm_api_key", "pg_url", "embedding_api_key"):
         raise HTTPException(status_code=400, detail="Only sensitive fields can be revealed")
@@ -88,7 +90,7 @@ class LLMTestRequest(BaseModel):
 
 
 @router.post("/config/test-llm")
-async def test_llm_connection(req: LLMTestRequest) -> dict:
+async def test_llm_connection(req: LLMTestRequest) -> dict[str, Any]:
     """Test LLM connectivity with the provided credentials.
 
     Sends a minimal completion request to verify model/url/key work.
@@ -114,7 +116,7 @@ async def test_llm_connection(req: LLMTestRequest) -> dict:
     try:
         from litellm import acompletion
 
-        kwargs: dict = {
+        kwargs: dict[str, Any] = {
             "model": req.model,
             "messages": [{"role": "user", "content": "Say 'ok' in one word."}],
             "temperature": 0,
@@ -141,7 +143,7 @@ class EmbeddingTestRequest(BaseModel):
 
 
 @router.post("/config/test-embedding")
-async def test_embedding(req: EmbeddingTestRequest) -> dict:
+async def test_embedding(req: EmbeddingTestRequest) -> dict[str, Any]:
     """Test embedding connectivity — local model load or API call.
 
     If api_key contains '****' (masked), reads the real key from config file.
@@ -170,7 +172,7 @@ async def test_embedding(req: EmbeddingTestRequest) -> dict:
         try:
             from litellm import aembedding
 
-            kwargs: dict = {"model": req.model, "input": ["embedding test"]}
+            kwargs: dict[str, Any] = {"model": req.model, "input": ["embedding test"]}
             if api_key:
                 kwargs["api_key"] = api_key
             if req.base_url:
@@ -187,10 +189,10 @@ async def test_embedding(req: EmbeddingTestRequest) -> dict:
 
 
 @router.get("/config/embedding-status")
-async def embedding_status() -> dict:
+async def embedding_status() -> dict[str, Any]:
     """Return current embedding model status: provider, model, cached, dimension."""
     settings = load_settings()
-    result: dict = {
+    result: dict[str, Any] = {
         "enabled": settings.embedding_enabled,
         "provider": settings.embedding_provider,
         "model": settings.embedding_model,
@@ -210,9 +212,9 @@ async def embedding_status() -> dict:
 
 
 @router.get("/config/fields")
-async def get_config_fields() -> list[dict]:
+async def get_config_fields() -> list[dict[str, Any]]:
     """Return metadata about all configuration fields."""
-    fields = []
+    fields: list[dict[str, Any]] = []
     for name, info in Settings.model_fields.items():
         annotation = info.annotation
         type_name = "string"

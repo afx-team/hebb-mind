@@ -52,11 +52,12 @@ That registers Hebb Mind with launchd (macOS), systemd (Linux), or Task Schedule
 
 Open <http://localhost:8321/> for the Web Console, or <http://localhost:8321/docs> for the OpenAPI page. To see where data lives, run `hebb config get workspace`.
 
-<!-- TODO(asset): repo_pages/public/quickstart-cast.gif (asciinema of the 60-second path) -->
-
+<!-- TODO(asset): save asciinema of the 60-second path as repo_pages/public/quickstart-cast.gif, then uncomment the block below. -->
+<!--
 <p align="center">
   <img src="/quickstart-cast.gif" alt="Asciinema: install, setup, start, ingest, search in 60 seconds" width="720">
 </p>
+-->
 
 ### 4. Store and search a memory
 

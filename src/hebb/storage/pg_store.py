@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 import asyncpg
 
@@ -15,6 +16,10 @@ from hebb.constants import (
 )
 from hebb.models.memory import Memory, MemoryCreate, MemoryMetadata, MemoryUpdate
 from hebb.models.partition import Partition, PartitionCreate, PartitionUpdate
+
+# See `hebb.storage.base` — alias the builtin so annotations don't resolve
+# to the `list` method defined on these classes.
+_List = list
 
 
 def _utcnow() -> datetime:
@@ -58,7 +63,7 @@ class PGMemoryStore:
     def __init__(self, pool: asyncpg.Pool) -> None:
         self.pool = pool
 
-    async def create(self, data: MemoryCreate, embedding: list[float] | None = None) -> Memory:
+    async def create(self, data: MemoryCreate, embedding: _List[float] | None = None) -> Memory:
         memory_id = str(uuid.uuid4())
         now = _utcnow()
         async with self.pool.acquire() as conn:
@@ -98,12 +103,12 @@ class PGMemoryStore:
     async def list(
         self,
         partition_id: str | None = None,
-        tags: list[str] | None = None,
+        tags: _List[str] | None = None,
         offset: int = 0,
         limit: int = 50,
-    ) -> tuple[list[Memory], int]:
-        conditions: list[str] = []
-        params: list = []
+    ) -> tuple[_List[Memory], int]:
+        conditions: _List[str] = []
+        params: _List[Any] = []
         idx = 1
 
         if partition_id:
@@ -136,8 +141,8 @@ class PGMemoryStore:
         if not existing:
             return None
 
-        sets = []
-        params: list = []
+        sets: _List[str] = []
+        params: _List[Any] = []
         idx = 1
 
         if data.content is not None:
@@ -181,14 +186,14 @@ class PGMemoryStore:
                 "DELETE FROM memories WHERE id = $1",
                 memory_id,
             )
-        return result == "DELETE 1"
+        return bool(result == "DELETE 1")
 
     async def search_by_vector(
         self,
-        query_embedding: list[float],
+        query_embedding: _List[float],
         top_k: int = 10,
-        partition_ids: list[str] | None = None,
-    ) -> list[tuple[Memory, float]]:
+        partition_ids: _List[str] | None = None,
+    ) -> _List[tuple[Memory, float]]:
         if not query_embedding:
             return []
         pgvec = _to_pgvector(query_embedding)
@@ -228,8 +233,8 @@ class PGMemoryStore:
         self,
         query: str,
         top_k: int = 10,
-        partition_ids: list[str] | None = None,
-    ) -> list[tuple[Memory, float]]:
+        partition_ids: _List[str] | None = None,
+    ) -> _List[tuple[Memory, float]]:
         """Full-text search using PostgreSQL tsvector with ts_rank_cd."""
         if not query.strip():
             return []
@@ -264,7 +269,7 @@ class PGMemoryStore:
             results.append((memory, max(similarity, 0.0)))
         return results
 
-    async def get_by_partition(self, partition_id: str) -> list[Memory]:
+    async def get_by_partition(self, partition_id: str) -> _List[Memory]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
                 "SELECT * FROM memories WHERE partition_id = $1 ORDER BY created_at DESC",
@@ -272,7 +277,7 @@ class PGMemoryStore:
             )
         return [_record_to_memory(r) for r in rows]
 
-    async def delete_expired(self) -> list[str]:
+    async def delete_expired(self) -> _List[str]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
                 "DELETE FROM memories WHERE expires_at IS NOT NULL AND expires_at < now() RETURNING id",
@@ -286,7 +291,7 @@ class PGMemoryStore:
                 memory_id,
             )
 
-    async def update_embedding(self, memory_id: str, embedding: list[float]) -> None:
+    async def update_embedding(self, memory_id: str, embedding: _List[float]) -> None:
         if not embedding:
             return
         pgvec = _to_pgvector(embedding)
@@ -345,10 +350,10 @@ class PGPartitionStore:
             partition.memory_count = count or 0
         return partition
 
-    async def list(self) -> list[Partition]:
+    async def list(self) -> _List[Partition]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch("SELECT * FROM partitions ORDER BY created_at")
-            partitions = []
+            partitions: _List[Partition] = []
             for row in rows:
                 p = _record_to_partition(row)
                 count = await conn.fetchval(
@@ -364,8 +369,8 @@ class PGPartitionStore:
         if not existing:
             return None
 
-        sets = []
-        params: list = []
+        sets: _List[str] = []
+        params: _List[Any] = []
         idx = 1
 
         if data.name is not None:

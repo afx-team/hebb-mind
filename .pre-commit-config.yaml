@@ -1,6 +1,7 @@
 repos:
   - repo: local
     hooks:
+      # ---- pre-commit (fast, auto-fix) ----
       - id: ruff-check
         name: ruff check (auto-fix)
         entry: ruff check --fix src/
@@ -14,6 +15,15 @@ repos:
         language: system
         pass_filenames: false
         types: [python]
+
+      # ---- pre-push (slow, verify; mirrors CI) ----
+      - id: mypy
+        name: mypy (type check)
+        entry: mypy src/hebb/
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [pre-push]
 
       - id: pytest
         name: pytest

@@ -37,6 +37,7 @@ from typing import Any, TypeVar
 from hebb.config.loader import load_settings
 from hebb.config.settings import Settings
 from hebb.constants import DEFAULT_PARTITION
+from hebb.embedding.base import EmbeddingProvider
 from hebb.exceptions import (
     ConfigError,
     EmbeddingError,
@@ -45,6 +46,7 @@ from hebb.exceptions import (
     MemoryNotFoundError,
     StorageError,
 )
+from hebb.graph.knowledge_graph import KnowledgeGraph
 from hebb.models.memory import (
     Memory,
     MemoryCreate,
@@ -52,10 +54,16 @@ from hebb.models.memory import (
     MemoryQuery,
     MemorySearchResult,
 )
+from hebb.retrieval.searcher import MemorySearcher
+from hebb.storage.base import MemoryStore, PartitionStore
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+# See `hebb.storage.base` — alias the builtin so class-scope annotations
+# don't resolve to the `list` method defined on HebbMind below.
+_List = list
 
 
 class HebbMind:
@@ -124,11 +132,11 @@ class HebbMind:
         self._closed = False
 
         # Backend handles, populated by _ensure_started().
-        self._memory_store: Any = None
-        self._partition_store: Any = None
-        self._embedder: Any = None
-        self._knowledge_graph: Any = None
-        self._searcher: Any = None
+        self._memory_store: MemoryStore = None  # type: ignore[assignment]
+        self._partition_store: PartitionStore = None  # type: ignore[assignment]
+        self._embedder: EmbeddingProvider | None = None
+        self._knowledge_graph: KnowledgeGraph | None = None
+        self._searcher: MemorySearcher = None  # type: ignore[assignment]
         self._storage_close: Any = None
         self._started = False
         self._start_lock = threading.Lock()
@@ -450,7 +458,7 @@ class HebbMind:
         except Exception as exc:  # noqa: BLE001
             raise StorageError(f"Memory list failed: {exc}") from exc
 
-    def consolidate(self, *, concurrency: int | None = None) -> list[Any]:
+    def consolidate(self, *, concurrency: int | None = None) -> _List[Any]:
         """Run one consolidation pass over the working-memory inbox.
 
         This mirrors what the scheduler invokes daily: pull every memory
@@ -481,9 +489,11 @@ class HebbMind:
         except Exception as exc:  # noqa: BLE001
             raise LLMError(f"Consolidation failed: {exc}") from exc
 
-    async def _async_consolidate(self, concurrency: int | None) -> list[Any]:
+    async def _async_consolidate(self, concurrency: int | None) -> _List[Any]:
         from hebb.scheduler.consolidation_job import run_consolidation
 
+        assert self._knowledge_graph is not None, "consolidate requires _ensure_started()"
+        assert self._embedder is not None, "consolidate requires _ensure_started()"
         return await run_consolidation(
             memory_store=self._memory_store,
             partition_store=self._partition_store,

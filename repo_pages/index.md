@@ -122,10 +122,12 @@ features:
   <div class="hippo-install-hint">Ingest + hybrid search work locally. Open <a href="http://localhost:8321/">http://localhost:8321/</a>. For LLM consolidation, see the <a href="/quick-start#path-b-5-minutes-with-llm-consolidation">5-minute path</a>.</div>
 </div>
 
-<!-- TODO(asset): screenshot of /index.html web console with sample memories -->
+<!-- TODO(asset): screenshot of /index.html web console with sample memories. Save as repo_pages/public/web-console-hero.png, then uncomment the block below. -->
+<!--
 <p style="text-align:center; margin: 32px 0 0;">
   <img src="/web-console-hero.png" alt="Hebb Mind Web Console showing partitioned memories and tag graph" width="760" style="border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.18);">
 </p>
+-->
 </div>
 
 <!-- ─────────────── Architecture ─────────────── -->

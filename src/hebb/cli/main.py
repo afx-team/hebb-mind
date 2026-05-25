@@ -20,7 +20,7 @@ from hebb.integrations.codex.cli import codex
 
 @click.group()
 @click.version_option(version=__version__)
-def main():
+def main() -> None:
     """Hebb Mind -- Neuroscience-inspired memory framework for AI agents."""
     pass
 

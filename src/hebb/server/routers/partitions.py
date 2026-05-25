@@ -14,7 +14,7 @@ router = APIRouter()
 @router.get("/partitions", response_model=list[Partition])
 async def list_partitions(
     store: PartitionStore = Depends(get_partition_store),
-):
+) -> list[Partition]:
     return await store.list()
 
 
@@ -22,7 +22,7 @@ async def list_partitions(
 async def get_partition(
     partition_id: str,
     store: PartitionStore = Depends(get_partition_store),
-):
+) -> Partition:
     partition = await store.get(partition_id)
     if not partition:
         raise HTTPException(status_code=404, detail="Partition not found")
@@ -33,7 +33,7 @@ async def get_partition(
 async def create_partition(
     data: PartitionCreate,
     store: PartitionStore = Depends(get_partition_store),
-):
+) -> Partition:
     existing = await store.get(data.id)
     if existing:
         raise HTTPException(status_code=409, detail="Partition already exists")
@@ -45,7 +45,7 @@ async def update_partition(
     partition_id: str,
     data: PartitionUpdate,
     store: PartitionStore = Depends(get_partition_store),
-):
+) -> Partition:
     partition = await store.update(partition_id, data)
     if not partition:
         raise HTTPException(status_code=404, detail="Partition not found")
@@ -56,7 +56,7 @@ async def update_partition(
 async def delete_partition(
     partition_id: str,
     store: PartitionStore = Depends(get_partition_store),
-):
+) -> None:
     existing = await store.get(partition_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Partition not found")

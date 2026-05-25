@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends
 
 from hebb.config.settings import Settings
@@ -29,7 +31,7 @@ async def trigger_consolidation(
     kg: KnowledgeGraph = Depends(get_knowledge_graph),
     embedder: EmbeddingProvider = Depends(get_embedder),
     settings: Settings = Depends(get_settings),
-):
+) -> dict[str, int]:
     results = await run_consolidation(
         memory_store=memory_store,
         partition_store=partition_store,
@@ -48,7 +50,7 @@ async def trigger_consolidation(
 async def trigger_forgetting(
     memory_store: MemoryStore = Depends(get_memory_store),
     kg: KnowledgeGraph = Depends(get_knowledge_graph),
-):
+) -> dict[str, int]:
     deleted_ids = await memory_store.delete_expired()
     for mid in deleted_ids:
         kg.remove_memory_from_tags(mid)
@@ -63,7 +65,7 @@ async def get_stats(
     partition_store: PartitionStore = Depends(get_partition_store),
     kg: KnowledgeGraph = Depends(get_knowledge_graph),
     scheduler: SchedulerManager = Depends(get_scheduler),
-):
+) -> dict[str, Any]:
     partitions = await partition_store.list()
     partition_stats = [
         {"id": p.id, "name": p.name, "memory_count": p.memory_count, "enabled": p.enabled} for p in partitions

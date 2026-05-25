@@ -5,11 +5,16 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 import aiosqlite
 import numpy as np
 
 from hebb.models.memory import Memory, MemoryCreate, MemoryMetadata, MemoryUpdate
+
+# See `hebb.storage.base` — alias the builtin so class-scope annotations
+# don't resolve to the `list` method defined below.
+_List = list
 
 
 def _now_iso() -> str:
@@ -39,7 +44,7 @@ class SQLiteMemoryStore:
     def __init__(self, db: aiosqlite.Connection) -> None:
         self.db = db
 
-    async def create(self, data: MemoryCreate, embedding: list[float] | None = None) -> Memory:
+    async def create(self, data: MemoryCreate, embedding: _List[float] | None = None) -> Memory:
         memory_id = str(uuid.uuid4())
         now = _now_iso()
         await self.db.execute(
@@ -85,12 +90,12 @@ class SQLiteMemoryStore:
     async def list(
         self,
         partition_id: str | None = None,
-        tags: list[str] | None = None,
+        tags: _List[str] | None = None,
         offset: int = 0,
         limit: int = 50,
-    ) -> tuple[list[Memory], int]:
-        conditions: list[str] = []
-        params: list = []
+    ) -> tuple[_List[Memory], int]:
+        conditions: _List[str] = []
+        params: _List[Any] = []
 
         if partition_id:
             conditions.append("partition_id = ?")
@@ -124,8 +129,8 @@ class SQLiteMemoryStore:
         if not existing:
             return None
 
-        updates = []
-        params: list = []
+        updates: _List[str] = []
+        params: _List[Any] = []
         if data.content is not None:
             updates.append("content = ?")
             params.append(data.content)
@@ -172,10 +177,10 @@ class SQLiteMemoryStore:
 
     async def search_by_vector(
         self,
-        query_embedding: list[float],
+        query_embedding: _List[float],
         top_k: int = 10,
-        partition_ids: list[str] | None = None,
-    ) -> list[tuple[Memory, float]]:
+        partition_ids: _List[str] | None = None,
+    ) -> _List[tuple[Memory, float]]:
         if not query_embedding:
             return []
         vec_bytes = np.array(query_embedding, dtype=np.float32).tobytes()
@@ -214,8 +219,8 @@ class SQLiteMemoryStore:
         self,
         query: str,
         top_k: int = 10,
-        partition_ids: list[str] | None = None,
-    ) -> list[tuple[Memory, float]]:
+        partition_ids: _List[str] | None = None,
+    ) -> _List[tuple[Memory, float]]:
         """Full-text search using FTS5 with BM25 ranking."""
         if not query.strip():
             return []
@@ -249,7 +254,7 @@ class SQLiteMemoryStore:
                 break
         return results
 
-    async def get_by_partition(self, partition_id: str) -> list[Memory]:
+    async def get_by_partition(self, partition_id: str) -> _List[Memory]:
         cursor = await self.db.execute(
             "SELECT * FROM memories WHERE partition_id = ? ORDER BY created_at DESC",
             (partition_id,),
@@ -257,7 +262,7 @@ class SQLiteMemoryStore:
         rows = await cursor.fetchall()
         return [_row_to_memory(r) for r in rows]
 
-    async def delete_expired(self) -> list[str]:
+    async def delete_expired(self) -> _List[str]:
         now = _now_iso()
         # Get expired memory IDs first (for embedding/fts cleanup)
         cursor = await self.db.execute(
@@ -293,7 +298,7 @@ class SQLiteMemoryStore:
         )
         await self.db.commit()
 
-    async def update_embedding(self, memory_id: str, embedding: list[float]) -> None:
+    async def update_embedding(self, memory_id: str, embedding: _List[float]) -> None:
         if not embedding:
             return
         vec_bytes = np.array(embedding, dtype=np.float32).tobytes()

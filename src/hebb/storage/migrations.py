@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import aiosqlite
 
@@ -33,13 +34,13 @@ async def get_connection(db_path: str, *, load_vec: bool = True) -> aiosqlite.Co
         try:
             import sqlite_vec
 
-            def _load_vec(conn):
+            def _load_vec(conn: Any) -> None:
                 conn.enable_load_extension(True)
                 sqlite_vec.load(conn)
                 conn.enable_load_extension(False)
 
             await db.execute("select 1")  # ensure connection is initialized
-            await db._execute(_load_vec, db._connection)
+            await db._execute(_load_vec, db._connection)  # type: ignore[no-untyped-call]
         except (AttributeError, ImportError, OSError) as e:
             logger.warning("sqlite-vec unavailable (%s), vector search disabled. %s", e, _VEC_FIX_HINT)
 

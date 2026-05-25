@@ -44,9 +44,8 @@ Counts and rates: total memories, memories by partition, recent ingest rate, las
 
 If everything reads zero on a fresh install, you're probably in the wrong workspace — see [Troubleshooting → Web Console shows nothing](../troubleshooting.md#web-console-shows-nothing).
 
-<!-- TODO(asset): screenshot of the Memories tab with a non-empty list. Save as repo_pages/public/console-list.png and reference below. -->
-
-![Memories tab](../public/console-list.png)
+<!-- TODO(asset): screenshot of the Memories tab with a non-empty list. Save as repo_pages/public/console-list.png, then uncomment the image below. -->
+<!-- ![Memories tab](../public/console-list.png) -->
 
 ### Memories
 
@@ -64,9 +63,8 @@ Lists every `partition_id` in use, with memory counts and an enabled toggle. Cre
 
 Renders the knowledge graph using [Sigma.js](https://www.sigmajs.org/) with a ForceAtlas2 layout. Nodes are tags, edges are co-occurrence weighted by frequency. Hovering a node shows its top neighbours; clicking pins it. Useful for spotting which topics are clustering together and which are isolated. Backed by `GET /api/v1/graph/*`.
 
-<!-- TODO(asset): screenshot of the Graph tab with a non-trivial graph rendered (5+ tag clusters). Save as repo_pages/public/console-graph.png. -->
-
-![Graph view](../public/console-graph.png)
+<!-- TODO(asset): screenshot of the Graph tab with a non-trivial graph rendered (5+ tag clusters). Save as repo_pages/public/console-graph.png, then uncomment the image below. -->
+<!-- ![Graph view](../public/console-graph.png) -->
 
 ### Settings
 

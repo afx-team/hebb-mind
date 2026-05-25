@@ -110,3 +110,21 @@ strict = true
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_decorators = false
+
+# Optional / stubless third-party deps. `asyncpg` and `pgvector` only land via
+# the `pg` extras; `pysqlite3` is the macOS-only sqlite3 fallback;
+# `apscheduler` and `networkx` ship without `py.typed` markers upstream.
+[[tool.mypy.overrides]]
+module = [
+    "asyncpg",
+    "asyncpg.*",
+    "pgvector",
+    "pgvector.*",
+    "pysqlite3",
+    "pysqlite3.*",
+    "apscheduler.*",
+    "networkx",
+    "networkx.*",
+    "sqlite_vec",
+]
+ignore_missing_imports = true

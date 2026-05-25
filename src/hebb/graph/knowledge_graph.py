@@ -221,7 +221,7 @@ class KnowledgeGraph:
                     )
                 )
 
-        return GraphQueryResult(nodes=nodes, edges=edges, paths=[path])
+        return GraphQueryResult(nodes=[n for n in nodes if n is not None], edges=edges, paths=[path])
 
     def search_tags(self, query: str) -> list[TagNode]:
         """Substring search on tag IDs and labels."""

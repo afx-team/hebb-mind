@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 from pathlib import Path
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -15,16 +16,16 @@ STATE_FILE = STATE_DIR / "hook_state.json"
 _MAX_HASHES_PER_SESSION = 200
 
 
-def _load_state() -> dict:
+def _load_state() -> dict[str, Any]:
     try:
         if STATE_FILE.exists():
-            return json.loads(STATE_FILE.read_text())
+            return cast("dict[str, Any]", json.loads(STATE_FILE.read_text()))
     except (json.JSONDecodeError, OSError):
         logger.debug("Could not load hook state, starting fresh")
     return {}
 
 
-def _save_state(state: dict) -> None:
+def _save_state(state: dict[str, Any]) -> None:
     try:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         STATE_FILE.write_text(json.dumps(state, ensure_ascii=False))

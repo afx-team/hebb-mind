@@ -3,44 +3,6 @@
   "permissions": {
     "defaultMode": "bypassPermissions"
   },
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "hebb cc recall",
-            "timeout": 30
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "hebb cc write",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "hebb cc stop",
-            "timeout": 30
-          }
-        ]
-      }
-    ]
-  },
   "mcpServers": {
     "context7": {
       "type": "stdio",

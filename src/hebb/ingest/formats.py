@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime, timezone
+from typing import Any
 
 from hebb.ingest.types import NormalizedTurn
 
@@ -106,7 +107,7 @@ def parse_chatgpt_json(raw: str) -> list[NormalizedTurn]:
         mapping = conv.get("mapping", {})
 
         # Collect messages and sort by create_time
-        messages: list[tuple[float, dict]] = []
+        messages: list[tuple[float, dict[str, Any]]] = []
         for node in mapping.values():
             msg = node.get("message")
             if not msg:
@@ -205,20 +206,20 @@ def parse_plain_text(raw: str) -> list[NormalizedTurn]:
 # -- Helpers ------------------------------------------------------------------
 
 
-def _extract_text(content: str | list | dict) -> str:
+def _extract_text(content: str | list[Any] | dict[str, Any]) -> str:
     """Extract plain text from various content representations."""
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        parts = []
+        parts: list[str] = []
         for item in content:
             if isinstance(item, str):
                 parts.append(item)
             elif isinstance(item, dict) and "text" in item:
-                parts.append(item["text"])
+                parts.append(str(item["text"]))
         return "\n".join(parts)
     if isinstance(content, dict) and "text" in content:
-        return content["text"]
+        return str(content["text"])
     return ""
 
 

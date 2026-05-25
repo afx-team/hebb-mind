@@ -91,7 +91,7 @@ def resolve_language(language: str = "auto", environ: dict[str, str] | None = No
     if language != "auto":
         return LanguageSelection(language=language, source="explicit")
 
-    raw_locale = _detect_locale(os.environ if environ is None else environ)
+    raw_locale = _detect_locale(dict(os.environ) if environ is None else environ)
     detected = _language_from_locale(raw_locale)
     return LanguageSelection(language=detected, source="locale", raw=raw_locale)
 
@@ -234,7 +234,6 @@ def prefetch_model(model_id: str, workspace: Path, hf_endpoint: str | None = Non
         snapshot_download(
             repo_id=model_id,
             local_dir=str(local_dir),
-            local_dir_use_symlinks=False,
         )
     finally:
         if old_endpoint is None:

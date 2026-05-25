@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
 
 import aiosqlite
 
@@ -90,8 +91,8 @@ class SQLitePartitionStore:
         if not existing:
             return None
 
-        updates = []
-        params: list = []
+        updates: list[str] = []
+        params: list[Any] = []
         if data.name is not None:
             updates.append("name = ?")
             params.append(data.name)
