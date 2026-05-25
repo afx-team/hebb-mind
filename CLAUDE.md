@@ -20,69 +20,12 @@ When rules conflict, follow this priority order:
 **Surfaces**: Python package, Click CLI (`hebb`), FastAPI server, MCP server (stdio), web console, Claude Code + Codex integrations
 **Docs site**: VitePress → GitHub Pages at https://afx-team.github.io/hebb-mind/
 
-### Current Focus
-- [x] Core memory pipeline (ingest → consolidate → retrieve → forget)
-- [x] SQLite + Postgres backends, hybrid search, knowledge graph
-- [x] CLI, FastAPI server, MCP server, Claude Code / Codex installers
-- [x] VitePress docs site, Docker image, eval suite
-- [ ] Public Python facade (`HebbMind` client) — see `reports/analysis/audit-architecture.md`
-- [ ] Custom exception hierarchy
-- [ ] Storage protocol slim-down + tag pagination fix
-
 ---
 
-## Directory Architecture
+## Publication Boundary
 
-```
-hebb-mind/
-├── src/hebb/                 # Python package
-│   ├── agents/               # Recall + consolidation agents (LiteLLM-backed)
-│   ├── cli/commands/         # Click subcommands: setup, start, stop, doctor, model, service, config, mcp, workspace, init
-│   ├── config/               # Pydantic Settings, JSON loader, workspace resolution
-│   ├── embedding/            # local (sentence-transformers) + api (LiteLLM) providers, model catalog
-│   ├── graph/                # NetworkX-backed tag knowledge graph (JSON-persisted)
-│   ├── ingest/               # Conversation parsers (auto-detect format, normalize)
-│   ├── integrations/         # claude_code/, codex/ — installers, hooks, transcript parsing
-│   ├── mcp/                  # MCP stdio server (write/search/consolidate tools)
-│   ├── models/               # Pydantic DTOs (memory, partition, graph, ingest)
-│   ├── retrieval/            # Hybrid searcher (vector + keyword + graph), composite scorer
-│   ├── scheduler/            # APScheduler: daily consolidation + interval forgetting
-│   ├── server/               # FastAPI app + routers (memories, search, partitions, graph, admin, config, health)
-│   ├── static/               # Web console (HTML/CSS/JS) mounted at /
-│   ├── storage/              # MemoryStore/PartitionStore protocols + sqlite + pg implementations
-│   └── utils/                # Service helpers (PID, URL), MCP stdout guard
-├── tests/                    # pytest suite (asyncio_mode=auto)
-├── eval/                     # LongMemEval / LoCoMo benchmark harness
-├── examples/                 # Runnable Python SDK demos
-├── repo_pages/               # VitePress docs site → GitHub Pages (PUBLIC-FACING)
-│   ├── .vitepress/           # VitePress config
-│   ├── {guide,concepts,api,advanced}/  # English docs
-│   └── zh/                   # Chinese mirror
-├── reports/                  # Internal research outputs (NOT for publication)
-│   ├── papers/               # Academic paper notes
-│   ├── analysis/             # Audit + project analyses
-│   ├── design/               # Architecture and design docs
-│   └── surveys/              # Research surveys
-└── results/                  # Eval outputs
-```
-
-**CRITICAL DISTINCTION**:
-- `repo_pages/` = **Public website** (VitePress → GitHub Pages) — curated docs for users
-- `reports/` = **Internal research** — raw notes, audits, design drafts (not for publication)
-
-**File Placement Rules**:
-| Content Type | Location | Visibility |
-|-------------|----------|------------|
-| User documentation | `repo_pages/` | Public (GitHub Pages) |
-| Paper summaries | `reports/papers/` | Internal |
-| Project analysis | `reports/analysis/` | Internal |
-| Architecture design | `reports/design/` | Internal |
-| Research surveys | `reports/surveys/` | Internal |
-
-**MUST NOT**:
-- Put research notes in `repo_pages/` — they go in `reports/`
-- Put public docs in `reports/` — they go in `repo_pages/`
-- Commit secrets, sensitive analysis, or proprietary data to `repo_pages/` (it gets published)
+- `repo_pages/` is the **public website** (VitePress → GitHub Pages). User-facing docs go here. Never commit secrets, internal analysis, or proprietary data — anything merged is published.
+- `reports/` is **internal-only** (papers, analysis, design, surveys). Research notes, audits, and design drafts go here, not in `repo_pages/`.
 
 ---
 
@@ -131,16 +74,3 @@ def retrieve(query: str, k: int = 5) -> list[Memory]:
 3. **Multi-model support** — Claude / GPT / Llama / Qwen via LiteLLM; embedding via sentence-transformers or any LiteLLM embedding provider.
 4. **Test coverage** — unit tests for logic, E2E for workflows, eval suite for retrieval quality.
 5. **Incremental complexity** — start simple, add abstraction only after the pattern stabilizes.
-
----
-
-## Quality Checklist
-
-Before marking a task complete:
-
-- [ ] File placed in the correct directory (`repo_pages/` vs `reports/`)
-- [ ] Naming follows convention
-- [ ] Public APIs have type hints + Args/Returns/Raises docstrings
-- [ ] Tests added or updated
-- [ ] Commit message explains *why*, not *what*
-- [ ] No secrets, no absolute personal paths
