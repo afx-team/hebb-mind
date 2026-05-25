@@ -82,6 +82,10 @@ hebb = [
 target-version = "py310"
 line-length = 120
 src = ["src"]
+# Keep `ruff check` scope aligned with the pre-commit hook and CI
+# (both run `ruff check src/`). Bare `ruff check` skips these paths;
+# passing a path explicitly still works.
+extend-exclude = ["eval", "examples", "tests", "scripts", "reports", "repo_pages"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]

@@ -92,7 +92,7 @@ Hebb Mind 的数据文件（`hebb.db`、`knowledge_graph.json`）始终存储在
 
 ```bash
 # 查看当前解析的工作目录
-hebb workspace
+hebb config get workspace
 
 # 也可通过 config get 查看
 hebb config get workspace

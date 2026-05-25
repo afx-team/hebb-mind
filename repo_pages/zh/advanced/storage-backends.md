@@ -22,7 +22,7 @@ Hebb Mind 支持两种存储后端：SQLite（默认）和 PostgreSQL。
 }
 ```
 
-这是默认配置，`hebb init` 后无需修改即可使用。SQLite 数据库文件 `hebb.db` 自动存储在工作目录中。
+这是默认配置，`hebb setup` 后无需修改即可使用。SQLite 数据库文件 `hebb.db` 自动存储在工作目录中。
 
 ## PostgreSQL + pgvector
 
@@ -78,7 +78,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 # 切换到 PostgreSQL
 hebb config set storage_type postgresql
 hebb config set pg_url "postgresql://user:pass@localhost/hebb"
-hebb restart
+hebb service restart
 ```
 
 ## Docker 部署
@@ -146,87 +146,30 @@ volumes:
 
 ## 后台运行与开机自启
 
-`hebb start` 默认在前台运行。长时间运行可使用以下方式：
-
-### nohup（快速后台）
+Hebb Mind 统一以操作系统后台服务方式运行，唯一入口是：
 
 ```bash
-nohup hebb start > hebb.log 2>&1 &
+hebb service install     # 注册并启动（launchd / systemd / 任务计划程序）
+hebb service uninstall   # 卸载
 ```
 
-### systemd（Linux）
+`install` 会自动写入平台原生的服务配置并立即启动。默认是**用户级**安装
+（无需 `sudo` 或管理员权限）；如需系统级常驻并支持开机自启，请加
+`--scope system`。
 
-创建 `/etc/systemd/system/hebb.service`：
+| 平台 | `hebb service install`（默认 `--scope user`）写入的资源 |
+|------|--------------------------------------------------|
+| macOS | `~/Library/LaunchAgents/com.hebb.server.plist`（launchd LaunchAgent） |
+| Linux | `~/.config/systemd/user/hebb.service`（`systemctl --user` 单元） |
+| Windows | 用户级计划任务 `HebbMind`（登录触发，`LeastPrivilege`） |
 
-```ini
-[Unit]
-Description=Hebb Mind Memory Server
-After=network.target
+`--scope system` 会写入到 `/Library/LaunchDaemons/`、
+`/etc/systemd/system/`，或注册以 SYSTEM 账号运行的计划任务 —— 均需要管理员
+权限，且对所有用户都开机自启。
 
-[Service]
-Type=simple
-User=your-user
-WorkingDirectory=/path/to/project
-ExecStart=/path/to/hebb start
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-启用并启动：
-
-```bash
-sudo systemctl enable hebb   # 开机自启
-sudo systemctl start hebb    # 立即启动
-sudo systemctl status hebb   # 查看状态
-```
-
-### launchd（macOS）
-
-创建 `~/Library/LaunchAgents/com.hebb.server.plist`：
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>com.hebb.server</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/path/to/hebb</string>
-    <string>start</string>
-  </array>
-  <key>WorkingDirectory</key>
-  <string>/path/to/project</string>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>KeepAlive</key>
-  <true/>
-  <key>StandardOutPath</key>
-  <string>/tmp/hebb.log</string>
-  <key>StandardErrorPath</key>
-  <string>/tmp/hebb.err</string>
-</dict>
-</plist>
-```
-
-加载并启动：
-
-```bash
-launchctl load ~/Library/LaunchAgents/com.hebb.server.plist
-```
-
-停止：
-
-```bash
-launchctl unload ~/Library/LaunchAgents/com.hebb.server.plist
-```
-
-也可以通过 `hebb service install` 一键安装上述 systemd 单元/launchd plist，使用 `hebb service uninstall` 卸载。后台运行和开机自启的整体说明见 [快速开始 → 保持运行](../quick-start.md#保持运行)。
+服务管理器实际执行的是 `hebb _serve`（内部隐藏的前台入口，不属于公开 CLI）。
+控制命令与各平台日志路径见
+[CLI 参考 → hebb service](../api/cli.md#hebb-service)。
 
 ### 生产环境建议
 

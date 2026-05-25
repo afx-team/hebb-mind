@@ -14,7 +14,7 @@ Anything [LiteLLM](https://github.com/BerriAI/litellm) supports — OpenAI, Anth
 
 ## Where is my data stored?
 
-In a SQLite file plus a JSON knowledge graph in your workspace directory. Run `hebb workspace` to see the resolved path. Default order: `$HEBB_HOME` → nearest `hebb.json` → `~/.hebb/`.
+In a SQLite file plus a JSON knowledge graph in your workspace directory. Run `hebb config get workspace` to see the resolved path. Default order: `$HEBB_HOME` → nearest `hebb.json` → `~/.hebb/`.
 
 ## Can I use this in production?
 
@@ -40,12 +40,12 @@ For a full backup, copy the workspace files (see "How do I back up the database?
 
 ## How do I back up the database?
 
-Stop the server first to avoid copying a half-written WAL, then copy the workspace:
+Stop the service first to avoid copying a half-written WAL, then copy the workspace:
 
 ```bash
-hebb stop
-cp -a "$(hebb workspace)" ~/backup/hebb-$(date +%Y%m%d)
-hebb start -d
+hebb service stop
+cp -a "$(hebb config get workspace)" ~/backup/hebb-$(date +%Y%m%d)
+hebb service start
 ```
 
 For PostgreSQL, use `pg_dump` against the URL set in `pg_url`.

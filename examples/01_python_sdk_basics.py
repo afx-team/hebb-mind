@@ -40,7 +40,7 @@ SEED_MEMORIES: list[tuple[str, str, list[str]]] = [
     ("RAG = Retrieval-Augmented Generation; retrieve docs then condition the LLM.", "mem_semantic", ["rag"]),
     ("On 2026-04-19 I shipped the v0.1.1 launch prep PR.", "mem_episodic", ["release"]),
     ("I prefer dark mode and 2-space indentation in my editor.", "mem_preference", ["ui"]),
-    ("To restart the local server: `hebb stop && hebb start`.", "mem_procedural", ["cli"]),
+    ("To restart the local server: `hebb service restart`.", "mem_procedural", ["cli"]),
 ]
 
 

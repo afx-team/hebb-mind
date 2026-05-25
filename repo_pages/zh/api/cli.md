@@ -23,63 +23,48 @@ hebb setup [--language auto|en|zh|multi] [--region auto|cn|global] [--profile de
 | `--region` | `auto` | `cn` 走 `https://hf-mirror.com`；`global` 走 HuggingFace 官方 |
 | `--profile` | `default` | `fast` 偏向小模型；`best` 偏向高质量 |
 
-`setup` 不启动服务，完成后运行 `hebb start`。
+`setup` 不启动服务，完成后运行 `hebb service install` 以安装并启动后台服务。
 
-## hebb init
-
-离线初始化项目目录。创建配置文件、SQLite 数据库和空的知识图谱。
-
-```bash
-hebb init [--dir DIR] [--force]
-```
-
-| 选项 | 默认 | 说明 |
-|------|------|------|
-| `--dir DIR` | `HEBB_HOME` 或 `~/.hebb/` | 初始化目录 |
-| `--force` | -- | 覆盖已有配置并重置 SQLite 数据库 |
-
-执行后会创建：
+`hebb setup` 首次运行会在工作目录创建：
 
 - `hebb.json` — 配置文件
 - `hebb.db` — SQLite 数据库（含 5 个默认分区）
 - `knowledge_graph.json` — 空的知识图谱
 
-## hebb start
+## hebb service
 
-启动 FastAPI 服务。
+Hebb Mind 统一通过操作系统的后台服务管理器运行 —— macOS 用 launchd，
+Linux 用 systemd，Windows 用任务计划程序。**没有前台 `start` 命令**，
+进程的生命周期完全由系统管理。
 
 ```bash
-hebb start [--host HOST] [--port PORT] [--reload] [-d|--daemon]
+hebb service install    [--scope user|system]
+hebb service uninstall  [--scope user|system]
+hebb service start      [--scope user|system]
+hebb service stop       [--scope user|system]
+hebb service restart    [--scope user|system]
 ```
 
 | 选项 | 默认 | 说明 |
 |------|------|------|
-| `--host` | 配置文件 `host`（`0.0.0.0`） | 监听地址 |
-| `--port` | 配置文件 `port`（`8321`） | 端口 |
-| `--reload` | -- | 启用 uvicorn 热重载（开发模式） |
-| `-d`, `--daemon` | -- | 后台运行；PID 写入 `<workspace>/hebb.pid` |
+| `--scope user` | ✔ | 用户级安装，**无需管理员权限**。对应 macOS LaunchAgent / `systemctl --user` 单元 / 用户级计划任务 |
+| `--scope system` | -- | 系统级安装。需要 `sudo`（macOS / Linux）或管理员（Windows），开机即随系统启动 |
 
-如果同地址已经在运行，命令会直接退出而不再启动。
+服务读取 `hebb.json` 中的 host/port。修改后请运行 `hebb service restart` 让新配置生效。
 
-## hebb stop
+| 平台 | 查看 | 日志 |
+|------|------|------|
+| macOS | `launchctl print gui/$(id -u)/com.hebb.server` | `tail -f /tmp/hebb.log /tmp/hebb.err` |
+| Linux（user） | `systemctl --user status hebb` | `journalctl --user -u hebb -f` |
+| Linux（system） | `sudo systemctl status hebb` | `journalctl -u hebb -f` |
+| Windows | `schtasks /Query /TN "HebbMind" /FO LIST /V` | `%TEMP%\hebb.log` |
 
-停止正在运行的服务（优先读取 PID 文件，回退到 `lsof -ti :PORT`）。
-
-```bash
-hebb stop [--url URL]
-```
-
-## hebb restart
-
-先 stop 再 start。
-
-```bash
-hebb restart [--host HOST] [--port PORT] [--reload] [-d|--daemon]
-```
+> **Linux 提示**：`systemctl --user` 默认只在用户登录期间运行。若希望注销
+> 后或开机时也继续运行，请执行一次 `loginctl enable-linger $USER`。
 
 ## hebb status
 
-健康检查并打印调度器任务表。
+一次性查看：OS 服务注册状态、HTTP 健康、调度器任务。
 
 ```bash
 hebb status [--url URL]
@@ -88,7 +73,12 @@ hebb status [--url URL]
 输出示例：
 
 ```
-Server is running (v0.1.1)
+launchd (com.hebb.server) (OS: Darwin)
+  Installed: yes
+  Running:   yes
+  Logs:      tail -f /tmp/hebb.log /tmp/hebb.err
+
+Server is running at http://127.0.0.1:8321 (v0.1.1)
 
 Scheduler Jobs
 ┌──────────────────┬───────────────────────────┐
@@ -99,24 +89,21 @@ Scheduler Jobs
 └──────────────────┴───────────────────────────┘
 ```
 
+## hebb console
+
+在默认浏览器中打开 Hebb Mind Web 控制台；执行前会先健康检查，若服务未运行则给出安装/启动提示。
+
+```bash
+hebb console            # 浏览器打开
+hebb console --print    # 只打印 URL（适合 CI/SSH）
+```
+
 ## hebb doctor
 
 对 Python 版本、配置文件、workspace、LLM、embedding 模型缓存、Web 控制台资源、服务可达性、Claude Code / Codex MCP 注册逐项检查，输出 `[OK]`/`[WARN]`/`[FAIL]`。
 
 ```bash
 hebb doctor
-```
-
-## hebb workspace
-
-打印解析后的工作目录。解析顺序：
-
-1. `HEBB_HOME` 环境变量
-2. 由当前目录向上查找到的 `hebb.json` 所在目录
-3. `~/.hebb/`（默认）
-
-```bash
-hebb workspace
 ```
 
 ## hebb model
@@ -132,42 +119,26 @@ hebb model prefetch [--model MODEL_ID] [--region auto|cn|global]
 
 `prefetch` 将模型下载到 workspace 的 `models/` 目录并加载一次以确认维度；如果带上 `--model`，还会同时更新 `embedding_provider`、`embedding_model` 和 `embedding_dim`。
 
-## hebb service
-
-安装/卸载开机自启的系统服务。Linux 写入 `systemd` 单元；macOS 写入 `launchd` plist。
-
-```bash
-hebb service install
-hebb service uninstall
-```
-
-安装后查看与停止：
-
-| 平台 | 查看 | 停止 |
-|------|------|------|
-| Linux | `systemctl status hebb` / `journalctl -u hebb -f` | `systemctl stop hebb` |
-| macOS | `launchctl print gui/$(id -u)/com.hebb.server` | `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.hebb.server.plist` |
-
 ## hebb mcp
 
-在 stdio 模式下启动 MCP 服务，提供 `write_memory`、`search_memory`、`consolidate` 工具。本质是 FastAPI 服务的轻量代理，因此使用前请确保 `hebb start` 已运行。
+MCP 服务命令。
 
 ```bash
-hebb mcp
+hebb mcp serve
 ```
 
-在 Claude Desktop、Cursor、Continue 等 MCP 客户端中配置该命令以接入 Hebb Mind。
+`serve` 在 stdio 模式下启动 MCP 服务，提供 `write_memory`、`search_memory`、`consolidate` 工具。本质是 FastAPI 服务的轻量代理，因此使用前请确保后台服务已安装（`hebb service install`）；若服务未运行，MCP 会自动请求 OS 服务管理器拉起。在 Claude Desktop、Cursor、Continue 等 MCP 客户端中配置该命令以接入 Hebb Mind。
 
-## hebb cc
+## hebb claude-code
 
 Claude Code 集成。安装钩子并注册 MCP 服务。
 
 ```bash
-hebb cc install   [--scope project|user]   # 默认: project
-hebb cc uninstall [--scope project|user]
-hebb cc recall      # SessionStart 钩子
-hebb cc write       # UserPromptSubmit 钩子
-hebb cc stop        # Stop 钩子（巩固 + 清理）
+hebb claude-code install   [--scope project|user]   # 默认: project
+hebb claude-code uninstall [--scope project|user]
+hebb claude-code recall      # SessionStart 钩子
+hebb claude-code write       # UserPromptSubmit 钩子
+hebb claude-code stop        # Stop 钩子（巩固 + 清理）
 ```
 
 `install --scope project` 写入当前目录的 `.claude/`；`--scope user` 写入 `~/.claude/`。

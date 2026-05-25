@@ -35,10 +35,27 @@
 写入和混合检索完全离线运行（基于内置的本地 Embedding 模型）。
 
 ```bash
-pip install -U hebb-mind
-hebb setup        # 根据系统语言选择 Embedding 模型
-hebb start        # 服务地址 http://localhost:8321/
+pip install --user -U hebb-mind
+hebb setup              # 根据系统语言选择 Embedding 模型
+hebb service install    # 注册操作系统后台服务（launchd / systemd / 任务计划程序）
 ```
+
+**如果 `pip install --user` 之后敲 `hebb` 报 `command not found`**，是因为 Python 用户脚本目录不在 `PATH` 上（macOS 默认状态）。挑你的 shell，跑一次下面这一行即可：
+
+```bash
+# zsh（macOS 默认）
+echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+
+# bash
+echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+
+# fish
+fish_add_path (python3 -m site --user-base)/bin
+```
+
+如果你用虚拟环境（`python -m venv .venv && source .venv/bin/activate && pip install hebb-mind`）或系统级安装（`sudo pip install hebb-mind`），都不需要这一步。
+
+Hebb Mind 统一以操作系统后台服务的方式运行 —— 不再需要单独的前台进程，也不再有 `start`/`stop` 命令需要记忆。默认是用户级安装，**不需要管理员权限**；如果需要系统级常驻，可加 `--scope system`。详见 `hebb service --help`。
 
 另开一个终端：
 
@@ -143,7 +160,7 @@ for hit in mem.search("UI 偏好", top_k=5):
 ```bash
 pip install -U hebb-mind               # pip
 pip install -U hebb-mind[pg]           # 启用 PostgreSQL/pgvector
-hebb cc install --scope user          # Claude Code：基于 hooks 的自动记忆
+hebb claude-code install --scope user          # Claude Code：基于 hooks 的自动记忆
 hebb codex install --scope user       # Codex：MCP 记忆工具
 ```
 

@@ -109,12 +109,12 @@ if [ "$STORAGE_TYPE" = "postgresql" ] && [ -z "$PG_URL" ]; then
     echo "  2. Set your PostgreSQL URL:"
     echo "     hebb config set pg_url postgresql://user:pass@localhost/hebb"
     echo ""
-    echo "  3. Start the server:"
-    echo "     hebb start"
+    echo "  3. Install the background service (launchd / systemd / Task Scheduler):"
+    echo "     hebb service install"
 else
     echo ""
-    echo "  2. Start the server:"
-    echo "     hebb start"
+    echo "  2. Install the background service (launchd / systemd / Task Scheduler):"
+    echo "     hebb service install"
 fi
 
 echo ""

@@ -29,7 +29,7 @@ hebb config set llm_api_key sk-your-key-here
 hebb config path
 
 # Show resolved workspace directory
-hebb workspace
+hebb config get workspace
 
 # Inspect embedding model state
 hebb model status
@@ -53,7 +53,7 @@ Data files always live in the workspace root and cannot be configured individual
 
 ```bash
 # Check the resolved workspace directory
-hebb workspace
+hebb config get workspace
 # Output: /home/user/.hebb
 
 # Override the workspace via environment variable

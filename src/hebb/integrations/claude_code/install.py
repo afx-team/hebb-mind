@@ -1,4 +1,13 @@
-"""hebb cc install — configure Claude Code hooks and MCP server."""
+"""hebb claude-code install — configure Claude Code hooks and MCP server.
+
+All commands we write into ``settings.json`` and ``claude mcp add`` are
+**absolute paths** resolved via :mod:`hebb.utils.cli_paths`. Bare names
+like ``hebb`` / ``hebb-mcp`` are not safe to inject — Claude Code
+launches hooks and MCP servers as subprocesses whose PATH comes from
+launchd (macOS) or the GUI process tree, *not* from the user's shell
+rc, and ``pip install --user`` lands scripts in a directory that's
+typically not on that PATH.
+"""
 
 from __future__ import annotations
 
@@ -9,115 +18,172 @@ from pathlib import Path
 
 import click
 
-# The hooks and MCP config to inject
-_HOOKS_CONFIG = {
-    "SessionStart": [{"matcher": "", "hooks": [{"type": "command", "command": "hebb cc recall", "timeout": 30}]}],
-    "UserPromptSubmit": [{"matcher": "", "hooks": [{"type": "command", "command": "hebb cc write", "timeout": 10}]}],
-    "Stop": [{"matcher": "", "hooks": [{"type": "command", "command": "hebb cc stop", "timeout": 30}]}],
-}
+from hebb.utils.cli_paths import hebb_command, hebb_mcp_command, shell_quote
 
-_MCP_SERVER_CONFIG = {
-    "hebb": {
-        "type": "stdio",
-        "command": "hebb-mcp",
+
+def _hooks_config() -> dict[str, list[dict[str, object]]]:
+    """Build the hook block with absolute commands resolved at install time."""
+    hebb = hebb_command()
+    return {
+        "SessionStart": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {"type": "command", "command": shell_quote([*hebb, "claude-code", "recall"]), "timeout": 30},
+                ],
+            }
+        ],
+        "UserPromptSubmit": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {"type": "command", "command": shell_quote([*hebb, "claude-code", "write"]), "timeout": 10},
+                ],
+            }
+        ],
+        "Stop": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {"type": "command", "command": shell_quote([*hebb, "claude-code", "stop"]), "timeout": 30},
+                ],
+            }
+        ],
     }
-}
+
+
+def _mcp_server_config() -> dict[str, dict[str, object]]:
+    mcp = hebb_mcp_command()
+    return {
+        "hebb": {
+            "type": "stdio",
+            "command": mcp[0],
+            "args": mcp[1:] if len(mcp) > 1 else [],
+        }
+    }
 
 
 def _find_settings_path(scope: str) -> Path:
     """Resolve the target settings.json path."""
     if scope == "project":
-        # Walk up from cwd to find .claude/ or create in cwd
-        cwd = Path.cwd()
-        candidate = cwd / ".claude" / "settings.json"
-        return candidate
-    else:
-        return Path.home() / ".claude" / "settings.json"
+        return Path.cwd() / ".claude" / "settings.json"
+    return Path.home() / ".claude" / "settings.json"
 
 
-def _load_settings(path: Path) -> dict:
+def _load_settings(path: Path) -> dict[str, object]:
     """Load existing settings or return empty dict."""
     if path.exists():
         try:
-            return json.loads(path.read_text())
+            data = json.loads(path.read_text())
+            if isinstance(data, dict):
+                return data
         except (json.JSONDecodeError, OSError):
             pass
     return {}
 
 
-def _save_settings(path: Path, settings: dict) -> None:
+def _save_settings(path: Path, settings: dict[str, object]) -> None:
     """Write settings to file, creating parent dirs."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(settings, indent=2, ensure_ascii=False) + "\n")
 
 
+def _is_hebb_hook(command: str) -> bool:
+    """Match every shape of hebb-installed hook command we may have written.
+
+    Covers both the current ``claude-code`` name and the legacy ``cc`` name
+    in three shapes: bare entry-point, absolute path, and ``python -m``
+    fallback.
+    """
+    return any(
+        marker in command
+        for marker in (
+            "hebb claude-code ",
+            "/hebb claude-code ",
+            "hebb.cli.main claude-code ",
+            "hebb cc ",
+            "/hebb cc ",
+            "hebb.cli.main cc ",
+        )
+    )
+
+
 def handle(scope: str) -> None:
     """Install hebb hooks and MCP server into Claude Code settings."""
-    # 1. Verify hebb-mcp is available
-    if not shutil.which("hebb-mcp"):
-        click.secho("Warning: hebb-mcp not found on PATH.", fg="yellow")
-        click.echo("  Run: pip install hebb-mind  (or pip install -e .)")
+    hebb_argv = hebb_command()
+    mcp_argv = hebb_mcp_command()
 
-    if not shutil.which("hebb"):
-        click.secho("Error: hebb CLI not found on PATH.", fg="red")
-        raise SystemExit(1)
+    # Sanity: warn if neither real binary nor `python -m` fallback is usable.
+    if hebb_argv[0].endswith(("python", "python3", "python3.10", "python3.11", "python3.12", "python3.13")):
+        click.secho(
+            "Note: `hebb` not on PATH; using `python -m hebb.cli.main` instead.",
+            fg="yellow",
+        )
 
-    # 2. Load settings
+    # Load settings
     settings_path = _find_settings_path(scope)
     settings = _load_settings(settings_path)
 
-    # 3. Inject hooks
-    existing_hooks = settings.get("hooks", {})
-    for event, hook_list in _HOOKS_CONFIG.items():
-        if event not in existing_hooks:
-            existing_hooks[event] = hook_list
-        else:
-            # Check if our hook is already present
-            existing_commands = {
-                h.get("command", "") for entry in existing_hooks[event] for h in entry.get("hooks", [])
-            }
-            if "hebb cc" not in " ".join(existing_commands):
-                existing_hooks[event].extend(hook_list)
+    # Inject hooks — replace any existing hebb hook (bare or absolute) with the
+    # freshly-resolved absolute one. Idempotent: re-running picks up a new
+    # install location automatically.
+    hooks_config = _hooks_config()
+    raw_hooks = settings.get("hooks", {})
+    existing_hooks: dict[str, list[dict[str, object]]] = raw_hooks if isinstance(raw_hooks, dict) else {}
+    for event, hook_list in hooks_config.items():
+        existing = existing_hooks.get(event, [])
+        # Drop any prior hebb entries before adding the new one.
+        cleaned: list[dict[str, object]] = []
+        for entry in existing:
+            inner_raw = entry.get("hooks", [])
+            if not isinstance(inner_raw, list):
+                continue
+            inner = [h for h in inner_raw if isinstance(h, dict) and not _is_hebb_hook(str(h.get("command", "")))]
+            if inner:
+                cleaned.append({**entry, "hooks": inner})
+        existing_hooks[event] = cleaned + hook_list
     settings["hooks"] = existing_hooks
 
-    # 4. Install MCP server. Prefer the official Claude CLI so `claude mcp list`
+    # Install MCP server. Prefer the official Claude CLI so `claude mcp list`
     # matches user expectations, then fall back to settings.json.
-    mcp_installed_with_cli = _install_mcp_with_claude_cli(scope)
+    mcp_installed_with_cli = _install_mcp_with_claude_cli(scope, mcp_argv)
     if not mcp_installed_with_cli:
-        mcp_servers = settings.get("mcpServers", {})
-        if "hebb" not in mcp_servers:
-            mcp_servers["hebb"] = _MCP_SERVER_CONFIG["hebb"]
+        raw_mcp = settings.get("mcpServers", {})
+        mcp_servers: dict[str, object] = raw_mcp if isinstance(raw_mcp, dict) else {}
+        mcp_servers["hebb"] = _mcp_server_config()["hebb"]
         settings["mcpServers"] = mcp_servers
 
-    # 5. Save
     _save_settings(settings_path, settings)
 
     click.secho(f"Installed hebb into {settings_path}", fg="green")
     click.echo("  Hooks:  SessionStart (recall), UserPromptSubmit (write), Stop (consolidate)")
-    click.echo("  MCP:    hebb via claude mcp add" if mcp_installed_with_cli else "  MCP:    hebb via settings.json")
+    click.echo(f"  hebb:   {shell_quote(hebb_argv)}")
+    click.echo(
+        f"  MCP:    {shell_quote(mcp_argv)}"
+        + ("  (via claude mcp add)" if mcp_installed_with_cli else "  (via settings.json)")
+    )
     click.echo("")
     click.echo("Verify MCP with: claude mcp list")
     click.echo("Restart Claude Code to activate hooks.")
 
 
-def _install_mcp_with_claude_cli(scope: str) -> bool:
+def _install_mcp_with_claude_cli(scope: str, mcp_argv: list[str]) -> bool:
+    """Register the MCP server through ``claude mcp add`` (preferred)."""
     if not shutil.which("claude"):
         return False
-    result = subprocess.run(
-        [
-            "claude",
-            "mcp",
-            "add",
-            "--transport",
-            "stdio",
-            "--scope",
-            scope,
-            "hebb",
-            "--",
-            "hebb-mcp",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    # Re-add: replace any prior hebb entry so the absolute path is current.
+    subprocess.run(["claude", "mcp", "remove", "hebb", "-s", scope], capture_output=True, check=False)
+    cmd = [
+        "claude",
+        "mcp",
+        "add",
+        "--transport",
+        "stdio",
+        "--scope",
+        scope,
+        "hebb",
+        "--",
+        *mcp_argv,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     return result.returncode == 0

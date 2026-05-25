@@ -16,7 +16,7 @@ Hebb Mind 与 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 深�
 ```bash
 pip install -U hebb-mind       # 安装包
 hebb setup                     # 初始化并预下载 Embedding 模型
-hebb cc install --scope user   # 注入 hooks + MCP 到 Claude Code
+hebb claude-code install --scope user   # 注入 hooks + MCP 到 Claude Code
 ```
 
 重启 Claude Code 即可生效。Hebb Mind 会自动：
@@ -30,13 +30,13 @@ hebb cc install --scope user   # 注入 hooks + MCP 到 Claude Code
 默认将 hooks 写入**项目级** `.claude/settings.json`。全局安装：
 
 ```bash
-hebb cc install --scope user   # 写入 ~/.claude/settings.json
+hebb claude-code install --scope user   # 写入 ~/.claude/settings.json
 ```
 
 ### 卸载
 
 ```bash
-hebb cc uninstall              # 从 settings 中移除 hooks + MCP
+hebb claude-code uninstall              # 从 settings 中移除 hooks + MCP
 ```
 
 ## Hooks 工作原理
@@ -44,14 +44,14 @@ hebb cc uninstall              # 从 settings 中移除 hooks + MCP
 Claude Code [hooks](https://docs.anthropic.com/en/docs/claude-code/hooks) 是在会话生命周期事件中触发的 shell 命令。Hebb Mind 注册了三个：
 
 ```
-SessionStart ──→ hebb cc recall ──→ 搜索 API ──→ stdout（注入上下文）
-UserPromptSubmit ──→ hebb cc write ──→ 去噪 + 去重 ──→ 写入 API（静默）
-Stop ──→ hebb cc stop ──→ 巩固 API + 清理（静默）
+SessionStart ──→ hebb claude-code recall ──→ 搜索 API ──→ stdout（注入上下文）
+UserPromptSubmit ──→ hebb claude-code write ──→ 去噪 + 去重 ──→ 写入 API（静默）
+Stop ──→ hebb claude-code stop ──→ 巩固 API + 清理（静默）
 ```
 
 ### 召回（SessionStart）
 
-新会话开始时，`hebb cc recall` 搜索相关记忆并输出到 stdout，Claude Code 将其注入对话上下文。
+新会话开始时，`hebb claude-code recall` 搜索相关记忆并输出到 stdout，Claude Code 将其注入对话上下文。
 
 - 搜索 `top_k=20`，返回最多 10 条
 - **过滤当前会话记忆** — 它们已在上下文中，无需重复
@@ -67,7 +67,7 @@ Stop ──→ hebb cc stop ──→ 巩固 API + 清理（静默）
 
 ### 写入（UserPromptSubmit）
 
-每次用户发送消息时，`hebb cc write` 自动捕获：
+每次用户发送消息时，`hebb claude-code write` 自动捕获：
 
 1. **去噪** — 移除 `<system-reminder>`、`<command-name>` 等系统标签
 2. **跳过琐碎消息** — 20 字符以下的内容（"ok"、"yes"、"/clear"）
@@ -78,7 +78,7 @@ Stop ──→ hebb cc stop ──→ 巩固 API + 清理（静默）
 
 ### 停止（Stop）
 
-会话结束时，`hebb cc stop`：
+会话结束时，`hebb claude-code stop`：
 
 1. 触发记忆巩固（将工作区记忆分类到长期分区）
 2. 清理当前会话的去重状态
@@ -135,10 +135,10 @@ export HEBB_URL=http://192.168.1.100:8321
 检查 hooks 是否已注册：
 
 ```bash
-cat .claude/settings.json | grep "hebb cc"
+cat .claude/settings.json | grep "hebb claude-code"
 ```
 
-如果为空，重新运行 `hebb cc install`。
+如果为空，重新运行 `hebb claude-code install`。
 
 ### 没有召回记忆
 
@@ -151,4 +151,4 @@ curl http://localhost:8321/api/v1/memories?limit=5
 
 ### 召回速度慢
 
-冷启动后首次召回需要加载嵌入模型。`hebb setup` 会提前下载默认模型，让这条链路更可预期。建议保持服务常驻：`hebb start -d` 或 `hebb service install`。
+冷启动后首次召回需要加载嵌入模型。`hebb setup` 会提前下载默认模型，让这条链路更可预期。建议保持服务常驻：`hebb service install`（OS 服务管理器会在崩溃和重启后自动拉起）。

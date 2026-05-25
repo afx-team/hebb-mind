@@ -7,6 +7,8 @@ import subprocess
 
 import click
 
+from hebb.utils.cli_paths import hebb_mcp_command, shell_quote
+
 
 @click.group("codex")
 def codex() -> None:
@@ -21,11 +23,17 @@ def install(scope: str) -> None:
     if scope == "project":
         click.secho("Codex CLI currently stores MCP servers in its config; using codex mcp add.", fg="yellow")
 
-    result = subprocess.run(["codex", "mcp", "add", "hebb", "--", "hebb-mcp"], check=False)
+    # Resolve absolute path to hebb-mcp — Codex launches the MCP server as a
+    # subprocess whose PATH may not include `pip install --user` bin dirs.
+    mcp_argv = hebb_mcp_command()
+    # Replace any prior entry so a fresh install picks up a moved binary.
+    subprocess.run(["codex", "mcp", "remove", "hebb"], capture_output=True, check=False)
+    result = subprocess.run(["codex", "mcp", "add", "hebb", "--", *mcp_argv], check=False)
     if result.returncode != 0:
         raise click.ClickException("codex mcp add failed")
 
     click.secho("Installed hebb MCP server for Codex.", fg="green")
+    click.echo(f"  MCP: {shell_quote(mcp_argv)}")
     click.echo("Verify with: codex mcp list")
 
 

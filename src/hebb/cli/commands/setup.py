@@ -8,7 +8,7 @@ import click
 from click.core import ParameterSource
 from rich.console import Console
 
-from hebb.cli.commands.init import default_init_target, initialize_workspace
+from hebb.config.init import default_init_target, initialize_workspace
 from hebb.config.loader import find_config_file, load_settings, update_config_field
 from hebb.embedding.catalog import (
     LANGUAGE_CHOICES,
@@ -75,10 +75,11 @@ def setup_cmd(ctx: click.Context, language: str, region: str, profile: str) -> N
     console.print()
     console.print("[bold]Hebb Mind setup complete.[/]")
     console.print("Next steps:")
-    console.print("  Start server:       [cyan]hebb start[/]")
-    console.print("  Claude Code setup:  [cyan]hebb cc install --scope user[/]")
-    console.print("  Codex setup:        [cyan]hebb codex install --scope user[/]")
-    console.print("  Check health:       [cyan]hebb doctor[/]")
+    console.print("  Install background service: [cyan]hebb service install[/]")
+    console.print("  Open Web Console:           [cyan]hebb console[/]")
+    console.print("  Claude Code setup:          [cyan]hebb claude-code install --scope user[/]")
+    console.print("  Codex setup:                [cyan]hebb codex install --scope user[/]")
+    console.print("  Check health:               [cyan]hebb doctor[/]")
 
 
 def _ensure_initialized() -> Path:

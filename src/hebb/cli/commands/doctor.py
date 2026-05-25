@@ -82,8 +82,34 @@ def _add_service_check(table: Table, settings) -> None:
     try:
         httpx.get(f"{url}/health", timeout=2)
         table.add_row("Service", "[OK]", url)
+        _add_service_manager_check(table, installed_expected=True)
     except Exception:
-        table.add_row("Service", "[WARN]", f"Not running at {url}. Run: hebb start")
+        table.add_row("Service", "[WARN]", f"Not running at {url}. Run: hebb service install")
+        _add_service_manager_check(table, installed_expected=False)
+
+
+def _add_service_manager_check(table: Table, *, installed_expected: bool) -> None:
+    """Verify the OS service manager is registered, so the server survives reboot."""
+    try:
+        from hebb.utils.service_manager import UnsupportedPlatformError, get_manager
+
+        manager = get_manager()
+        status = manager.status()
+    except UnsupportedPlatformError as exc:
+        table.add_row("Auto-start", "[WARN]", str(exc))
+        return
+    except Exception as exc:  # pragma: no cover — defensive
+        table.add_row("Auto-start", "[WARN]", f"Could not query service manager: {exc}")
+        return
+
+    label = manager.display_name
+    if status.installed:
+        if status.running:
+            table.add_row("Auto-start", "[OK]", f"{label} (running)")
+        else:
+            table.add_row("Auto-start", "[WARN]", f"{label} installed but not running. Run: hebb service start")
+    else:
+        table.add_row("Auto-start", "[WARN]", f"{label}: not installed. Run: hebb service install")
 
 
 def _add_cli_check(table: Table, name: str, command: list[str]) -> None:
@@ -96,7 +122,7 @@ def _add_cli_check(table: Table, name: str, command: list[str]) -> None:
         table.add_row(f"{name} MCP", "[WARN]", str(exc))
         return
     status = "[OK]" if result.returncode == 0 and "hebb" in result.stdout else "[WARN]"
-    install_cmd = "hebb cc install --scope user" if name == "claude" else "hebb codex install --scope user"
+    install_cmd = "hebb claude-code install --scope user" if name == "claude" else "hebb codex install --scope user"
     detail = "hebb configured" if status == "[OK]" else f"Run: {install_cmd}"
     table.add_row(f"{name} MCP", status, detail)
 

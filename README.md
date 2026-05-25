@@ -35,10 +35,27 @@ Where peers diverge: `mem0` is cloud-first and append-only; `letta` needs an ext
 Ingest and hybrid search work fully offline with the bundled local embedding.
 
 ```bash
-pip install -U hebb-mind
-hebb setup        # picks an embedding model based on your OS locale
-hebb start        # serves http://localhost:8321/
+pip install --user -U hebb-mind
+hebb setup              # picks an embedding model based on your OS locale
+hebb service install    # registers a background service (launchd / systemd / Task Scheduler)
 ```
+
+**If `hebb` is not found after `pip install --user`**, your Python user-script directory is not on `PATH`. This is the macOS default. Add it once and you're done — run the one line that matches your shell:
+
+```bash
+# zsh (macOS default)
+echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+
+# bash
+echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+
+# fish
+fish_add_path (python3 -m site --user-base)/bin
+```
+
+Installing in a virtualenv (`python -m venv .venv && source .venv/bin/activate && pip install hebb-mind`) sidesteps this entirely; system-wide `sudo pip install hebb-mind` does too.
+
+Hebb Mind runs as an OS-managed background service — no foreground process to keep alive, no `start`/`stop` shells to remember. The service is per-user by default and needs no admin/sudo. Use `--scope system` for a system-wide install. See `hebb service --help`.
 
 In another shell:
 
@@ -143,7 +160,7 @@ The `HebbMind()` facade wraps the same REST endpoints used above; it also boots 
 ```bash
 pip install -U hebb-mind               # pip
 pip install -U hebb-mind[pg]           # + PostgreSQL/pgvector
-hebb cc install --scope user          # Claude Code: hooks-based auto memory
+hebb claude-code install --scope user          # Claude Code: hooks-based auto memory
 hebb codex install --scope user       # Codex: MCP memory tools
 ```
 

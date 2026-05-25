@@ -9,10 +9,25 @@
 ### 1. 安装
 
 ```bash
-pip install -U hebb-mind
+pip install --user -U hebb-mind
 ```
 
 需要 **Python >= 3.10**。SQLite 内置，无需外部数据库。
+
+**`pip install --user` 用户的一次性 PATH 配置。** macOS 默认不会把 Python 的用户脚本目录加进 `PATH` —— 没配之前敲 `hebb` 会 `command not found`。挑你的 shell 跑一行就完事：
+
+```bash
+# zsh（macOS 默认）
+echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+
+# bash
+echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+
+# fish
+fish_add_path (python3 -m site --user-base)/bin
+```
+
+如果你用虚拟环境（`python -m venv .venv && source .venv/bin/activate && pip install hebb-mind`）或系统级安装（`sudo pip install hebb-mind`），都不需要这一步 —— `hebb` 已经在 `PATH` 上。
 
 ### 2. Setup
 
@@ -27,13 +42,15 @@ hebb setup --language en --region cn      # 英文模型，国内镜像
 hebb setup --language zh --region global  # 多语言模型，HuggingFace 官方源
 ```
 
-### 3. 启动服务
+### 3. 安装后台服务
 
 ```bash
-hebb start
+hebb service install
 ```
 
-打开 <http://localhost:8321/> 进入 Web 控制台，或访问 <http://localhost:8321/docs> 查看 OpenAPI 页。运行 `hebb workspace` 可查看数据存放位置。
+该命令把 Hebb Mind 注册为系统级服务并立即启动：macOS 用 launchd，Linux 用 systemd，Windows 用任务计划程序。默认是**用户级**安装，不需要 `sudo` 或管理员权限；如需系统级常驻，请加 `--scope system`。
+
+打开 <http://localhost:8321/> 进入 Web 控制台，或访问 <http://localhost:8321/docs> 查看 OpenAPI 页。运行 `hebb config get workspace` 可查看数据存放位置。
 
 <!-- TODO(asset): repo_pages/public/quickstart-cast.gif (asciinema of the 60-second path) -->
 
@@ -104,22 +121,26 @@ for hit in mem.search("UI 偏好", top_k=5):
     print(hit.score, hit.content)
 ```
 
-## 常驻运行
+## 服务生命周期
 
-`hebb start` 默认在前台运行。后台与开机自启：
+Hebb Mind 统一以操作系统后台服务的方式运行，常用命令：
 
 ```bash
-hebb start -d            # 守护进程
-hebb service install     # systemd (Linux) / launchd (macOS)
-hebb service uninstall   # 移除
+hebb service install     # 注册并启动（launchd / systemd / 任务计划程序）
+hebb status      # 查看是否安装与是否运行
+hebb service restart     # 原地重启
+hebb service stop        # 停止但保留安装
+hebb service uninstall   # 从系统中移除
 ```
+
+所有 `service` 子命令都支持 `--scope user`（默认，无需权限提升）或 `--scope system`（需要 sudo / 管理员；系统级开机自启）。
 
 Docker 部署见 [存储后端](./advanced/storage-backends.md#docker-deployment)。
 
 ## MCP 与编辑器集成
 
 ```bash
-hebb cc install --scope user      # Claude Code：hooks 自动记忆
+hebb claude-code install --scope user      # Claude Code：hooks 自动记忆
 hebb codex install --scope user   # Codex：MCP 记忆工具
 codex mcp list                           # 验证
 ```

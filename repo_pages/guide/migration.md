@@ -10,7 +10,7 @@ from hebb import HebbMind
 mem = HebbMind()  # talks to http://localhost:8321 by default
 ```
 
-`hebb start` must be running. See [Quick Start](../quick-start.md).
+The background service must be installed and running (`hebb service install`). See [Quick Start](../quick-start.md).
 
 ---
 

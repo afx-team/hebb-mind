@@ -9,10 +9,25 @@ Ingest and hybrid search work fully offline using the bundled local embedding mo
 ### 1. Install
 
 ```bash
-pip install -U hebb-mind
+pip install --user -U hebb-mind
 ```
 
 Requires **Python >= 3.10**. SQLite is built in — no external database needed.
+
+**One-time PATH setup for `pip install --user`.** On macOS the Python user-script directory is not on `PATH` by default — `hebb` will be `command not found` until you add it. Run the one line that matches your shell:
+
+```bash
+# zsh (macOS default)
+echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+
+# bash
+echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+
+# fish
+fish_add_path (python3 -m site --user-base)/bin
+```
+
+If you installed inside a virtualenv or with `sudo pip install hebb-mind` system-wide, skip this — `hebb` is already on `PATH`.
 
 ### 2. Setup
 
@@ -27,13 +42,15 @@ hebb setup --language en --region cn      # English model, China mirror
 hebb setup --language zh --region global  # Multilingual model, official HuggingFace
 ```
 
-### 3. Start the server
+### 3. Install the background service
 
 ```bash
-hebb start
+hebb service install
 ```
 
-Open <http://localhost:8321/> for the Web Console, or <http://localhost:8321/docs> for the OpenAPI page. To see where data lives, run `hebb workspace`.
+That registers Hebb Mind with launchd (macOS), systemd (Linux), or Task Scheduler (Windows) and starts it. Default scope is **per-user** — no `sudo` or admin needed. Add `--scope system` for a system-wide install.
+
+Open <http://localhost:8321/> for the Web Console, or <http://localhost:8321/docs> for the OpenAPI page. To see where data lives, run `hebb config get workspace`.
 
 <!-- TODO(asset): repo_pages/public/quickstart-cast.gif (asciinema of the 60-second path) -->
 
@@ -104,22 +121,26 @@ for hit in mem.search("UI preferences", top_k=5):
     print(hit.score, hit.content)
 ```
 
-## Keep it running
+## Service lifecycle
 
-`hebb start` runs in the foreground. Background and auto-start:
+Hebb Mind always runs as an OS-managed background service. Manage it with:
 
 ```bash
-hebb start -d            # daemon
-hebb service install     # systemd (Linux) / launchd (macOS)
-hebb service uninstall   # remove
+hebb service install     # register + start (launchd / systemd / Task Scheduler)
+hebb status      # show install / running state
+hebb service restart     # restart in place
+hebb service stop        # stop but keep installed
+hebb service uninstall   # remove from the OS
 ```
+
+All `service` subcommands accept `--scope user` (default, no admin) or `--scope system` (admin/sudo required, system-wide auto-start).
 
 For Docker, see [Storage Backends](./advanced/storage-backends.md#docker-deployment).
 
 ## MCP and editor integrations
 
 ```bash
-hebb cc install --scope user      # Claude Code: hooks-based auto memory
+hebb claude-code install --scope user      # Claude Code: hooks-based auto memory
 hebb codex install --scope user   # Codex: MCP memory tools
 codex mcp list                           # verify
 ```

@@ -34,9 +34,9 @@ You can verify the key is loaded with `hebb doctor` — it shows `LLM: [OK]` onc
 
 ## `Port 8321 already in use`
 
-**Symptom.** `hebb start` exits with `[Errno 48] Address already in use` (macOS/Linux) or `error while attempting to bind on address` (Windows).
+**Symptom.** `hebb service install` (or `hebb service restart`) logs `[Errno 48] Address already in use` (macOS/Linux) or `error while attempting to bind on address` (Windows) and the service immediately exits.
 
-**Cause.** Another process is bound to port 8321. Most often it's a previous `hebb start` that didn't exit cleanly, but it can also be an unrelated service.
+**Cause.** Another process is bound to port 8321. Most often it's a previous Hebb Mind instance the service manager kept alive, but it can also be an unrelated service.
 
 **Fix.** Find the process:
 
@@ -53,9 +53,9 @@ Get-NetTCPConnection -LocalPort 8321
 Then either stop the old server cleanly, or pick another port:
 
 ```bash
-hebb stop                          # clean shutdown if it was ours
-hebb start --port 8322             # one-off override
-hebb config set port 8322          # persistent
+hebb service stop                  # stop the OS-managed service if it was ours
+hebb config set port 8322          # change the port persistently
+hebb service restart               # pick up the new port
 ```
 
 Remember to point any MCP / Claude Code integration at the new port, and update the `--url` arg on `hebb status`.
@@ -74,7 +74,7 @@ Remember to point any MCP / Claude Code integration at the new port, and update 
 
    ```bash
    ps aux | grep hebb
-   hebb stop
+   hebb service stop
    ```
 
 2. Confirm WAL mode is on (it should be by default):
@@ -97,7 +97,7 @@ Remember to point any MCP / Claude Code integration at the new port, and update 
 
 ## First start hangs (no output for minutes)
 
-**Symptom.** `hebb setup` or `hebb start` appears stuck. No progress, no error.
+**Symptom.** `hebb setup` or `hebb service install` appears stuck. No progress, no error.
 
 **Cause.** The embedding model is downloading from HuggingFace. A multilingual model like `BAAI/bge-m3` is ~2 GB and on a typical home connection takes 3–5 minutes; behind a slow link or a corporate proxy it can take 15+. The progress bar is provided by `huggingface_hub` and is sometimes swallowed when stdout is not a TTY.
 
@@ -143,7 +143,7 @@ The model lives under `~/.cache/huggingface/hub/` (or `$HF_HOME` if you set it).
 **Fix.** Print the resolved location:
 
 ```bash
-hebb workspace
+hebb config get workspace
 # /Users/you/projects/myapp/hebb.db
 ```
 
@@ -151,7 +151,7 @@ If it's not what you expect, either `cd` into the project that owns the db, or p
 
 ```bash
 export HEBB_HOME=/path/to/your/workspace
-hebb start
+hebb service restart
 ```
 
 For a tour of what each Console tab does, see [Web Console](./guide/web-console.md).
@@ -175,12 +175,12 @@ hebb status
 claude mcp list
 
 # 3. Re-install at the right scope (project / user / local)
-hebb cc install --scope user
+hebb claude-code install --scope user
 ```
 
 The `--scope user` form writes to `~/.claude/settings.json` and applies to every project. Use `--scope project` to scope the integration to the current directory. After install, fully quit and re-open Claude Code so it re-reads the settings file.
 
-If `hebb cc install` itself fails, run `hebb doctor` — it checks for the `claude` CLI on `$PATH` and reports a clear error when it's missing.
+If `hebb claude-code install` itself fails, run `hebb doctor` — it checks for the `claude` CLI on `$PATH` and reports a clear error when it's missing.
 
 ---
 

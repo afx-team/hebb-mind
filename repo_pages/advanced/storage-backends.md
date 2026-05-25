@@ -172,87 +172,32 @@ volumes:
 
 ## Running as a Background Service
 
-`hebb start` runs in the foreground by default. For long-running deployments, use one of these approaches:
-
-### nohup (Quick)
-
-```bash
-nohup hebb start > hebb.log 2>&1 &
-```
-
-### systemd (Linux)
-
-Create `/etc/systemd/system/hebb.service`:
-
-```ini
-[Unit]
-Description=Hebb Mind Memory Server
-After=network.target
-
-[Service]
-Type=simple
-User=your-user
-WorkingDirectory=/path/to/project
-ExecStart=/path/to/hebb start
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
+Hebb Mind always runs as an OS-managed background service. The single
+supported entry point is:
 
 ```bash
-sudo systemctl enable hebb   # auto-start on boot
-sudo systemctl start hebb    # start now
-sudo systemctl status hebb   # check status
+hebb service install     # registers + starts (launchd / systemd / Task Scheduler)
+hebb service uninstall   # removes it
 ```
 
-### launchd (macOS)
+`install` writes the platform-native artifact for you and immediately
+starts the service. Defaults to **per-user** scope (no admin/sudo
+needed); pass `--scope system` for a system-wide install.
 
-Create `~/Library/LaunchAgents/com.hebb.server.plist`:
+| Platform | Artifact written by `hebb service install` (default `--scope user`) |
+|----------|---------------------------------------------------------------------|
+| macOS    | `~/Library/LaunchAgents/com.hebb.server.plist` (launchd LaunchAgent) |
+| Linux    | `~/.config/systemd/user/hebb.service` (`systemctl --user` unit) |
+| Windows  | Per-user Scheduled Task `HebbMind` (interactive logon trigger, `LeastPrivilege`) |
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>com.hebb.server</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/path/to/hebb</string>
-    <string>start</string>
-  </array>
-  <key>WorkingDirectory</key>
-  <string>/path/to/project</string>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>KeepAlive</key>
-  <true/>
-  <key>StandardOutPath</key>
-  <string>/tmp/hebb.log</string>
-  <key>StandardErrorPath</key>
-  <string>/tmp/hebb.err</string>
-</dict>
-</plist>
-```
+`--scope system` writes to `/Library/LaunchDaemons/`,
+`/etc/systemd/system/`, or registers a SYSTEM-account Scheduled Task,
+respectively — all of which need elevation and run at boot for all users.
 
-Load and start:
-
-```bash
-launchctl load ~/Library/LaunchAgents/com.hebb.server.plist
-```
-
-Unload to stop:
-
-```bash
-launchctl unload ~/Library/LaunchAgents/com.hebb.server.plist
-```
-
-For an automated installer, run `hebb service install` (writes the unit/plist for you) and `hebb service uninstall` to remove it. See [Quick Start → Keep It Running](../quick-start.md#keep-it-running) for the daemon-mode workflow.
+The actual server process invoked by the service manager is `hebb _serve`
+(an internal foreground entrypoint that's not part of the public CLI).
+See [CLI Reference → hebb service](../api/cli.md#hebb-service) for the
+control commands and platform-specific log paths.
 
 ### Production Tips
 

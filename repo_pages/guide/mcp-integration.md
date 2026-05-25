@@ -4,11 +4,11 @@ Hebb Mind provides an MCP (Model Context Protocol) server that exposes memory op
 
 ## Prerequisites
 
-The hebb service must be running. The MCP server will auto-start it if not detected:
+Hebb Mind runs as an OS-managed background service (launchd / systemd / Task Scheduler). The MCP server discovers the service URL and asks the service manager to start it if it isn't running:
 
 ```bash
-hebb setup    # first time only
-hebb start    # or: hebb start -d (daemon mode)
+hebb setup              # first time only — picks model and HuggingFace mirror
+hebb service install    # registers the background service (no admin by default)
 ```
 
 ## Available Tools
@@ -30,7 +30,7 @@ If the service runs on a remote host or non-default address, set `HEBB_URL`:
 Recommended:
 
 ```bash
-hebb cc install --scope user
+hebb claude-code install --scope user
 ```
 
 MCP-only:
@@ -116,7 +116,7 @@ Claude Code / Codex / Cursor
   hebb-mcp (MCP server)
         │ (HTTP)
         v
-  hebb start (REST API on port 8321)
+  hebb _serve (REST API on port 8321, run by the OS service manager)
         │
   Storage / Embedder / Searcher
 ```
@@ -128,7 +128,7 @@ The MCP server is a thin wrapper that translates MCP tool calls into HTTP reques
 You can also start the MCP server directly:
 
 ```bash
-hebb mcp
+hebb mcp serve
 ```
 
 This runs in stdio mode, suitable for direct integration with MCP clients.

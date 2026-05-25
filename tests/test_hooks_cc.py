@@ -90,21 +90,94 @@ class TestInstallHook:
 
         data = json.loads(settings_path.read_text())
         assert "hooks" in data
+        # Hooks must carry the absolute path to hebb, not the bare name.
+        recall_cmd = data["hooks"]["SessionStart"][0]["hooks"][0]["command"]
+        assert recall_cmd == "/bin/hebb claude-code recall"
+        # MCP registered through `claude mcp add` — settings.json should not
+        # also carry the server (so `claude mcp list` is the single source of
+        # truth).
         assert "mcpServers" not in data
-        assert calls == [
-            [
-                "claude",
-                "mcp",
-                "add",
-                "--transport",
-                "stdio",
-                "--scope",
-                "user",
-                "hebb",
-                "--",
-                "hebb-mcp",
-            ]
+        # First call is the pre-remove (idempotent re-install); second is add.
+        assert calls[0] == ["claude", "mcp", "remove", "hebb", "-s", "user"]
+        assert calls[1] == [
+            "claude",
+            "mcp",
+            "add",
+            "--transport",
+            "stdio",
+            "--scope",
+            "user",
+            "hebb",
+            "--",
+            "/bin/hebb-mcp",
         ]
+
+    def test_falls_back_to_python_m_when_hebb_not_on_path(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        """Critical: install must work even when `pip install --user` left
+        `hebb` outside PATH — the hooks we write into settings.json have to
+        run from inside a GUI app's subprocess, which can't see the shell PATH.
+        """
+        settings_path = tmp_path / "settings.json"
+
+        # Nothing on PATH — no hebb, no hebb-mcp, no claude.
+        monkeypatch.setattr(install.shutil, "which", lambda name: None)
+        # Pin sys.executable to a known absolute path for deterministic asserts.
+        monkeypatch.setattr("hebb.utils.cli_paths.sys.executable", "/opt/py/bin/python3")
+        monkeypatch.setattr(install, "_find_settings_path", lambda scope: settings_path)
+
+        install.handle("user")
+
+        data = json.loads(settings_path.read_text())
+        recall_cmd = data["hooks"]["SessionStart"][0]["hooks"][0]["command"]
+        assert recall_cmd == "/opt/py/bin/python3 -m hebb.cli.main claude-code recall"
+        # Same for the MCP entry written to settings.json (claude CLI absent).
+        mcp = data["mcpServers"]["hebb"]
+        assert mcp["command"] == "/opt/py/bin/python3"
+        assert mcp["args"] == ["-m", "hebb.mcp.server"]
+
+    def test_reinstall_replaces_legacy_bare_hooks(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        """Running install twice must not stack duplicate hebb hooks, and
+        must replace any legacy bare-name commands a previous version wrote.
+        """
+        settings_path = tmp_path / "settings.json"
+        settings_path.write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "SessionStart": [
+                            {
+                                "matcher": "",
+                                "hooks": [
+                                    {"type": "command", "command": "hebb cc recall", "timeout": 30},
+                                    {"type": "command", "command": "unrelated-tool", "timeout": 5},
+                                ],
+                            }
+                        ]
+                    }
+                }
+            )
+        )
+        monkeypatch.setattr(install.shutil, "which", lambda name: f"/bin/{name}" if name != "claude" else None)
+        monkeypatch.setattr(install, "_find_settings_path", lambda scope: settings_path)
+
+        install.handle("user")
+
+        data = json.loads(settings_path.read_text())
+        commands = [
+            h["command"]
+            for entry in data["hooks"]["SessionStart"]
+            for h in entry["hooks"]
+        ]
+        # Legacy bare command (old `cc` name) is gone, replaced with the
+        # absolute path using the current `claude-code` group name.
+        assert "hebb cc recall" not in commands
+        assert "/bin/hebb claude-code recall" in commands
+        # Unrelated hooks survive.
+        assert "unrelated-tool" in commands
 
     def test_installs_mcp_in_settings_when_claude_cli_unavailable(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -123,7 +196,8 @@ class TestInstallHook:
 
         data = json.loads(settings_path.read_text())
         assert "hooks" in data
-        assert data["mcpServers"]["hebb"]["command"] == "hebb-mcp"
+        # When claude CLI is missing the absolute MCP path lands in settings.json.
+        assert data["mcpServers"]["hebb"]["command"] == "/bin/hebb-mcp"
         dedup.record_written("s1", "I like salmon")
         assert dedup.is_duplicate("s1", "I like salmon") is True
         assert dedup.is_duplicate("s2", "I like salmon") is False

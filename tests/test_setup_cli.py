@@ -1,4 +1,4 @@
-"""Tests for setup/init CLI behavior."""
+"""Tests for setup CLI behavior."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from hebb.cli.commands.init import init_cmd
 from hebb.cli.commands.setup import setup_cmd
+from hebb.config.init import initialize_workspace
 
 
 def _clear_locale_env(monkeypatch) -> None:
@@ -83,8 +83,7 @@ def test_setup_keeps_custom_model_without_explicit_language(monkeypatch, tmp_pat
     monkeypatch.setenv("HEBB_HOME", str(home))
     runner = CliRunner()
     with runner.isolated_filesystem(temp_dir=tmp_path):
-        init_result = runner.invoke(init_cmd, [])
-        assert init_result.exit_code == 0, init_result.output
+        initialize_workspace(home)
 
         config_path = home / "hebb.json"
         config = json.loads(config_path.read_text())
@@ -105,14 +104,11 @@ def test_setup_keeps_custom_model_without_explicit_language(monkeypatch, tmp_pat
         assert updated["embedding_dim"] == 777
 
 
-def test_init_uses_hebb_home(monkeypatch, tmp_path: Path) -> None:
+def test_initialize_workspace_uses_hebb_home(monkeypatch, tmp_path: Path) -> None:
     home = tmp_path / "home"
     monkeypatch.setenv("HEBB_HOME", str(home))
 
-    runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path):
-        result = runner.invoke(init_cmd, [])
+    initialize_workspace()
 
-    assert result.exit_code == 0, result.output
     assert (home / "hebb.json").is_file()
     assert (home / "hebb.db").is_file()

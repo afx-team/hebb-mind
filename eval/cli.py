@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sys
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -96,7 +96,7 @@ def download(dataset: str, data_dir: str | None) -> None:
 # ------------------------------------------------------------------
 
 
-async def _fresh_server(settings: EvalSettings) -> "subprocess.Popen":
+async def _fresh_server(settings: EvalSettings) -> subprocess.Popen:
     """Stop existing server, clean storage, start a fresh one."""
     port = _get_server_port(settings)
     click.echo("Stopping existing server...")
@@ -273,8 +273,7 @@ def list_benchmarks() -> None:
     click.echo("Available benchmarks:")
     click.echo(f"{'Name':<15} {'Status':<12} {'Data Path'}")
     click.echo("-" * 60)
-    for name, adapter_cls in ADAPTERS.items():
-        adapter = adapter_cls()
+    for name in ADAPTERS:
         data_dir = settings.data_dir / name
         if data_dir.exists() and any(data_dir.iterdir()):
             status = "downloaded"

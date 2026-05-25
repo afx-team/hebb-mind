@@ -71,7 +71,7 @@ class ConvoMemAdapter:
             context = first_item.get("context", first_item.get("conversation", ""))
             if isinstance(context, str) and context:
                 # Split context into turns by newlines or speaker markers
-                lines = [l.strip() for l in context.split("\n") if l.strip()]
+                lines = [ln.strip() for ln in context.split("\n") if ln.strip()]
                 for t_idx, line in enumerate(lines):
                     role = "user" if t_idx % 2 == 0 else "assistant"
                     turns.append(

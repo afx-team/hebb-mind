@@ -21,63 +21,51 @@ hebb setup [--language auto|en|zh|multi] [--region auto|cn|global] [--profile de
 | `--region` | `auto` | `cn` uses `https://hf-mirror.com`; `global` uses HuggingFace official |
 | `--profile` | `default` | `fast` favors small models; `best` favors quality |
 
-After setup, run `hebb start`.
+After setup, install the background service with `hebb service install`.
 
-## hebb init
-
-Initialize a workspace **without** network access. Creates `hebb.json`, the SQLite database, and an empty knowledge graph file.
-
-```bash
-hebb init [--dir DIR] [--force]
-```
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--dir DIR` | `HEBB_HOME` or `~/.hebb/` | Target directory |
-| `--force` | -- | Overwrite existing config and reset SQLite storage |
-
-**Created files:**
+`hebb setup` also creates the workspace files on first run:
 
 - `hebb.json` — configuration
 - `hebb.db` — SQLite database (with the 5 default partitions)
 - `knowledge_graph.json` — empty knowledge graph
 
-## hebb start
+## hebb service
 
-Start the FastAPI server.
+Hebb Mind always runs as an OS-managed background service. There is no
+foreground `start` command — the OS service manager (launchd on macOS,
+systemd on Linux, Task Scheduler on Windows) owns the process.
 
 ```bash
-hebb start [--host HOST] [--port PORT] [--reload] [-d|--daemon]
+hebb service install    [--scope user|system]
+hebb service uninstall  [--scope user|system]
+hebb service start      [--scope user|system]
+hebb service stop       [--scope user|system]
+hebb service restart    [--scope user|system]
 ```
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--host` | from config (`0.0.0.0`) | Bind address |
-| `--port` | from config (`8321`) | Port |
-| `--reload` | -- | Enable uvicorn auto-reload (dev) |
-| `-d`, `--daemon` | -- | Run in the background; PID stored in `<workspace>/hebb.pid` |
+| `--scope user` | ✔ | Per-user install, **no admin required**. macOS LaunchAgent / `systemctl --user` unit / per-user Scheduled Task |
+| `--scope system` | -- | System-wide install. Requires `sudo` (macOS / Linux) or admin (Windows). Runs at boot for any user. |
 
-If a server is already running at the resolved URL, the command exits without re-launching.
+After install, the host/port from `hebb.json` are used. To change them: edit
+`hebb.json`, then `hebb service restart`.
 
-## hebb stop
+| Platform | Inspect | Logs |
+|----------|---------|------|
+| macOS | `launchctl print gui/$(id -u)/com.hebb.server` | `tail -f /tmp/hebb.log /tmp/hebb.err` |
+| Linux (user) | `systemctl --user status hebb` | `journalctl --user -u hebb -f` |
+| Linux (system) | `sudo systemctl status hebb` | `journalctl -u hebb -f` |
+| Windows | `schtasks /Query /TN "HebbMind" /FO LIST /V` | `%TEMP%\hebb.log` |
 
-Stop a running server (looks up the daemon PID, falls back to `lsof -ti :PORT`).
-
-```bash
-hebb stop [--url URL]
-```
-
-## hebb restart
-
-Stop then start.
-
-```bash
-hebb restart [--host HOST] [--port PORT] [--reload] [-d|--daemon]
-```
+> **Linux note.** A `systemctl --user` service only runs while the user is
+> logged in. To keep it running across logout and at boot, run
+> `loginctl enable-linger $USER` once.
 
 ## hebb status
 
-Health-check the running server and print scheduler job table.
+Show service-manager registration, server health, and scheduler jobs in one
+combined view.
 
 ```bash
 hebb status [--url URL]
@@ -86,7 +74,12 @@ hebb status [--url URL]
 Sample output:
 
 ```
-Server is running (v0.1.1)
+launchd (com.hebb.server) (OS: Darwin)
+  Installed: yes
+  Running:   yes
+  Logs:      tail -f /tmp/hebb.log /tmp/hebb.err
+
+Server is running at http://127.0.0.1:8321 (v0.1.1)
 
 Scheduler Jobs
 ┌──────────────────┬───────────────────────────┐
@@ -95,6 +88,16 @@ Scheduler Jobs
 │ consolidation_job│ 2026-04-18T18:00:00+08:00 │
 │ forgetting_job   │ 2026-04-17T11:00:00+08:00 │
 └──────────────────┴───────────────────────────┘
+```
+
+## hebb console
+
+Open the Hebb Mind Web Console in the default browser. Health-checks the
+local server first; aborts with a hint if it's not running.
+
+```bash
+hebb console            # open in browser
+hebb console --print    # print URL only (CI / SSH friendly)
 ```
 
 ## hebb doctor
@@ -106,19 +109,6 @@ hebb doctor
 ```
 
 The output is a Rich table with `[OK]` / `[WARN]` / `[FAIL]` status per check and a hint for each failure (e.g. *"Run: hebb model prefetch"*).
-
-## hebb workspace
-
-Print the resolved workspace directory. Resolution order:
-
-1. `HEBB_HOME` environment variable
-2. Parent directory of a `hebb.json` walked up from the current directory
-3. `~/.hebb/` (global default)
-
-```bash
-hebb workspace
-# /Users/you/.hebb
-```
 
 ## hebb model
 
@@ -133,42 +123,30 @@ hebb model prefetch [--model MODEL_ID] [--region auto|cn|global]
 
 `prefetch` downloads (or re-downloads) a model into the workspace `models/` directory, then loads it once to confirm dimension. With `--model` it also updates `embedding_provider`, `embedding_model`, and `embedding_dim` in `hebb.json`.
 
-## hebb service
-
-Install or uninstall a system service that auto-starts the server on boot. Detects the OS and writes a `systemd` unit (Linux) or `launchd` plist (macOS).
-
-```bash
-hebb service install
-hebb service uninstall
-```
-
-After install:
-
-| Platform | Inspect | Stop |
-|----------|---------|------|
-| Linux | `systemctl status hebb` / `journalctl -u hebb -f` | `systemctl stop hebb` |
-| macOS | `launchctl print gui/$(id -u)/com.hebb.server` | `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.hebb.server.plist` |
-
 ## hebb mcp
 
-Start the MCP server in stdio mode. Requires the FastAPI server to be running at the configured URL — the MCP server is a thin wrapper that forwards `write_memory`, `search_memory`, and `consolidate` tool calls to it.
+MCP server commands.
 
 ```bash
-hebb mcp
+hebb mcp serve
 ```
 
-Use this command in MCP-client config (Claude Desktop, Cursor, Continue) to register Hebb Mind.
+`serve` starts the MCP stdio server. Requires the FastAPI server to be
+running at the configured URL — the MCP server is a thin wrapper that
+forwards `write_memory`, `search_memory`, and `consolidate` tool calls to
+it. Use this in MCP-client config (Claude Desktop, Cursor, Continue) to
+register Hebb Mind.
 
-## hebb cc
+## hebb claude-code
 
 Claude Code integration. Installs hooks and registers the MCP server.
 
 ```bash
-hebb cc install   [--scope project|user]   # default: project
-hebb cc uninstall [--scope project|user]
-hebb cc recall      # SessionStart hook
-hebb cc write       # UserPromptSubmit hook
-hebb cc stop        # Stop hook (consolidation + cleanup)
+hebb claude-code install   [--scope project|user]   # default: project
+hebb claude-code uninstall [--scope project|user]
+hebb claude-code recall      # SessionStart hook
+hebb claude-code write       # UserPromptSubmit hook
+hebb claude-code stop        # Stop hook (consolidation + cleanup)
 ```
 
 `install --scope project` writes to `.claude/` in the current directory; `--scope user` writes to `~/.claude/`.

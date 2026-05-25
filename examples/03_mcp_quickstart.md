@@ -8,7 +8,7 @@ small set of "remember this" / "what do you know about X" tools.
 
 ```bash
 # Claude Code (writes to ~/.claude/settings.json with --scope user)
-hebb cc install --scope user
+hebb claude-code install --scope user
 
 # Codex CLI (writes to ~/.codex/config.toml with --scope user)
 hebb codex install --scope user
@@ -19,7 +19,7 @@ Restart the client. That's it.
 To uninstall:
 
 ```bash
-hebb cc uninstall
+hebb claude-code uninstall
 hebb codex uninstall --scope user
 ```
 

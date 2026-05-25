@@ -41,11 +41,11 @@ class HebbChatMessageHistory:
         self.hc = hc or HebbMind()
 
     @property
-    def messages(self) -> list["BaseMessage"]:
+    def messages(self) -> list[BaseMessage]:
         """Load all messages for this session from Hebb Mind."""
         raise NotImplementedError("WIP — see module docstring.")
 
-    def add_messages(self, messages: list["BaseMessage"]) -> None:
+    def add_messages(self, messages: list[BaseMessage]) -> None:
         """Append a batch of LangChain messages."""
         raise NotImplementedError("WIP — see module docstring.")
 
@@ -64,7 +64,7 @@ class HebbRetriever:
         self.hc = hc or HebbMind()
         self.top_k = top_k
 
-    def _get_relevant_documents(self, query: str, **_: Any) -> list["Document"]:
+    def _get_relevant_documents(self, query: str, **_: Any) -> list[Document]:
         """Synchronous retrieval. TODO: implement async variant."""
         raise NotImplementedError("WIP — see module docstring.")
 

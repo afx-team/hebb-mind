@@ -3,10 +3,41 @@
 ## Install
 
 ```bash
-pip install -U hebb-mind
+pip install --user -U hebb-mind
 ```
 
 Requires **Python >= 3.10**. No external database needed — SQLite is built in.
+
+### PATH setup (`pip install --user` only)
+
+On macOS the Python user-script directory is **not on `PATH`** by default. After `pip install --user`, `hebb` will be `command not found` until you add it. This is a one-time setup — pick the line for your shell:
+
+```bash
+# zsh (macOS default)
+echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+
+# bash
+echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+
+# fish
+fish_add_path (python3 -m site --user-base)/bin
+```
+
+`python3 -m site --user-base` prints the directory pip used (typically `~/Library/Python/3.x` on macOS, `~/.local` on Linux). You can verify with `python3 -m site --user-base`.
+
+You can skip this step entirely by installing inside a virtualenv:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -U hebb-mind   # `hebb` is on the venv's PATH automatically
+```
+
+Or system-wide (requires `sudo` on most setups):
+
+```bash
+sudo pip install -U hebb-mind
+```
 
 ## Setup
 
@@ -16,18 +47,12 @@ hebb setup
 
 Creates `hebb.json` and `hebb.db`, selects the default embedding model, selects the download source, and verifies the model. It does **not** start a background service.
 
-For scripted or offline initialization only:
-
-```bash
-hebb init
-```
-
 ## Verify
 
 ```bash
 hebb --version
 hebb model status
-hebb start
+hebb service install
 ```
 
 Open [http://localhost:8321/](http://localhost:8321/) for the Web Console, or [http://localhost:8321/docs](http://localhost:8321/docs) for the API docs.

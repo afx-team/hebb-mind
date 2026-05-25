@@ -15,7 +15,7 @@ The knowledge graph is stored as `knowledge_graph.json` in the workspace directo
 
 ```bash
 # Check the current workspace directory
-hebb workspace
+hebb config get workspace
 
 # Override the workspace directory
 hebb config set home /data/hebb

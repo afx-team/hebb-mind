@@ -4,7 +4,7 @@ The Web Console is a single-page app that ships inside the Hebb Mind binary. It 
 
 ## Access
 
-Once `hebb start` is running, the Console is served from the same port as the REST API:
+Once the background service is installed (`hebb service install`), the Console is served from the same port as the REST API:
 
 ```
 http://localhost:8321/
@@ -28,7 +28,7 @@ flowchart LR
     HTTP --> Cache
 ```
 
-The whole stack reads from your resolved workspace (run `hebb workspace` to see where).
+The whole stack reads from your resolved workspace (run `hebb config get workspace` to see where).
 
 ## Authentication
 
@@ -94,7 +94,7 @@ This requires an LLM key — see [Troubleshooting](../troubleshooting.md#consoli
 
 **Switch the active partition.** Partitions tab → select a row → toggle "active" (or use the dropdown at the top of Memories / Search to filter). Inside the SDK and API, pass `partition_id` explicitly.
 
-**Change the LLM model without restarting.** Settings → "LLM model" → enter a LiteLLM string (e.g. `anthropic/claude-3-haiku-20240307`) → save. If the field shows `restart_required`, run `hebb stop && hebb start`.
+**Change the LLM model without restarting.** Settings → "LLM model" → enter a LiteLLM string (e.g. `anthropic/claude-3-haiku-20240307`) → save. If the field shows `restart_required`, run `hebb service restart`.
 
 ## When to use the Console vs. the CLI vs. the API
 

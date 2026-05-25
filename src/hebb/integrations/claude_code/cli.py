@@ -1,11 +1,11 @@
-"""Claude Code CLI subgroup: hebb cc {install|uninstall|recall|write|stop}."""
+"""Claude Code CLI subgroup: hebb claude-code {install|uninstall|recall|write|stop}."""
 
 from __future__ import annotations
 
 import click
 
 
-@click.group("cc")
+@click.group("claude-code")
 def cc() -> None:
     """Claude Code integration — auto write/recall/consolidate hooks."""
 

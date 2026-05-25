@@ -4,11 +4,11 @@ Hebb Mind 提供 MCP (Model Context Protocol) 服务，将记忆操作暴露为�
 
 ## 前提条件
 
-需要先启动 Hebb Mind 服务。MCP 服务启动时会自动拉起未运行的服务：
+Hebb Mind 统一以操作系统后台服务运行（macOS launchd / Linux systemd / Windows 任务计划程序）。MCP 服务启动时若发现后台服务未运行，会自动请求 OS 服务管理器拉起：
 
 ```bash
-hebb setup    # 首次使用
-hebb start    # 或：hebb start -d（后台模式）
+hebb setup              # 首次使用 — 选择模型和镜像源
+hebb service install    # 注册后台服务（默认用户级，无需管理员权限）
 ```
 
 ## 可用工具
@@ -30,7 +30,7 @@ MCP 服务自动从 `hebb.json` 发现服务地址。大多数情况下无需任
 推荐：
 
 ```bash
-hebb cc install --scope user
+hebb claude-code install --scope user
 ```
 
 仅 MCP：
@@ -116,7 +116,7 @@ Claude Code / Codex / Cursor
   hebb-mcp (MCP 服务)
         │ (HTTP 调用)
         v
-  hebb start (REST API, 端口 8321)
+  hebb _serve (REST API, 端口 8321, 由 OS 服务管理器拉起)
         │
   存储 / Embedding / 检索
 ```
@@ -128,7 +128,7 @@ MCP 服务是一个薄包装层，将 MCP 工具调用转换为对运行中 Hebb
 也可以直接启动 MCP 服务：
 
 ```bash
-hebb mcp
+hebb mcp serve
 ```
 
 以 stdio 模式运行，适合与 MCP 客户端直接集成。

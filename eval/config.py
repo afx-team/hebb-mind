@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
-
 from enum import Enum
+from pathlib import Path
 
 from pydantic import BaseModel, Field
 

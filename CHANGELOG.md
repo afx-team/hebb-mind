@@ -9,9 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **OS-managed background service is now the only supported way to run
+  Hebb Mind.** `hebb service install` registers the server with launchd
+  (macOS), systemd (Linux), or Task Scheduler (Windows) and starts it.
+  Defaults to `--scope user` — no admin or sudo. `--scope system` is the
+  opt-in elevated path. New subcommands: `hebb service {install,uninstall,
+  start,stop,restart}`. Internal foreground entrypoint is the hidden
+  `hebb _serve` command, invoked only by the service manager.
+- **`hebb console`** — open the Web Console in your default browser with one
+  command. `--print` outputs the URL only (CI / SSH friendly).
+- `hebb doctor` now reports the OS service registration state alongside
+  the HTTP health check.
 - Community health files: `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue and pull
   request templates under `.github/`, `CODEOWNERS`, and a `dependabot.yml`
   config covering `pip` and `github-actions`.
+
+### Removed
+
+- **Breaking:** `hebb start`, `hebb stop`, `hebb restart`, the
+  `--daemon` flag, and the workspace `hebb.pid` file. Use the new
+  `hebb service` subcommands instead. The MCP server and Claude Code
+  hooks now ask the OS service manager to start the server on demand.
+- **Breaking:** CLI surface cleanup. No backwards-compatible aliases.
+  - `hebb init` removed — `hebb setup` already creates the workspace on
+    first run.
+  - `hebb workspace` removed — use `hebb config get workspace`.
+  - `hebb service status` removed — merged into top-level `hebb status`,
+    which now shows OS service registration, HTTP health, and scheduler
+    jobs in a single view.
+  - `hebb cc <subcommand>` renamed to `hebb claude-code <subcommand>` for
+    parity with `hebb codex`. Existing Claude Code installations must
+    re-run `hebb claude-code install --scope user` (or `project`) so the
+    settings.json hook commands point at the new name; the uninstaller
+    still recognises the legacy `cc` pattern so cleanup works either way.
+  - `hebb mcp` is now a group; the stdio server is started via
+    `hebb mcp serve`. MCP client configs that point at the `hebb-mcp`
+    console-script entry point are unaffected.
 - CI: `mypy --strict` step, `actions/setup-python` pip caching, coverage
   uploaded as a workflow artifact, separate docs-build verification job that
   runs on PRs touching `repo_pages/**`, and workflow-level concurrency

@@ -29,6 +29,12 @@ When rules conflict, follow this priority order:
 
 ---
 
+## User Path Ownership (MUST)
+
+The user's complete path — install → first command → background operation → uninstall — **is the product.** Every crossing between environments (shell ↔ GUI app ↔ launchd ↔ systemd ↔ Task Scheduler ↔ a third-party CLI's subprocess) is **the framework's responsibility, never the user's.**
+
+---
+
 ## Code Standards (MUST when implementing)
 
 ```python

@@ -1,4 +1,4 @@
-"""hebb cc uninstall — remove hooks and MCP server from Claude Code."""
+"""hebb claude-code uninstall — remove hooks and MCP server from Claude Code."""
 
 from __future__ import annotations
 
@@ -34,13 +34,29 @@ def handle(scope: str) -> None:
 
     changed = False
 
-    # Remove hooks containing "hebb cc"
+    # Remove any hook whose command resolves to a hebb invocation. Matches
+    # the current ``claude-code`` name as well as the legacy ``cc`` name, in
+    # any of the three shapes the installer may have written: bare,
+    # absolute, or ``python -m hebb.cli.main`` fallback.
+    def _is_hebb(cmd: str) -> bool:
+        return any(
+            marker in cmd
+            for marker in (
+                "hebb claude-code ",
+                "/hebb claude-code ",
+                "hebb.cli.main claude-code ",
+                "hebb cc ",
+                "/hebb cc ",
+                "hebb.cli.main cc ",
+            )
+        )
+
     hooks = settings.get("hooks", {})
     for event in list(hooks.keys()):
         filtered = []
         for entry in hooks[event]:
             entry_hooks = entry.get("hooks", [])
-            kept = [h for h in entry_hooks if "hebb cc" not in h.get("command", "")]
+            kept = [h for h in entry_hooks if not _is_hebb(h.get("command", ""))]
             if kept:
                 entry["hooks"] = kept
                 filtered.append(entry)
