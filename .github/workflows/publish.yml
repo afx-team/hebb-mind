@@ -130,5 +130,9 @@ jobs:
       - name: Create git tag
         run: |
           VERSION="v${{ needs.check-version.outputs.version }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists on remote, skipping."
+            exit 0
+          fi
           git tag "$VERSION"
           git push origin "$VERSION"

@@ -132,7 +132,7 @@ def _launchd_path(scope: Scope) -> Path:
 def _launchd_domain(scope: Scope) -> str:
     if scope == "system":
         return "system"
-    return f"gui/{os.getuid()}"  # type: ignore[attr-defined]  # unix-only, only called on macOS
+    return f"gui/{os.getuid()}"  # type: ignore[attr-defined,unused-ignore]  # unix-only, only called on macOS
 
 
 def _launchd_target(scope: Scope) -> str:
@@ -142,7 +142,7 @@ def _launchd_target(scope: Scope) -> str:
 def _launchctl(args: list[str], scope: Scope) -> subprocess.CompletedProcess[str]:
     """Run ``launchctl`` — prefixed with ``sudo`` when targeting the system domain."""
     cmd = ["launchctl", *args]
-    if scope == "system" and os.geteuid() != 0:
+    if scope == "system" and os.geteuid() != 0:  # type: ignore[attr-defined,unused-ignore]  # unix-only, only called on macOS
         cmd = ["sudo", *cmd]
     return subprocess.run(cmd, capture_output=True, text=True, check=False)
 
@@ -304,7 +304,7 @@ def _systemctl(scope: Scope, args: list[str], check: bool = False) -> subprocess
     if scope == "user":
         cmd.append("--user")
     cmd.extend(args)
-    if scope == "system" and os.geteuid() != 0:
+    if scope == "system" and os.geteuid() != 0:  # type: ignore[attr-defined,unused-ignore]  # unix-only, only called on Linux
         cmd = ["sudo", *cmd]
     return subprocess.run(cmd, capture_output=True, text=True, check=check)
 
