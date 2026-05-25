@@ -98,7 +98,7 @@ async def delete_memory(
     memory_id: str,
     store: MemoryStore = Depends(get_memory_store),
     kg: KnowledgeGraph = Depends(get_knowledge_graph),
-) -> None:
+):
     deleted = await store.delete(memory_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Memory not found")

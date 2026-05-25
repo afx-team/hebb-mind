@@ -56,7 +56,7 @@ async def update_partition(
 async def delete_partition(
     partition_id: str,
     store: PartitionStore = Depends(get_partition_store),
-) -> None:
+):
     existing = await store.get(partition_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Partition not found")
