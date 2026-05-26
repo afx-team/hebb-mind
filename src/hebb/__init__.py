@@ -39,7 +39,7 @@ from hebb.exceptions import (
     StorageError,
 )
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 # ``HebbMind`` pulls in storage + embedding + graph + searcher, which
 # in turn import heavy third-party libs (sentence-transformers, litellm,
