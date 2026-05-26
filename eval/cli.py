@@ -12,8 +12,10 @@ import click
 
 from eval.benchmarks import BENCHMARKS
 from eval.client import (
+    BENCHMARK_PORTS,
     HebbClient,
     clean_storage,
+    prepare_workdir,
     start_server,
     stop_server,
     wait_for_server,
@@ -59,11 +61,9 @@ def _setup_logging(verbose: bool) -> None:
     )
 
 
-def _get_server_port(settings: EvalSettings) -> int:
-    """Extract port from hebb_url."""
-    from urllib.parse import urlparse
-    parsed = urlparse(settings.hebb_url)
-    return parsed.port or 8321
+def _bench_base_url(port: int) -> str:
+    """URL each benchmark's HebbClient connects to."""
+    return f"http://localhost:{port}"
 
 
 @click.group()
@@ -116,18 +116,23 @@ def download(dataset: str, data_dir: str | None) -> None:
 # ------------------------------------------------------------------
 
 
-async def _fresh_server(settings: EvalSettings) -> subprocess.Popen:
-    """Stop existing server, clean storage, start a fresh one."""
-    port = _get_server_port(settings)
-    click.echo("Stopping existing server...")
+async def _fresh_server(workdir: Path, port: int) -> subprocess.Popen:
+    """Stop server on ``port``, wipe the workdir's db, start a fresh one.
+
+    Operates entirely inside ``workdir`` — the user's project-root
+    ``hebb.json`` and ``hebb.db`` are never touched. The workdir
+    itself is kept on disk between runs so a crashed benchmark can be
+    inspected by opening ``workdir / "hebb.db"`` directly.
+    """
+    click.echo(f"Stopping any process on port {port}...")
     stop_server(port)
-    click.echo("Cleaning storage (db + knowledge graph)...")
-    deleted = clean_storage(settings.project_root)
+    click.echo(f"Cleaning workdir db (workdir={workdir.name})...")
+    deleted = clean_storage(workdir)
     if deleted:
         click.echo(f"  Deleted: {', '.join(Path(d).name for d in deleted)}")
-    click.echo("Starting fresh server...")
-    proc = start_server(settings.project_root)
-    await wait_for_server(settings.hebb_url)
+    click.echo(f"Starting fresh server on port {port}...")
+    proc = start_server(workdir)
+    await wait_for_server(_bench_base_url(port))
     click.echo(f"Server ready (PID {proc.pid})")
     return proc
 
@@ -145,22 +150,24 @@ async def _fresh_server(settings: EvalSettings) -> subprocess.Popen:
     default=None,
     help="Evaluation mode: raw (no consolidation) or consolidated (with consolidation)",
 )
-@click.option("--url", default=None, help="Hebb Mind server URL")
 @click.option("--top-k", default=None, type=int, help="Search top_k")
 @click.option("--llm-model", default=None, help="LLM model for judge")
 @click.option("--max-scenarios", default=None, type=int, help="Limit scenarios per dataset")
 def run(
     dataset: str,
     mode: str | None,
-    url: str | None,
     top_k: int | None,
     llm_model: str | None,
     max_scenarios: int | None,
 ) -> None:
-    """Run evaluation benchmark(s) against a hebb instance."""
+    """Run evaluation benchmark(s) against an isolated hebb instance per dataset.
+
+    Each benchmark gets its own port (see ``eval.client.BENCHMARK_PORTS``)
+    and its own workdir under ``eval/workdirs/<name>/`` with a dedicated
+    ``hebb.json`` and ``hebb.db``. Sequential — one server at a time.
+    Workdirs are retained between runs for post-hoc inspection.
+    """
     settings = load_eval_settings()
-    if url:
-        settings.hebb_url = url
     if top_k:
         settings.search_top_k = top_k
     if llm_model:
@@ -184,6 +191,7 @@ def run(
         click.echo(f"Reports root: {settings.reports_dir}")
 
         server_proc = None
+        active_port: int | None = None
         all_results = []
         run_dirs: list[Path] = []
 
@@ -194,13 +202,27 @@ def run(
                 if not adapter_cls or not bench_cls:
                     click.echo(f"Skipping unknown benchmark: {name}")
                     continue
+                if name not in BENCHMARK_PORTS:
+                    click.echo(
+                        f"Skipping {name}: no port allocated in BENCHMARK_PORTS",
+                        err=True,
+                    )
+                    continue
 
                 click.echo(f"\n{'='*60}")
                 click.echo(f"Benchmark: {name} ({settings.mode.value})")
                 click.echo(f"{'='*60}")
 
-                # 1. Fresh server for each dataset
-                server_proc = await _fresh_server(settings)
+                # 1. Stop the previous benchmark's server (if any) and
+                #    spin up an isolated one for this dataset.
+                if active_port is not None and active_port != BENCHMARK_PORTS[name]:
+                    stop_server(active_port)
+                workdir, port = prepare_workdir(
+                    name, settings.workdir_root, settings.project_root
+                )
+                click.echo(f"Workdir: {workdir}  port: {port}")
+                server_proc = await _fresh_server(workdir, port)
+                active_port = port
 
                 adapter = adapter_cls()
                 benchmark = bench_cls(settings)
@@ -226,7 +248,7 @@ def run(
                 total_q = sum(len(s.questions) for s in scenarios)
                 click.echo(f"Loaded {len(scenarios)} scenarios, {total_q} questions")
 
-                async with HebbClient(settings.hebb_url) as client:
+                async with HebbClient(_bench_base_url(port)) as client:
                     # 4. Ingest into mem_hippocampus
                     click.echo("Ingesting memories into mem_hebb...")
                     await benchmark.setup(client, scenarios)
@@ -277,8 +299,10 @@ def run(
             # Dump server stderr if there were issues
             if server_proc and server_proc.stderr:
                 server_proc.stderr.close()
-            port = _get_server_port(settings)
-            stop_server(port)
+            # Only stop the LAST benchmark's server — earlier ones were
+            # already stopped at the top of each loop iteration.
+            if active_port is not None:
+                stop_server(active_port)
 
         return all_results
 

@@ -5,7 +5,82 @@
 
 import * as api from '../api.js';
 import { t } from '../i18n.js';
-import { success, error } from './toast.js';
+import { success, error, info } from './toast.js';
+
+/* ====================================================================
+   Shared: restart confirmation modal + health polling.
+   Used by any settings section that writes a restart-required field.
+   ==================================================================== */
+async function pingHealth(timeoutMs = 1500) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch('/health', { signal: ctrl.signal });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function waitForHealthRecovery(maxSeconds = 30, intervalMs = 1000) {
+  const deadline = Date.now() + maxSeconds * 1000;
+  while (Date.now() < deadline) {
+    if (await pingHealth()) return true;
+    await new Promise(r => setTimeout(r, intervalMs));
+  }
+  return false;
+}
+
+export function offerRestart({ onRestarted } = {}) {
+  const overlay = document.getElementById('modal-overlay');
+  if (!overlay) {
+    error('Modal overlay not found in DOM');
+    return;
+  }
+  overlay.classList.remove('hidden');
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:420px">
+      <h3 class="modal-title">Restart service to apply?</h3>
+      <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin:0 0 8px;">
+        One or more fields you changed only take effect after a restart of the Hebb Mind service.
+      </p>
+      <p style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin:0;">
+        Expected downtime: a few seconds. The page will reload when the service is back.
+      </p>
+      <div class="modal-actions">
+        <button class="btn" id="restart-cancel">Later</button>
+        <button class="btn btn-primary" id="restart-now">Restart now</button>
+      </div>
+    </div>
+  `;
+  const close = () => { overlay.classList.add('hidden'); overlay.innerHTML = ''; };
+  overlay.querySelector('#restart-cancel').onclick = close;
+  overlay.querySelector('#restart-now').onclick = async () => {
+    const btn = overlay.querySelector('#restart-now');
+    btn.disabled = true;
+    btn.textContent = 'Restarting…';
+    try {
+      await api.restartService();
+    } catch (e) {
+      error('Restart request failed: ' + e.message);
+      close();
+      return;
+    }
+    info('Restart issued. Waiting for service to come back…');
+    const ok = await waitForHealthRecovery(30);
+    close();
+    if (ok) {
+      success('Service restarted');
+      if (typeof onRestarted === 'function') {
+        try { await onRestarted(); } catch { /* ignore */ }
+      }
+    } else {
+      error('Service did not respond within 30s. Check `hebb status` in a terminal.');
+    }
+  };
+}
 
 /* --- LLM provider presets for the guided UI --- */
 const LLM_PRESETS = [
@@ -365,6 +440,16 @@ function buildEmbeddingSection(config) {
         <button class="btn" id="emb-save">Save</button>
         <span id="emb-status" style="font-size:13px;margin-left:8px;"></span>
       </div>
+      <div id="emb-progress" class="hidden" style="margin-top:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">
+          <span id="emb-progress-label">Downloading…</span>
+          <span id="emb-progress-pct" style="font-family:var(--font-mono);"></span>
+        </div>
+        <div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:var(--radius-sm);height:8px;overflow:hidden;">
+          <div id="emb-progress-fill" style="background:var(--accent);height:100%;width:0;transition:width 200ms ease;"></div>
+        </div>
+        <div id="emb-progress-detail" style="font-size:11px;color:var(--text-secondary);margin-top:4px;font-family:var(--font-mono);min-height:14px;"></div>
+      </div>
       <div id="emb-log" class="hidden" style="margin-top:12px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;font-family:var(--font-mono);font-size:12px;line-height:1.6;max-height:200px;overflow-y:auto;white-space:pre-wrap;"></div>
     </div>
   `;
@@ -382,6 +467,72 @@ function buildEmbeddingSection(config) {
   const saveBtn = section.querySelector('#emb-save');
   const statusEl = section.querySelector('#emb-status');
   const logEl = section.querySelector('#emb-log');
+  const progressEl = section.querySelector('#emb-progress');
+  const progressFillEl = section.querySelector('#emb-progress-fill');
+  const progressPctEl = section.querySelector('#emb-progress-pct');
+  const progressLabelEl = section.querySelector('#emb-progress-label');
+  const progressDetailEl = section.querySelector('#emb-progress-detail');
+
+  function fmtBytes(n) {
+    if (!n) return '0 B';
+    const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let i = 0;
+    while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+    return `${n.toFixed(i ? 1 : 0)} ${u[i]}`;
+  }
+
+  function renderProgress(task) {
+    progressEl.classList.remove('hidden');
+    const total = task.bytes_total || 0;
+    const done = task.bytes_done || 0;
+    const pct = total > 0 ? Math.min(100, (done / total) * 100) : 0;
+    progressFillEl.style.width = pct + '%';
+    if (task.status === 'downloading') {
+      progressLabelEl.textContent = 'Downloading…';
+      progressPctEl.textContent = total > 0 ? `${pct.toFixed(1)}%` : '';
+      progressDetailEl.textContent = total > 0
+        ? `${fmtBytes(done)} / ${fmtBytes(total)}${task.current_file ? ' · ' + task.current_file : ''}`
+        : (task.current_file || 'Resolving model files…');
+    } else if (task.status === 'verifying') {
+      progressLabelEl.textContent = 'Verifying model…';
+      progressPctEl.textContent = '';
+      progressFillEl.style.width = '100%';
+      progressDetailEl.textContent = 'Loading and running a sample encode';
+    } else if (task.status === 'done') {
+      progressLabelEl.textContent = 'Ready';
+      progressPctEl.textContent = '';
+      progressFillEl.style.background = 'var(--accent-green)';
+      progressFillEl.style.width = '100%';
+      progressDetailEl.textContent = `dimension=${task.dimension}`;
+    } else if (task.status === 'failed') {
+      progressLabelEl.textContent = 'Failed';
+      progressFillEl.style.background = 'var(--accent-red)';
+      progressDetailEl.textContent = task.error || '';
+    }
+  }
+
+  function resetProgress() {
+    progressEl.classList.add('hidden');
+    progressFillEl.style.background = 'var(--accent)';
+    progressFillEl.style.width = '0';
+    progressPctEl.textContent = '';
+    progressDetailEl.textContent = '';
+  }
+
+  async function pollDownload(taskId) {
+    // Returns the terminal task object.
+    while (true) {
+      let task;
+      try {
+        task = await api.getTestEmbeddingStatus(taskId);
+      } catch (e) {
+        throw new Error('Lost connection while polling download: ' + e.message);
+      }
+      renderProgress(task);
+      if (task.status === 'done' || task.status === 'failed') return task;
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
 
   /* Toggle enabled */
   enabledToggle.addEventListener('click', () => {
@@ -445,6 +596,7 @@ function buildEmbeddingSection(config) {
     if (!model) { error('Model is required'); return; }
     if (provider === 'api' && !base_url) { error('Base URL is required for API embedding'); return; }
 
+    resetProgress();
     statusEl.innerHTML = '<span style="color:var(--accent)">Testing...</span>';
     logEl.classList.remove('hidden');
     logEl.style.borderColor = 'var(--border)';
@@ -453,9 +605,32 @@ function buildEmbeddingSection(config) {
       logEl.textContent += `Base URL: ${base_url}\n`;
     }
 
+    testBtn.disabled = true;
     try {
       const res = await api.testEmbedding(provider, model, base_url, api_key);
-      if (res.success) {
+      if (res.async && res.task_id) {
+        // Background download: poll until terminal.
+        renderProgress({ status: 'downloading', bytes_done: 0, bytes_total: 0, current_file: '' });
+        logEl.textContent += `\n[INFO] First-time download started (task_id=${res.task_id}). Streaming progress…\n`;
+        let final;
+        try {
+          final = await pollDownload(res.task_id);
+        } catch (e) {
+          statusEl.innerHTML = '<span style="color:var(--accent-red)">&#10007; Polling failed</span>';
+          logEl.textContent += `\n[ERROR] ${e.message}`;
+          logEl.style.borderColor = 'var(--accent-red)';
+          return;
+        }
+        if (final.status === 'done') {
+          statusEl.innerHTML = `<span style="color:var(--accent-green)">&#10003; OK — dimension=${final.dimension}</span>`;
+          logEl.textContent += `\n[OK] Downloaded and verified, dimension=${final.dimension}`;
+          logEl.style.borderColor = 'var(--accent-green)';
+        } else {
+          statusEl.innerHTML = '<span style="color:var(--accent-red)">&#10007; Download failed</span>';
+          logEl.textContent += `\n[ERROR] ${final.error || 'unknown error'}`;
+          logEl.style.borderColor = 'var(--accent-red)';
+        }
+      } else if (res.success) {
         statusEl.innerHTML = `<span style="color:var(--accent-green)">&#10003; OK — dimension=${res.dimension}</span>`;
         logEl.textContent += `\n[OK] ${res.message}`;
         logEl.style.borderColor = 'var(--accent-green)';
@@ -468,35 +643,13 @@ function buildEmbeddingSection(config) {
       statusEl.innerHTML = '<span style="color:var(--accent-red)">&#10007; Request failed</span>';
       logEl.textContent += `\n[ERROR] ${e.message}`;
       logEl.style.borderColor = 'var(--accent-red)';
+    } finally {
+      testBtn.disabled = false;
     }
   });
 
-  /* Save button */
-  saveBtn.addEventListener('click', async () => {
-    try {
-      const enabled = enabledToggle.querySelector('input').checked;
-      const provider = providerSelect.value;
-      const model = modelInput.value.trim();
-      const base_url = baseUrlInput.value.trim();
-      const api_key = apiKeyInput.value.trim();
-      const hf_endpoint = section.querySelector('#emb-hf-endpoint').value.trim();
-
-      await api.updateConfig('embedding_enabled', String(enabled));
-      await api.updateConfig('embedding_provider', provider);
-      if (model) await api.updateConfig('embedding_model', model);
-      await api.updateConfig('embedding_base_url', base_url || 'null');
-      if (api_key && !api_key.includes('****')) {
-        await api.updateConfig('embedding_api_key', api_key);
-      }
-      await api.updateConfig('hf_endpoint', hf_endpoint || 'null');
-      success('Embedding configuration saved (restart to apply)');
-    } catch (e) {
-      error(e.message);
-    }
-  });
-
-  /* Load embedding status badge */
-  (async () => {
+  /* Refresh the cached/disabled badge from the live config. */
+  async function refreshBadge() {
     const badge = section.querySelector('#emb-status-badge');
     try {
       const st = await api.getEmbeddingStatus();
@@ -514,7 +667,41 @@ function buildEmbeddingSection(config) {
         badge.textContent = 'local · not downloaded';
       }
     } catch { /* ignore */ }
-  })();
+  }
+
+  /* Save button */
+  saveBtn.addEventListener('click', async () => {
+    try {
+      const enabled = enabledToggle.querySelector('input').checked;
+      const provider = providerSelect.value;
+      const model = modelInput.value.trim();
+      const base_url = baseUrlInput.value.trim();
+      const api_key = apiKeyInput.value.trim();
+      const hf_endpoint = section.querySelector('#emb-hf-endpoint').value.trim();
+
+      let needsRestart = false;
+      const collect = (res) => { if (res && res.restart_required) needsRestart = true; };
+
+      collect(await api.updateConfig('embedding_enabled', String(enabled)));
+      collect(await api.updateConfig('embedding_provider', provider));
+      if (model) collect(await api.updateConfig('embedding_model', model));
+      collect(await api.updateConfig('embedding_base_url', base_url || 'null'));
+      if (api_key && !api_key.includes('****')) {
+        collect(await api.updateConfig('embedding_api_key', api_key));
+      }
+      collect(await api.updateConfig('hf_endpoint', hf_endpoint || 'null'));
+
+      await refreshBadge();
+      success('Embedding configuration saved');
+      if (needsRestart) {
+        offerRestart({ onRestarted: () => window.location.reload() });
+      }
+    } catch (e) {
+      error(e.message);
+    }
+  });
+
+  refreshBadge();
 
   return section;
 }

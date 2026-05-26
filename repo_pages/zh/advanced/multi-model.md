@@ -85,8 +85,10 @@ Embedding 模型使用本地的 `sentence-transformers` 运行，不依赖外部
 ```bash
 hebb config set embedding_model "paraphrase-multilingual-MiniLM-L12-v2"
 hebb config set embedding_dim 384
+hebb service restart
+hebb memory reembed         # 维度变了必须执行
 ```
 
 ::: tip
-更换 Embedding 模型后，已有记忆的向量需要重新计算。建议在切换前导出数据，切换后重新初始化并导入。
+维度变化会导致已有向量失效，启动时向量表会被自动重建。重启后执行 `hebb memory reembed` 把所有记忆的向量重新算一遍。完整步骤（CLI、Web 控制台、reembed 细节）见 [切换 Embedding 模型](../guide/switch-embedding-model.md)。
 :::

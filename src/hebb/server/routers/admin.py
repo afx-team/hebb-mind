@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from hebb.config.settings import Settings
 from hebb.embedding.base import EmbeddingProvider
@@ -20,6 +22,8 @@ from hebb.server.dependencies import (
     get_settings,
 )
 from hebb.storage.base import MemoryStore, PartitionStore
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -61,6 +65,64 @@ async def trigger_forgetting(
     if deleted_ids:
         kg.save()
     return {"deleted": len(deleted_ids)}
+
+
+@router.post("/restart")
+async def restart_service() -> dict[str, Any]:
+    """Restart the OS-managed Hebb Mind service.
+
+    Returns immediately; the actual restart is dispatched ~1s later so the HTTP
+    response can flush before launchd / systemd / Task Scheduler stops this
+    process. The client should then poll ``GET /health`` until the new process
+    answers.
+    """
+    from hebb.utils.service_manager import (
+        ServiceError,
+        ServiceNotInstalledError,
+        UnsupportedPlatformError,
+        get_manager,
+    )
+
+    try:
+        get_manager(scope="user")
+    except UnsupportedPlatformError as exc:
+        raise HTTPException(status_code=501, detail=str(exc))
+
+    async def _do_restart() -> None:
+        await asyncio.sleep(1.0)
+        last_err: Exception | None = None
+        for scope in ("user", "system"):
+            try:
+                manager = get_manager(scope=scope)  # type: ignore[arg-type]
+                manager.restart()
+                return
+            except ServiceNotInstalledError as exc:
+                last_err = exc
+                continue
+            except ServiceError as exc:
+                last_err = exc
+                logger.error("ServiceError during restart (scope=%s): %s", scope, exc)
+                continue
+            except Exception as exc:
+                last_err = exc
+                logger.exception("Unexpected error during restart (scope=%s)", scope)
+                continue
+        logger.error(
+            "Restart failed in every scope. Last error: %s. Falling back to in-process exit so the supervisor restarts us.",
+            last_err,
+        )
+        # Last-ditch fallback: exit. If we're running under launchd/systemd/Task
+        # Scheduler with KeepAlive, the supervisor will respawn us.
+        import os
+
+        os._exit(0)
+
+    asyncio.create_task(_do_restart())
+    return {
+        "message": "Restart scheduled",
+        "expected_downtime_seconds": 5,
+        "poll": "/health",
+    }
 
 
 @router.get("/stats")

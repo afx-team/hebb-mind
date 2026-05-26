@@ -103,8 +103,8 @@ Below is a complete `hebb.json` with all available fields:
 | `pg_pool_min` | `2` | Minimum PostgreSQL connection pool size |
 | `pg_pool_max` | `10` | Maximum PostgreSQL connection pool size |
 | `embedding_enabled` | `true` | Enable vector embeddings for similarity search |
-| `embedding_model` | setup-selected | Sentence-transformers model for embeddings. English defaults to `BAAI/bge-large-en-v1.5`; Chinese/multilingual defaults to `BAAI/bge-m3`. |
-| `embedding_dim` | setup-selected | Embedding vector dimension (must match model) |
+| `embedding_model` | setup-selected | Sentence-transformers model for embeddings. English defaults to `BAAI/bge-large-en-v1.5`; Chinese/multilingual defaults to `BAAI/bge-m3`. Change via [Switch the Embedding Model](./switch-embedding-model.md). |
+| `embedding_dim` | setup-selected | Embedding vector dimension (must match model). Dimension changes auto-reset the vector table at next start; run `hebb memory reembed` after restart. |
 | `hf_endpoint` | `null` | HuggingFace mirror endpoint. `setup --region cn` sets `https://hf-mirror.com`. |
 | `llm_model` | `null` | Optional LLM model identifier via LiteLLM |
 | `llm_base_url` | `null` | Custom LLM API endpoint (for Qwen, GLM, Kimi) |

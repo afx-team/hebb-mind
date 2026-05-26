@@ -213,7 +213,7 @@ features:
 <!-- ─────────────── Comparison ─────────────── -->
 <div class="hippo-section hippo-section-compare">
 <h2>Why Hebb Mind</h2>
-<p class="hippo-section-sub">Core capabilities you'd expect — plus what only we do. <a href="/benchmarks">v0.1.1 LoCoMo: 37.6% accuracy, 102 ms/query</a> (work in progress).</p>
+<p class="hippo-section-sub">Core capabilities you'd expect — plus what only we do. </p>
 
 <div class="hippo-compare">
   <div class="hippo-compare-table">

@@ -16,6 +16,10 @@ class ConversationTurn:
     session_id: str | None = None
     turn_index: int = 0
     timestamp: str | None = None
+    # Free-form per-turn metadata. MemBench uses it to carry the
+    # dataset's local ``sid`` (turn id) so Hit@k can match a
+    # ``target_step_id`` against retrieved memory metadata.
+    metadata: dict = field(default_factory=dict)
 
 
 @dataclass

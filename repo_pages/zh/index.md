@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: Hebb Mind
-  text: 会自己连线的记忆。
-  tagline: '一套受神经科学启发的 AI Agent 记忆框架 —- 编码 · 回放 · 巩固 · 遗忘'
+  text: 脑子越用越灵光
+  tagline: '一套受神经科学启发的 AI Agent 记忆框架: 存储 · 巩固 · 激活 · 遗忘'
   actions:
     - theme: brand
       text: 60 秒上手
@@ -213,7 +213,7 @@ features:
 <!-- ─────────────── Comparison ─────────────── -->
 <div class="hippo-section hippo-section-compare">
 <h2>为什么选 Hebb Mind</h2>
-<p class="hippo-section-sub">核心能力不落后 — 独特优势更突出。<a href="/zh/benchmarks">v0.1.1 LoCoMo: 37.6% 准确率，102 ms/查询</a>（仍在迭代）。</p>
+<p class="hippo-section-sub">核心能力不落后 — 独特优势更突出。</p>
 
 <div class="hippo-compare">
   <div class="hippo-compare-table">

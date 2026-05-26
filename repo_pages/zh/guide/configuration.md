@@ -41,8 +41,8 @@ hebb model status
 | `pg_pool_min` | number | `2` | PostgreSQL 连接池最小连接数 |
 | `pg_pool_max` | number | `10` | PostgreSQL 连接池最大连接数 |
 | `embedding_enabled` | boolean | `true` | 是否启用向量搜索 |
-| `embedding_model` | string | setup-selected | Embedding 模型名称。英语默认 `BAAI/bge-large-en-v1.5`，中文/多语言默认 `BAAI/bge-m3` |
-| `embedding_dim` | number | setup-selected | 向量维度 |
+| `embedding_model` | string | setup-selected | Embedding 模型名称。英语默认 `BAAI/bge-large-en-v1.5`，中文/多语言默认 `BAAI/bge-m3`。切换流程见 [切换 Embedding 模型](./switch-embedding-model.md) |
+| `embedding_dim` | number | setup-selected | 向量维度。修改后启动时向量表会自动重建；重启后跑 `hebb memory reembed` 重新计算 |
 | `hf_endpoint` | string | `null` | HuggingFace 镜像地址。`setup --region cn` 会设置 `https://hf-mirror.com` |
 | `llm_model` | string | `null` | LLM 模型标识（如 `openai/gpt-4o-mini`） |
 | `llm_base_url` | string | `null` | 自定义 LLM API 地址 |

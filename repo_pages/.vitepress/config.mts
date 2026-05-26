@@ -14,6 +14,7 @@ function guideSidebar(prefix = '') {
       items: [
         { text: prefix ? '安装' : 'Installation', link: `${prefix}/guide/installation` },
         { text: prefix ? '配置' : 'Configuration', link: `${prefix}/guide/configuration` },
+        { text: prefix ? '切换 Embedding 模型' : 'Switch Embedding Model', link: `${prefix}/guide/switch-embedding-model` },
         { text: 'Claude Code', link: `${prefix}/guide/claude-code` },
         { text: 'Codex', link: `${prefix}/guide/codex` },
         { text: prefix ? 'MCP 集成' : 'MCP Integration', link: `${prefix}/guide/mcp-integration` },

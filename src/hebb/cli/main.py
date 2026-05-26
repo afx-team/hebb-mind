@@ -9,6 +9,7 @@ from hebb.cli.commands.config import config_cmd
 from hebb.cli.commands.console import console_cmd
 from hebb.cli.commands.doctor import doctor_cmd
 from hebb.cli.commands.mcp_cmd import mcp_cmd
+from hebb.cli.commands.memory import memory_cmd
 from hebb.cli.commands.model import model_cmd
 from hebb.cli.commands.serve import serve_cmd
 from hebb.cli.commands.service import service_cmd
@@ -32,6 +33,7 @@ main.add_command(console_cmd, "console")
 main.add_command(config_cmd, "config")
 main.add_command(mcp_cmd, "mcp")
 main.add_command(model_cmd, "model")
+main.add_command(memory_cmd, "memory")
 main.add_command(doctor_cmd, "doctor")
 main.add_command(cc)
 main.add_command(codex)

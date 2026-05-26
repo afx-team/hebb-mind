@@ -1,16 +1,25 @@
-"""longmemeval dataset adapter.
+"""LongMemEval dataset adapter.
 
-500 questions across 6 types testing long-term memory abilities:
-single-session (user/assistant/preference), multi-session reasoning,
+500 questions across 6 question types testing long-horizon recall:
+single-session (user / assistant / preference), multi-session reasoning,
 temporal reasoning, and knowledge updates.
 
 Source: https://github.com/xiaowu0162/longmemeval
-HuggingFace: xiaowu0162/longmemeval
+HuggingFace: ``xiaowu0162/longmemeval`` (file: ``longmemeval_s``)
 
-Data format (longmemeval_s):
-- Each item: {question_id, question_type, question, answer, question_date,
-              haystack_dates, haystack_session_ids, haystack_sessions, answer_session_ids}
-- haystack_sessions: list of sessions, each session is list of {role, content} turns
+Canonical schema (per item):
+    question_id            str
+    question_type          str — one of 6 categories
+    question               str
+    answer                 str — gold free-text answer (we don't grade against
+                                  this; the bench scores session-level recall)
+    question_date          str — when the question is asked, e.g. "2023-04-26 (Wed) 10:55"
+    haystack_session_ids   list[str] — stable ids the bench will score against
+    haystack_dates         list[str] — per-session timestamp
+    haystack_sessions      list[list[{role, content}]] — full conversation history
+    answer_session_ids     list[str] — the SUBSET of haystack_session_ids that
+                                       contain evidence for the question.
+                                       THIS is the ground truth for R@k.
 """
 
 from __future__ import annotations
@@ -26,14 +35,18 @@ logger = logging.getLogger(__name__)
 
 
 class LongMemEvalAdapter:
-    """Adapter for the longmemeval benchmark dataset."""
+    """Adapter for the LongMemEval benchmark dataset."""
 
     @property
     def name(self) -> str:
         return "longmemeval"
 
     async def download(self, data_dir: Path) -> Path:
-        """Download longmemeval dataset via huggingface_hub."""
+        """Download longmemeval_s via huggingface_hub.
+
+        The file ships without an extension on HF; we cache a local copy
+        with a ``.json`` suffix so subsequent runs short-circuit cleanly.
+        """
         out_dir = data_dir / "longmemeval"
         out_dir.mkdir(parents=True, exist_ok=True)
         out_file = out_dir / "longmemeval_s.json"
@@ -42,7 +55,6 @@ class LongMemEvalAdapter:
             logger.info("longmemeval data already exists at %s", out_file)
             return out_file
 
-        # Use huggingface_hub to download the raw file (no extension)
         from huggingface_hub import hf_hub_download
 
         logger.info("Downloading longmemeval via huggingface_hub")
@@ -56,17 +68,16 @@ class LongMemEvalAdapter:
         return out_file
 
     def load(self, data_path: Path) -> list[EvalScenario]:
-        """Parse longmemeval data into EvalScenarios.
+        """Parse longmemeval_s into one EvalScenario per question.
 
-        Each item is one question with its associated conversation haystack.
-        haystack_sessions is a list of sessions, each session is a list of
-        {role, content} turns.
+        Each scenario carries its own haystack (LongMemEval is structured
+        so different questions have different haystacks — there is no
+        shared corpus). ``answer_session_ids`` lands on
+        ``EvalQuestion.metadata`` so the bench can intersect them with
+        retrieved memory ``session_id`` metadata at scoring time.
         """
         raw = json.loads(data_path.read_text())
-        if isinstance(raw, dict):
-            items = list(raw.values())
-        else:
-            items = raw
+        items = list(raw.values()) if isinstance(raw, dict) else raw
 
         scenarios: list[EvalScenario] = []
         for item in items:
@@ -74,57 +85,69 @@ class LongMemEvalAdapter:
             scenario_id = f"longmemeval_{qid}"
             turns: list[ConversationTurn] = []
 
-            # Parse haystack_sessions: list[list[{role, content}]]
             sessions = item.get("haystack_sessions", [])
+            session_ids = item.get("haystack_session_ids", [])
             haystack_dates = item.get("haystack_dates", [])
+
             turn_idx = 0
             for s_idx, session in enumerate(sessions):
-                session_id = str(s_idx)
-                timestamp = haystack_dates[s_idx] if s_idx < len(haystack_dates) else None
-                if isinstance(session, list):
-                    for turn in session:
-                        if isinstance(turn, dict):
-                            role = turn.get("role", "user")
-                            content = turn.get("content", "")
-                        else:
-                            role = "user" if turn_idx % 2 == 0 else "assistant"
-                            content = str(turn)
-                        turns.append(
-                            ConversationTurn(
-                                role=role,
-                                content=content,
-                                session_id=session_id,
-                                turn_index=turn_idx,
-                                timestamp=timestamp,
-                            )
+                # Use the stable id from the dataset, not the positional
+                # index — the bench needs to compare against
+                # ``answer_session_ids`` which references those same ids.
+                session_id = (
+                    session_ids[s_idx] if s_idx < len(session_ids) else str(s_idx)
+                )
+                timestamp = (
+                    haystack_dates[s_idx] if s_idx < len(haystack_dates) else None
+                )
+                if not isinstance(session, list):
+                    continue
+                for turn in session:
+                    if isinstance(turn, dict):
+                        role = turn.get("role", "user")
+                        content = turn.get("content", "")
+                    else:
+                        role = "user" if turn_idx % 2 == 0 else "assistant"
+                        content = str(turn)
+                    turns.append(
+                        ConversationTurn(
+                            role=role,
+                            content=content,
+                            session_id=session_id,
+                            turn_index=turn_idx,
+                            timestamp=timestamp,
                         )
-                        turn_idx += 1
+                    )
+                    turn_idx += 1
 
-            # Each item has exactly one question
             q_text = item.get("question", "")
             a_text = item.get("answer", "")
-            category = item.get("question_type", "general")
-            category = str(category).lower().replace(" ", "_")
+            category = str(item.get("question_type", "general")).lower().replace(" ", "_")
+            answer_session_ids = [str(s) for s in item.get("answer_session_ids", [])]
+            question_date = item.get("question_date", "")
 
-            questions = []
-            if q_text:
-                questions.append(
-                    EvalQuestion(
-                        question_id=scenario_id,
-                        question=q_text,
-                        ground_truth=str(a_text),
-                        category=category,
-                    )
-                )
+            if not (q_text and turns):
+                continue
 
-            if turns and questions:
-                scenarios.append(
-                    EvalScenario(
-                        scenario_id=scenario_id,
-                        conversations=turns,
-                        questions=questions,
-                    )
+            question = EvalQuestion(
+                question_id=scenario_id,
+                question=q_text,
+                ground_truth=str(a_text),
+                category=category,
+                evidence=answer_session_ids,
+                metadata={
+                    "answer_session_ids": answer_session_ids,
+                    "question_date": question_date,
+                    "question_type": category,
+                },
+            )
+            scenarios.append(
+                EvalScenario(
+                    scenario_id=scenario_id,
+                    conversations=turns,
+                    questions=[question],
                 )
+            )
 
         logger.info(
             "Loaded %d longmemeval scenarios with %d total questions",

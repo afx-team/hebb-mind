@@ -1,0 +1,142 @@
+{
+  "benchmark_name": "membench",
+  "dataset_name": "MemBench",
+  "timestamp": "2026-05-26T09:23:10.301030+00:00",
+  "total_questions": 5,
+  "correct": 5,
+  "accuracy": 1.0,
+  "accuracy_by_category": {
+    "noisy": 1.0
+  },
+  "avg_latency_ms": 52.345833205617964,
+  "retrieval_metrics": {
+    "hit@1": 0.6,
+    "hit@3": 1.0,
+    "hit@5": 1.0,
+    "hit@10": 1.0,
+    "avg_top1_relevance": 0.33333333333333337
+  },
+  "individual_results": [
+    {
+      "question_id": "membench_noisy_roles_0_0_q",
+      "question": "I was thinking about going for a hike this weekend, but then again, I remembered I need to finish that book. Did you see the weather forecast? I could swear I saw a post about a new place to explore. What was that restaurant we talked about last week?Oh, what I truly wanted to clarify is,What position does someone who has rock climbing as a hobby hold?",
+      "ground_truth": "Customer Service Representative",
+      "category": "noisy",
+      "generated_answer": "",
+      "is_correct": true,
+      "confidence": 1.0,
+      "relevance_scores": [
+        0.33333333333333337,
+        0.3279569892473118,
+        0.32275132275132273,
+        0.3177083333333333,
+        0.3128205128205128,
+        0.3080808080808081,
+        0.3034825870646766,
+        0.29901960784313725,
+        0.2946859903381643,
+        0.2904761904761905
+      ],
+      "latency_ms": 36.357375036459416
+    },
+    {
+      "question_id": "membench_noisy_roles_1_1_q",
+      "question": "I wonder if I left the oven on earlier, or was it the washing machine? Sometimes I forget where I put my keys; they always seem to vanish. Did I remember to water the plants this morning, or was that yesterday? Ah, I need to check my emails later; I can't recall if I sent that report.Wait a minute, what I wanted to ask is,What's the name of the person who has a hobby of model making?",
+      "ground_truth": "Aiden Parker",
+      "category": "noisy",
+      "generated_answer": "",
+      "is_correct": true,
+      "confidence": 1.0,
+      "relevance_scores": [
+        0.33333333333333337,
+        0.3279569892473118,
+        0.32275132275132273,
+        0.3177083333333333,
+        0.3128205128205128,
+        0.3080808080808081,
+        0.3034825870646766,
+        0.29901960784313725,
+        0.2946859903381643,
+        0.2904761904761905
+      ],
+      "latency_ms": 65.23579097120091
+    },
+    {
+      "question_id": "membench_noisy_roles_2_2_q",
+      "question": "I spoke to someone about a project, but I can't recall the details now. How do I even keep track of these things? Did I leave the oven on?Oops, actually what I wanted to ask was: What is the occupation of the person with the contact number 31009417649?",
+      "ground_truth": "Doctor",
+      "category": "noisy",
+      "generated_answer": "",
+      "is_correct": true,
+      "confidence": 1.0,
+      "relevance_scores": [
+        0.33333333333333337,
+        0.3279569892473118,
+        0.32275132275132273,
+        0.3177083333333333,
+        0.3128205128205128,
+        0.3080808080808081,
+        0.3034825870646766,
+        0.29901960784313725,
+        0.2946859903381643,
+        0.2904761904761905
+      ],
+      "latency_ms": 65.37437502993271
+    },
+    {
+      "question_id": "membench_noisy_roles_3_3_q",
+      "question": "I was thinking about that book I read last summer, the plot was quite intriguing. Have you heard about the new café that opened downtown? I wonder if they're hiring anyone lately.Wait a minute,What is the contact number for the person with a PhD in education?",
+      "ground_truth": "51000333838",
+      "category": "noisy",
+      "generated_answer": "",
+      "is_correct": true,
+      "confidence": 1.0,
+      "relevance_scores": [
+        0.33333333333333337,
+        0.3279569892473118,
+        0.32275132275132273,
+        0.3177083333333333,
+        0.3128205128205128,
+        0.3080808080808081,
+        0.3034825870646766,
+        0.29901960784313725,
+        0.2946859903381643,
+        0.2904761904761905
+      ],
+      "latency_ms": 65.63312496291474
+    },
+    {
+      "question_id": "membench_noisy_roles_4_4_q",
+      "question": "I was thinking about that one project we discussed last week, but I can't recall the exact details. Did I leave the oven on? You know, sometimes I forget where I put my keys.Hold on, what I actually wanted to understand is: What is the email address for the person with the contact number 70703316548?",
+      "ground_truth": "caleb.foster@desertvalleymedical.com",
+      "category": "noisy",
+      "generated_answer": "",
+      "is_correct": true,
+      "confidence": 1.0,
+      "relevance_scores": [
+        0.33333333333333337,
+        0.3279569892473118,
+        0.32275132275132273,
+        0.3177083333333333,
+        0.3128205128205128,
+        0.3080808080808081,
+        0.3034825870646766,
+        0.29901960784313725,
+        0.2946859903381643,
+        0.2904761904761905
+      ],
+      "latency_ms": 29.12850002758205
+    }
+  ],
+  "config": {
+    "eval_version": "v1",
+    "mode": "raw_per_turn_pair",
+    "metric": "turn_level_hit_at_k",
+    "search_top_k": 5,
+    "concurrency": 4,
+    "weight_recency": 0.0,
+    "weight_importance": 0.0,
+    "weight_relevance": 1.0,
+    "num_scenarios": 5
+  }
+}

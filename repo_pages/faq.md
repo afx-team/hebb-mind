@@ -89,4 +89,4 @@ The **hippocampus** — the project's original name — lives on inside Hebb Min
 
 ## Is the embedding model multilingual?
 
-It depends on what `hebb setup` selected. `--language en` defaults to an English-only model (`BAAI/bge-large-en-v1.5`, dim 1024). `--language zh` or `--language multi` selects `BAAI/bge-m3` (multilingual, dim 1024). You can swap any HuggingFace `sentence-transformers`-compatible model with `hebb config set embedding_model <name>` — just remember that changing dimensions requires re-ingesting your memories.
+It depends on what `hebb setup` selected. `--language en` defaults to an English-only model (`BAAI/bge-large-en-v1.5`, dim 1024). `--language zh` or `--language multi` selects `BAAI/bge-m3` (multilingual, dim 1024). To swap models after install — including the dimension-change → re-embed flow — see [Switch the Embedding Model](./guide/switch-embedding-model.md).

@@ -119,6 +119,26 @@ hebb model prefetch [--model MODEL_ID] [--region auto|cn|global]
 
 `prefetch` 将模型下载到 workspace 的 `models/` 目录并加载一次以确认维度；如果带上 `--model`，还会同时更新 `embedding_provider`、`embedding_model` 和 `embedding_dim`。
 
+## hebb memory
+
+记忆批量操作。
+
+```bash
+hebb memory reembed [--partition NAME] [--batch-size 64] [--dry-run] [--yes]
+```
+
+`reembed` 遍历所有记忆（或指定分区），用**当前配置**的 embedder 重新计算向量。切换 `embedding_model` 或 `embedding_dim` 之后用 —— 维度变化时启动会自动重建向量表，再用此命令把已有记忆的向量补回去。
+
+- `--partition NAME` —— 只处理指定分区。
+- `--batch-size N` —— 每批 N 条（默认 64，最大 512）。
+- `--dry-run` —— 只统计不写入。
+- `--restart` —— 强制丢弃已有断点，从头开始。
+- `-y / --yes` —— 跳过确认。在非交互式 shell 中必须传。
+
+会在 `<workspace>/reembed.checkpoint.json` 写断点文件，每处理 ~32 条 flush 一次。中断后**再跑一次同样的命令**即可续跑，只处理剩下的。成功跑完自动删除断点；如果两次运行之间 embedder 模型 / 维度 / partition 范围有任何变化，旧断点会被自动丢弃重新开始。
+
+完整流程见 [切换 Embedding 模型](../guide/switch-embedding-model.md)。
+
 ## hebb mcp
 
 MCP 服务命令。

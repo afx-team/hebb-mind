@@ -17,6 +17,86 @@ logger = logging.getLogger(__name__)
 
 
 # ------------------------------------------------------------------
+# Per-benchmark workdir + port allocation
+# ------------------------------------------------------------------
+#
+# Each benchmark runs against its OWN hebb server, on its OWN port,
+# with its OWN hebb.db, inside its OWN workdir. Sequential by design
+# (one server at a time), but isolation means a crashed run can be
+# inspected post-hoc by opening that workdir's hebb.db directly, and
+# the project root's hebb.json (the user's dev environment) is never
+# touched.
+#
+# Port allocation is a static map keyed by benchmark name. New
+# benchmarks must be assigned a port here — auto-allocation would make
+# it impossible to clean up an orphan from a prior run since the
+# stop-by-port logic needs a deterministic value.
+BENCHMARK_PORTS: dict[str, int] = {
+    "locomo": 8321,
+    "longmemeval": 8322,
+    "convomem": 8323,
+    "membench": 8324,
+    "personamem": 8325,
+    "memoryarena": 8326,
+}
+
+# Fields copied from the project-root hebb.json into each per-benchmark
+# hebb.json. The point is to inherit the user's embedding configuration
+# (model, dim, provider) so the eval matches what production uses,
+# while overriding `host`/`port` and dropping any workspace-specific
+# `home` pointer.
+_INHERITED_HEBB_FIELDS = (
+    "storage_type",
+    "embedding_enabled",
+    "embedding_provider",
+    "embedding_model",
+    "embedding_dim",
+    "hf_endpoint",
+    "weight_recency",
+    "weight_importance",
+    "weight_relevance",
+)
+
+
+def prepare_workdir(
+    name: str,
+    workdir_root: Path,
+    project_root: Path,
+) -> tuple[Path, int]:
+    """Create (or refresh) the per-benchmark workdir, return (workdir, port).
+
+    The workdir is ``workdir_root / name`` and contains its own
+    ``hebb.json``. ``hebb.db`` is NOT touched here — that's
+    ``clean_storage``'s job and runs immediately before the server
+    starts.
+
+    Idempotent: re-running rewrites ``hebb.json`` from the current
+    project-root template, so changes to the user's embedding settings
+    propagate on the next eval run.
+    """
+    port = BENCHMARK_PORTS.get(name)
+    if port is None:
+        raise ValueError(
+            f"No port allocated for benchmark {name!r}. "
+            f"Add it to eval.client.BENCHMARK_PORTS."
+        )
+
+    workdir = workdir_root / name
+    workdir.mkdir(parents=True, exist_ok=True)
+
+    project_cfg = _read_hebb_config(project_root)
+    bench_cfg: dict = {k: project_cfg[k] for k in _INHERITED_HEBB_FIELDS if k in project_cfg}
+    bench_cfg["home"] = None  # let HEBB_HOME env decide
+    bench_cfg["host"] = "0.0.0.0"
+    bench_cfg["port"] = port
+
+    cfg_path = workdir / "hebb.json"
+    cfg_path.write_text(json.dumps(bench_cfg, indent=2))
+    logger.info("Prepared workdir %s with port %d", workdir, port)
+    return workdir, port
+
+
+# ------------------------------------------------------------------
 # Server lifecycle management
 # ------------------------------------------------------------------
 

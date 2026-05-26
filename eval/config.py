@@ -20,7 +20,6 @@ _ROOT = Path(__file__).resolve().parent
 class EvalSettings(BaseModel):
     """Configuration for evaluation runs."""
 
-    hebb_url: str = Field(default="http://localhost:8321")
     project_root: Path = Field(default_factory=lambda: _ROOT.parent)
     mode: EvalMode = Field(default=EvalMode.RAW)
     llm_model: str = Field(default="openai/gpt-4o-mini")
@@ -31,6 +30,10 @@ class EvalSettings(BaseModel):
     llm_top_p: float = Field(default=1.0, ge=0.0, le=1.0)
     data_dir: Path = Field(default_factory=lambda: _ROOT / "data")
     reports_dir: Path = Field(default_factory=lambda: _ROOT / "reports")
+    # Each benchmark gets its own subdir here (with its own hebb.json
+    # and hebb.db) so runs are fully isolated and can be inspected
+    # post-hoc. Sequential by design — only one server runs at a time.
+    workdir_root: Path = Field(default_factory=lambda: _ROOT / "workdirs")
     batch_size: int = Field(default=50, ge=1)
     search_top_k: int = Field(default=10, ge=1, le=100)
     concurrency: int = Field(default=5, ge=1)
@@ -52,12 +55,12 @@ def load_eval_settings(config_path: Path | None = None) -> EvalSettings:
             data = json.load(f)
 
     env_map = {
-        "EVAL_HEBB_URL": "hebb_url",
         "EVAL_LLM_MODEL": "llm_model",
         "EVAL_LLM_BASE_URL": "llm_base_url",
         "EVAL_LLM_API_KEY": "llm_api_key",
         "EVAL_DATA_DIR": "data_dir",
         "EVAL_REPORTS_DIR": "reports_dir",
+        "EVAL_WORKDIR_ROOT": "workdir_root",
         "EVAL_BATCH_SIZE": "batch_size",
         "EVAL_SEARCH_TOP_K": "search_top_k",
         "EVAL_CONCURRENCY": "concurrency",

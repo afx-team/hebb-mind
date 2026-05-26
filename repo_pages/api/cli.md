@@ -123,6 +123,26 @@ hebb model prefetch [--model MODEL_ID] [--region auto|cn|global]
 
 `prefetch` downloads (or re-downloads) a model into the workspace `models/` directory, then loads it once to confirm dimension. With `--model` it also updates `embedding_provider`, `embedding_model`, and `embedding_dim` in `hebb.json`.
 
+## hebb memory
+
+Bulk operations on stored memories.
+
+```bash
+hebb memory reembed [--partition NAME] [--batch-size 64] [--dry-run] [--yes]
+```
+
+`reembed` walks every memory in storage (or just the named partition) and recomputes its embedding using the **currently configured** embedder. Use this after switching `embedding_model` or `embedding_dim` — the vector table is auto-reset on dimension change at the next service start, and `reembed` repopulates it.
+
+- `--partition NAME` — limit to one partition (e.g. `mem_user`).
+- `--batch-size N` — encode and write `N` memories per batch (default 64, max 512).
+- `--dry-run` — count what would be re-embedded without writing.
+- `--restart` — discard any existing checkpoint and start fresh from the first memory.
+- `-y / --yes` — skip the confirmation prompt. Required in non-interactive shells.
+
+A checkpoint file (`<workspace>/reembed.checkpoint.json`) is written every ~32 memories. An interrupted run can be **resumed by re-invoking the command** — only the remaining memories are processed. The checkpoint is automatically deleted on successful completion, and automatically discarded if the embedder model / dim / partition scope changes between runs.
+
+See [Switch the Embedding Model](../guide/switch-embedding-model.md) for the full workflow.
+
 ## hebb mcp
 
 MCP server commands.

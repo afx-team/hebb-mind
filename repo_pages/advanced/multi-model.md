@@ -67,6 +67,19 @@ The embedding model runs **locally** via sentence-transformers. No external API 
 
 Download region is independent from language. Use `hebb setup --language en --region cn` for English content on a China network, or `hebb setup --language zh --region global` for Chinese content on a global network.
 
+To swap to a different model after first install:
+
+```bash
+hebb config set embedding_model "paraphrase-multilingual-MiniLM-L12-v2"
+hebb config set embedding_dim 384
+hebb service restart
+hebb memory reembed         # required if the dimension changed
+```
+
+::: tip
+Changing the embedding dimension invalidates all stored vectors — the vector table is auto-reset on next startup. Run `hebb memory reembed` afterwards to repopulate. See [Switch the Embedding Model](../guide/switch-embedding-model.md) for the full walkthrough (CLI, Web Console, and re-embed details).
+:::
+
 This means:
 
 - Embedding is free -- no API costs

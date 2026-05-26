@@ -8,8 +8,12 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import httpx
+
+if TYPE_CHECKING:
+    from hebb.embedding.progress import ProgressCallback
 
 HF_MIRROR_ENDPOINT = "https://hf-mirror.com"
 HF_OFFICIAL_ENDPOINT = "https://huggingface.co"
@@ -204,13 +208,21 @@ def resolve_region(region: str = "auto", existing_hf_endpoint: str | None = None
     )
 
 
-def prefetch_model(model_id: str, workspace: Path, hf_endpoint: str | None = None) -> Path:
+def prefetch_model(
+    model_id: str,
+    workspace: Path,
+    hf_endpoint: str | None = None,
+    progress_callback: ProgressCallback | None = None,
+) -> Path:
     """Download a HuggingFace model into the Hebb Mind workspace.
 
     Args:
         model_id: HuggingFace repository ID.
         workspace: Resolved Hebb Mind workspace directory.
         hf_endpoint: Optional HuggingFace-compatible endpoint.
+        progress_callback: Optional callback receiving (bytes_done, bytes_total,
+            current_file_desc) on every tqdm tick. Used by the web console to
+            surface real-time download progress.
 
     Returns:
         Local model directory.
@@ -230,16 +242,33 @@ def prefetch_model(model_id: str, workspace: Path, hf_endpoint: str | None = Non
     else:
         os.environ.pop("HF_ENDPOINT", None)
 
+    # LocalEmbedder.__init__ leaves HF_HUB_OFFLINE=1 in the process if it ran
+    # during app startup with a cached default model — and ``huggingface_hub``
+    # caches the value of HF_HUB_OFFLINE in its ``constants`` module at import
+    # time, so clearing the env var alone is not enough. Force the cached
+    # constant off for the download window, then restore.
+    old_offline_env = os.environ.pop("HF_HUB_OFFLINE", None)
+    import huggingface_hub.constants as _hf_const
+
+    old_offline_const = _hf_const.HF_HUB_OFFLINE
+    _hf_const.HF_HUB_OFFLINE = False
+
+    snapshot_kwargs: dict = {"repo_id": model_id, "local_dir": str(local_dir)}
+    if progress_callback is not None:
+        from hebb.embedding.progress import make_progress_tqdm
+
+        snapshot_kwargs["tqdm_class"] = make_progress_tqdm(progress_callback)
+
     try:
-        snapshot_download(
-            repo_id=model_id,
-            local_dir=str(local_dir),
-        )
+        snapshot_download(**snapshot_kwargs)
     finally:
         if old_endpoint is None:
             os.environ.pop("HF_ENDPOINT", None)
         else:
             os.environ["HF_ENDPOINT"] = old_endpoint
+        if old_offline_env is not None:
+            os.environ["HF_HUB_OFFLINE"] = old_offline_env
+        _hf_const.HF_HUB_OFFLINE = old_offline_const
 
     return local_dir
 

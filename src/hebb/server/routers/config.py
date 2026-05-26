@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any
+import asyncio
+import logging
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from hebb.config.loader import load_settings, update_config_field
 from hebb.config.settings import Settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -148,7 +152,7 @@ async def test_llm_connection(req: LLMTestRequest) -> dict[str, Any]:
 
 
 class EmbeddingTestRequest(BaseModel):
-    provider: str  # "local" or "api"
+    provider: Literal["local", "api"]
     model: str
     base_url: str | None = None
     api_key: str | None = None
@@ -158,7 +162,9 @@ class EmbeddingTestRequest(BaseModel):
 async def test_embedding(req: EmbeddingTestRequest) -> dict[str, Any]:
     """Test embedding connectivity — local model load or API call.
 
-    If api_key contains '****' (masked), reads the real key from config file.
+    Local + already cached, or any API request: sync response with dimension.
+    Local + not cached: starts a background download and returns a ``task_id``
+    the client polls via ``GET /config/test-embedding/status/{task_id}``.
     """
     api_key = req.api_key
     if api_key and "****" in api_key:
@@ -166,38 +172,99 @@ async def test_embedding(req: EmbeddingTestRequest) -> dict[str, Any]:
         api_key = settings.embedding_api_key
 
     if req.provider == "local":
-        try:
-            from hebb.embedding.local import LocalEmbedder
+        from hebb.embedding.local import LocalEmbedder, is_model_cached
 
-            embedder = LocalEmbedder(req.model)
-            vec = await embedder.embed("test")
-            return {
-                "success": True,
-                "dimension": embedder.dimension,
-                "message": f"Model loaded, dimension={embedder.dimension}, sample vector length={len(vec)}",
-            }
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-    else:
-        if not req.base_url:
-            return {"success": False, "error": "base_url is required for API embedding"}
-        try:
-            from litellm import aembedding
+        cached = is_model_cached(req.model)
+        if cached:
+            try:
+                embedder = LocalEmbedder(req.model)
+                vec = await embedder.embed("test")
+                return {
+                    "success": True,
+                    "async": False,
+                    "dimension": embedder.dimension,
+                    "message": (
+                        f"Model loaded from cache, dimension={embedder.dimension}, sample vector length={len(vec)}"
+                    ),
+                }
+            except Exception as e:
+                return {"success": False, "async": False, "error": str(e)}
 
-            kwargs: dict[str, Any] = {"model": req.model, "input": ["embedding test"]}
-            if api_key:
-                kwargs["api_key"] = api_key
-            if req.base_url:
-                kwargs["api_base"] = req.base_url
-            response = await aembedding(**kwargs)
-            dim = len(response.data[0]["embedding"])
-            return {
-                "success": True,
-                "dimension": dim,
-                "message": f"API responded, dimension={dim}",
-            }
+        # Not cached: kick off a background download + verification.
+        from hebb.config.workspace import resolve_workspace
+        from hebb.embedding.catalog import prefetch_model
+        from hebb.server.downloads import cleanup_old_tasks, create_task, update_task
+
+        cleanup_old_tasks()
+        settings = load_settings()
+        hf_endpoint = settings.hf_endpoint
+        try:
+            workspace = resolve_workspace()
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return {"success": False, "async": False, "error": f"Workspace not resolved: {e}"}
+
+        task = create_task(req.model, "local")
+        model_id = req.model
+
+        def _progress(done: int, total: int, current: str) -> None:
+            update_task(task.task_id, bytes_done=done, bytes_total=total, current_file=current)
+
+        def _download() -> None:
+            prefetch_model(model_id, workspace, hf_endpoint=hf_endpoint, progress_callback=_progress)
+
+        async def _run() -> None:
+            try:
+                update_task(task.task_id, status="downloading")
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(None, _download)
+                update_task(task.task_id, status="verifying")
+                embedder = LocalEmbedder(model_id, hf_endpoint=hf_endpoint)
+                await embedder.embed("test")
+                update_task(task.task_id, status="done", dimension=embedder.dimension)
+            except Exception as e:
+                logger.exception("Embedding download task failed: %s", model_id)
+                update_task(task.task_id, status="failed", error=str(e))
+
+        asyncio.create_task(_run())
+        return {
+            "success": True,
+            "async": True,
+            "task_id": task.task_id,
+            "message": f"Downloading {model_id} — poll for progress",
+        }
+
+    # API provider
+    if not req.base_url:
+        return {"success": False, "async": False, "error": "base_url is required for API embedding"}
+    try:
+        from litellm import aembedding
+
+        kwargs: dict[str, Any] = {"model": req.model, "input": ["embedding test"]}
+        if api_key:
+            kwargs["api_key"] = api_key
+        if req.base_url:
+            kwargs["api_base"] = req.base_url
+        response = await aembedding(**kwargs)
+        dim = len(response.data[0]["embedding"])
+        return {
+            "success": True,
+            "async": False,
+            "dimension": dim,
+            "message": f"API responded, dimension={dim}",
+        }
+    except Exception as e:
+        return {"success": False, "async": False, "error": str(e)}
+
+
+@router.get("/config/test-embedding/status/{task_id}")
+async def test_embedding_status(task_id: str) -> dict[str, Any]:
+    """Return progress for an async embedding-download task started by test_embedding."""
+    from hebb.server.downloads import get_task
+
+    task = get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="task_id not found (may have been cleaned up)")
+    return task.to_dict()
 
 
 @router.get("/config/embedding-status")
