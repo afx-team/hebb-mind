@@ -2,7 +2,7 @@
 
 | System | Score | Source |
 |---|---|---|
-| **Hebb Mind v0.1.1** | 89.7% R@10 (full 1,978q) / 90.3% QA acc (3-scenario slice) | [LoCoMo](./) |
+| **Hebb Mind v0.1.1** | 93.3% R@10 bge-large / 89.7% R@10 MiniLM-384 (full 1,978q) / 90.3% QA acc (3-scenario slice) | [LoCoMo](./) |
 | Zep | — | No first-party LoCoMo result published |
 
 ## Why there is no row

@@ -4,6 +4,8 @@
 
 Hebb Mind ships a reproducible eval harness at `eval/` so you (and we) can re-run every number on your own hardware and your own LLM. This page documents what we measure today, what we don't, and how to run it.
 
+> **Production-parity by construction.** Every benchmark in this section drives the same ingestion + retrieval code paths that ship to production — the Claude Code hooks (`write.py` / `stop.py`), the MCP server, and `/api/v1/search`. We never run an eval-only ingestion or scoring pipeline. The numbers are what a user gets, not what an idealised harness gets. Where competitor systems run *different* pipelines in their benchmarks vs production, we call it out on the per-competitor page (see e.g. [LoCoMo vs MemPalace](./locomo/vs-mempalace#production-parity-the-most-important-caveat)).
+
 ## Layout
 
 This section is split **dataset first, then per-competitor**. Each dataset has its own folder; inside the folder, the `index` page shows Hebb Mind's own configuration and result, and each `vs-<project>` page covers one same-dataset comparison.
@@ -88,6 +90,6 @@ The runner cleans the database between benchmarks so results are independent. It
 - We do **not** publish first-party comparisons against mem0 / Letta / Zep yet. Their harnesses, judges, and scenario counts differ; a fair head-to-head requires re-running each system through *the same* harness, which is on the roadmap.
 - The LongMemEval slice currently published is 3 questions. Treat as smoke, not signal.
 - The judge is `openai/Kimi-K2.5` for the published numbers; switching judges shifts absolute accuracy by several points. Always disclose the judge.
-- Embedding model dimension (384 vs 1024) is a known confounder — the [mempalace deep-dive](https://github.com/afx-team/hebb-mind/blob/main/reports/analysis/mempalace-benchmark-deep-dive.md) shows ~16 pp swings on LoCoMo single-hop. We default `setup` to BGE; the harness inherits whatever your `hebb.json` specifies.
+- Embedding model dimension (384 vs 1024) is a known confounder — the [mempalace deep-dive](https://github.com/afx-team/hebb-mind/blob/main/docs/analysis/mempalace-benchmark-deep-dive.md) shows ~16 pp swings on LoCoMo single-hop. We default `setup` to BGE; the harness inherits whatever your `hebb.json` specifies.
 
 If you reproduce on different hardware / a different judge / a larger sample, please open a PR adding a row to the relevant page — that's the fastest way to make these numbers trustworthy.

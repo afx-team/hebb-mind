@@ -39,7 +39,7 @@ Hebb Mind 支持两种存储后端：SQLite（默认）和 PostgreSQL。
 **安装扩展：**
 
 ```bash
-pip install hebb-mind[pg]
+pipx install 'hebb-mind[pg]'    # 或在 venv 内：pip install -U 'hebb-mind[pg]'
 ```
 
 **配置：**

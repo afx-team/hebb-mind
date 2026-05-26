@@ -39,7 +39,7 @@ PostgreSQL provides production-grade storage with native vector types, connectio
 Install the PostgreSQL extras:
 
 ```bash
-pip install hebb-mind[pg]
+pipx install 'hebb-mind[pg]'    # or, inside a venv: pip install -U 'hebb-mind[pg]'
 ```
 
 Configure the connection:

@@ -181,7 +181,7 @@ hebb config set consolidation_time 18:00
 ### Switch to PostgreSQL
 
 ```bash
-pip install hebb-mind[pg]
+pipx install 'hebb-mind[pg]'    # or, inside a venv: pip install -U 'hebb-mind[pg]'
 hebb config set storage_type postgresql
 hebb config set pg_url postgresql://user:pass@localhost/hebb
 ```

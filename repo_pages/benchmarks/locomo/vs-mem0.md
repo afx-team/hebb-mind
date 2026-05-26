@@ -2,8 +2,9 @@
 
 | System | Metric | Score | Source |
 |---|---|---|---|
+| **Hebb Mind v0.1.1** (bge-large) | Session R@10 (full 1,978q) | **93.3%** | [LoCoMo (a)](./) |
+| **Hebb Mind v0.1.1** (MiniLM-384) | Session R@10 (full 1,978q) | 89.7% | [LoCoMo (a)](./) |
 | **Hebb Mind v0.1.1** | QA accuracy (judge: Kimi-K2.5, 3-scenario slice) | 90.3% | [LoCoMo (b)](./) |
-| **Hebb Mind v0.1.1** | Session R@10 (full 1,978q) | 89.7% | [LoCoMo (a)](./) |
 | mem0 | LLM-as-judge "J" score | TBD | [mem0ai/mem0 README](https://github.com/mem0ai/mem0) |
 
 ## Why this row is TBD
