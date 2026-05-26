@@ -9,25 +9,30 @@ Ingest and hybrid search work fully offline using the bundled local embedding mo
 ### 1. Install
 
 ```bash
-pip install --user -U hebb-mind
+pipx install hebb-mind
 ```
 
 Requires **Python >= 3.10**. SQLite is built in — no external database needed.
 
-**One-time PATH setup for `pip install --user`.** On macOS the Python user-script directory is not on `PATH` by default — `hebb` will be `command not found` until you add it. Run the one line that matches your shell:
+**Don't have `pipx`?** It's the standard installer for Python CLI tools — isolated venv, automatic PATH, plays nice with PEP 668. Install it once:
 
 ```bash
-# zsh (macOS default)
-echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+# macOS (Homebrew)
+brew install pipx && pipx ensurepath
 
-# bash
-echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+# Linux — Debian / Ubuntu 23.04+
+sudo apt install pipx && pipx ensurepath
 
-# fish
-fish_add_path (python3 -m site --user-base)/bin
+# Linux — Fedora
+sudo dnf install pipx && pipx ensurepath
+
+# Windows / any platform with Python 3.10+
+python -m pip install --user pipx && python -m pipx ensurepath
 ```
 
-If you installed inside a virtualenv or with `sudo pip install hebb-mind` system-wide, skip this — `hebb` is already on `PATH`.
+Open a new terminal so the updated `PATH` takes effect, then re-run `pipx install hebb-mind`.
+
+Prefer plain `pip`? `python -m venv .venv && source .venv/bin/activate && pip install -U hebb-mind` works fine — `hebb` lands on the venv's `PATH` automatically.
 
 ### 2. Setup
 
@@ -162,5 +167,5 @@ Details: [MCP Integration](./guide/mcp-integration.md) · [Claude Code Integrati
 
 - [Configuration](./guide/configuration.md) — full config reference
 - [Memory Lifecycle](./concepts/memory-lifecycle.md) — how memories flow through the system
-- [Benchmarks](./benchmarks.md) — LoCoMo / LongMemEval results
+- [Benchmarks](./benchmarks/) — LoCoMo / LongMemEval results
 - [API Reference](./api/memories.md) — complete API docs

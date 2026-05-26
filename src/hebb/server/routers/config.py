@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from hebb.config.loader import load_settings, update_config_field
@@ -33,12 +33,18 @@ async def get_config() -> dict[str, Any]:
 @router.put("/config")
 async def update_config(
     req: ConfigUpdateRequest,
+    request: Request,
 ) -> dict[str, Any]:
     """Update a single configuration field in hebb.json.
 
-    Note: some changes (port, storage_type, embedding_model) require a server restart.
+    The new value is also applied to the live ``app.state.settings`` so
+    fields that don't require a restart (e.g. ``llm_*``) take effect on the
+    next request. Restart-required fields update the file and the settings
+    object, but the running services (storage, embedder, scheduler) keep
+    their old instances until the server is restarted.
     """
-    # Fields that require restart to take effect
+    # Fields that require restart to take effect — the corresponding
+    # service object was instantiated at lifespan startup with the old value.
     restart_fields = {
         "storage_type",
         "pg_url",
@@ -51,19 +57,25 @@ async def update_config(
         "embedding_api_key",
         "embedding_base_url",
         "consolidation_time",
+        "forget_interval_seconds",
         "host",
         "port",
         "home",
     }
 
     try:
-        update_config_field(req.key, req.value)
+        _, coerced = update_config_field(req.key, req.value)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Config file not found")
     except KeyError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    # Keep the live Settings instance in sync with the file so anything
+    # holding a reference (router deps, SchedulerManager) sees the new value.
+    settings: Settings = request.app.state.settings
+    setattr(settings, req.key, coerced)
 
     return {
         "key": req.key,

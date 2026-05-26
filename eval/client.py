@@ -126,6 +126,11 @@ def start_server(project_root: Path | None = None) -> subprocess.Popen:
     env["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
     env["HF_HUB_OFFLINE"] = "1"
     env["TRANSFORMERS_OFFLINE"] = "1"
+    # Pin the server's workspace to project_root so `clean_storage` and the
+    # server agree on where `hebb.db` lives. Without this, workspace
+    # resolution falls back to ~/.hebb and cleanup silently no-ops between
+    # eval runs, leaving stale memories from prior datasets in place.
+    env["HEBB_HOME"] = str(root)
 
     proc = subprocess.Popen(
         [python, "-m", "uvicorn", "hebb.server.app:app",
@@ -282,6 +287,8 @@ class HebbClient:
         weight_recency: float = 1.0,
         weight_importance: float = 1.0,
         weight_relevance: float = 1.0,
+        prev_turns: int = 0,
+        next_turns: int = 0,
     ) -> list[dict]:
         body: dict = {
             "query": query,
@@ -289,6 +296,8 @@ class HebbClient:
             "weight_recency": weight_recency,
             "weight_importance": weight_importance,
             "weight_relevance": weight_relevance,
+            "prev_turns": prev_turns,
+            "next_turns": next_turns,
         }
         if partition_ids:
             body["partition_ids"] = partition_ids

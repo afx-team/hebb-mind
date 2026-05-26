@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center"><a href="https://afx-team.github.io/hebb-mind/zh/">Hebb Mind</a></h1>
+  <h1 align="center"><a href="https://afx-team.github.io/hebb-mind/zh/"><img src="logo.svg" width="40" height="40" alt="Hebb Mind logo" valign="middle"/> Hebb Mind</a></h1>
   <p align="center"><strong>一套受神经科学启发的 AI Agent 记忆框架 </strong></p>
   <p align="center"><em>编码、巩固、激活、遗忘</em></p>
   <p align="center"><a href="https://afx-team.github.io/hebb-mind/zh/">文档</a> · <a href="README.md">English</a> | <a href="README_ZH.md">中文</a></p>
@@ -15,7 +15,7 @@
 
 ---
 
-Hebb Mind 给 AI Agent 装上一条受神经科学启发的记忆回路 —— **编码 → 回放 → 巩固 → 遗忘**。`pip install` 后一行命令即可在本地拉起 REST + MCP 端点：SQLite 做存储、sentence-transformers 做嵌入、NetworkX 维护标签图谱。**零外部服务**，只有想让巩固阶段"工作"时才需要 LLM Key。
+Hebb Mind 给 AI Agent 装上一条受神经科学启发的记忆回路 —— **编码 → 回放 → 巩固 → 遗忘**。`pipx install` 后一行命令即可在本地拉起 REST + MCP 端点：SQLite 做存储、sentence-transformers 做嵌入、NetworkX 维护标签图谱。**零外部服务**，只有想让巩固阶段"工作"时才需要 LLM Key。
 
 与同类相比：`mem0` 云优先、只追加；`letta` 需外部 DB + 独立 sleeptime agent；`zep` 依赖 Postgres + Neo4j。**Hebb Mind 是一个二进制、一条生物学意义上的回路。**
 
@@ -26,25 +26,30 @@ Hebb Mind 给 AI Agent 装上一条受神经科学启发的记忆回路 —— *
 写入和混合检索完全离线运行（基于内置的本地 Embedding 模型）。
 
 ```bash
-pip install --user -U hebb-mind
+pipx install hebb-mind
 hebb setup              # 根据系统语言选择 Embedding 模型
 hebb service install    # 注册操作系统后台服务（launchd / systemd / 任务计划程序）
 ```
 
-**如果 `pip install --user` 之后敲 `hebb` 报 `command not found`**，是因为 Python 用户脚本目录不在 `PATH` 上（macOS 默认状态）。挑你的 shell，跑一次下面这一行即可：
+**还没装 `pipx`？** 它是 Python CLI 工具推荐的安装器：隔离 venv、自动配置 PATH、兼容 PEP 668。一次性装好就行：
 
 ```bash
-# zsh（macOS 默认）
-echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+# macOS（Homebrew）
+brew install pipx && pipx ensurepath
 
-# bash
-echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+# Linux — Debian / Ubuntu 23.04+
+sudo apt install pipx && pipx ensurepath
 
-# fish
-fish_add_path (python3 -m site --user-base)/bin
+# Linux — Fedora
+sudo dnf install pipx && pipx ensurepath
+
+# Windows / 其他装了 Python 3.10+ 的环境
+python -m pip install --user pipx && python -m pipx ensurepath
 ```
 
-如果你用虚拟环境（`python -m venv .venv && source .venv/bin/activate && pip install hebb-mind`）或系统级安装（`sudo pip install hebb-mind`），都不需要这一步。
+然后**新开一个终端**让 `PATH` 生效，再回来跑 `pipx install hebb-mind`。
+
+更习惯用 `pip`？也可以：`python -m venv .venv && source .venv/bin/activate && pip install -U hebb-mind` —— `hebb` 自动落在 venv 的 `PATH` 上。
 
 Hebb Mind 统一以操作系统后台服务的方式运行 —— 不再需要单独的前台进程，也不再有 `start`/`stop` 命令需要记忆。默认是用户级安装，**不需要管理员权限**；如果需要系统级常驻，可加 `--scope system`。详见 `hebb service --help`。
 
@@ -86,8 +91,9 @@ curl -X POST http://localhost:8321/api/v1/admin/consolidate
 ## 安装方式
 
 ```bash
-pip install -U hebb-mind               # pip
-pip install -U hebb-mind[pg]           # 启用 PostgreSQL/pgvector
+pipx install hebb-mind                 # 推荐方式（隔离的 CLI 安装）
+pipx install 'hebb-mind[pg]'           # 启用 PostgreSQL/pgvector
+pipx upgrade hebb-mind                 # 后续升级
 hebb claude-code install --scope user  # Claude Code：基于 hooks 的自动记忆
 hebb codex install --scope user        # Codex：MCP 记忆工具
 ```

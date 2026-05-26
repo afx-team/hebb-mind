@@ -14,6 +14,7 @@ from hebb.retrieval.scorer import (
     compute_importance_score,
     compute_recency_score,
 )
+from hebb.retrieval.temporal_boost import parse_query_dates, temporal_boost
 from hebb.storage.base import MemoryStore
 
 
@@ -47,7 +48,8 @@ class MemorySearcher:
             query = query.model_copy(update={"query": sanitized})
 
         now = datetime.now(timezone.utc)
-        overfetch = query.top_k * 3
+        # Overfetch generously so RRF has long ranked lists to merge across.
+        overfetch = max(query.top_k * 6, 30)
 
         # === Phase 1: Three-path parallel recall ===
         vec_results, kw_results, graph_results = await asyncio.gather(
@@ -56,14 +58,17 @@ class MemorySearcher:
             self._graph_search(query.query, overfetch),
         )
 
-        # Merge by memory ID, take max relevance score
-        merged: dict[str, tuple[Memory, float]] = {}
-        for mem, score in [*vec_results, *kw_results, *graph_results]:
-            if mem.id in merged:
-                existing = merged[mem.id]
-                merged[mem.id] = (existing[0], max(existing[1], score))
-            else:
-                merged[mem.id] = (mem, score)
+        # Reciprocal Rank Fusion across the three retrieval channels.
+        # Each channel contributes 1/(k+rank) to a memory's relevance, so a
+        # document hit by multiple channels accumulates a higher score than
+        # one that only tops a single channel — strictly better than the
+        # previous max() merge when keyword and vector signals disagree.
+        merged = self._fuse_rrf(vec_results, kw_results, graph_results)
+
+        # Parse query once for date anchors used by the temporal boost
+        # below. Reference for relative phrases is "today" — for
+        # historical replay we trust the absolute anchors only.
+        query_dates = parse_query_dates(query.query, reference=now.date())
 
         # Tag filter + composite scoring
         results: list[MemorySearchResult] = []
@@ -83,6 +88,16 @@ class MemorySearcher:
                 weight_relevance=query.weight_relevance,
             )
 
+            # Date proximity boost: when the query names "August 2023" or
+            # "last week", up-weight candidates whose metadata.timestamp
+            # falls in that window. Decays linearly past tolerance, capped
+            # at 1.0 so the boosted score still fits the composite scale.
+            if query_dates:
+                ts = memory.metadata.model_dump().get("timestamp")
+                boost = temporal_boost(str(ts) if ts else None, query_dates)
+                if boost > 0:
+                    score = min(1.0, score * (1.0 + boost))
+
             results.append(
                 MemorySearchResult(
                     memory=memory,
@@ -95,13 +110,128 @@ class MemorySearcher:
 
         results.sort(key=lambda r: r.score, reverse=True)
         top_results = results[: query.top_k]
+        top_ids = {r.memory.id for r in top_results}
 
-        # === Phase 2: Post-expansion via graph ===
-        related = await self._graph_expand_from_results(
-            top_results, exclude_ids={r.memory.id for r in top_results}, limit=5
-        )
+        # === Phase 2a: Turn-window expansion ===
+        # Pull adjacent turns from the same session for each hit. The
+        # context window is the cheapest way to recover multi-hop facts
+        # that span 2–3 consecutive utterances ("home country" + "Sweden",
+        # "I read a book" + "by Tom Oliver").
+        turn_neighbours: list[Memory] = []
+        if query.prev_turns > 0 or query.next_turns > 0:
+            turn_neighbours = await self._expand_turn_window(
+                top_results,
+                prev_turns=query.prev_turns,
+                next_turns=query.next_turns,
+                exclude_ids=top_ids,
+            )
 
+        # === Phase 2b: Post-expansion via graph ===
+        exclude_for_graph = top_ids | {m.id for m in turn_neighbours}
+        graph_related = await self._graph_expand_from_results(top_results, exclude_ids=exclude_for_graph, limit=5)
+
+        related: list[Memory] = [*turn_neighbours, *graph_related]
         return SearchResponse(results=top_results, related=related)
+
+    # ------------------------------------------------------------------
+    # Turn-window expansion
+    # ------------------------------------------------------------------
+
+    async def _expand_turn_window(
+        self,
+        results: list[MemorySearchResult],
+        *,
+        prev_turns: int,
+        next_turns: int,
+        exclude_ids: set[str],
+    ) -> list[Memory]:
+        """For each hit with session_id+turn metadata, fetch the
+        surrounding ±N turns from the same session/partition.
+
+        Deduplicates across hits so a memory adjacent to two different
+        top-k results only surfaces once.
+        """
+        if not results:
+            return []
+
+        seen_ids: set[str] = set(exclude_ids)
+        out: list[Memory] = []
+
+        for r in results:
+            md = r.memory.metadata.model_dump()
+            session_id = md.get("session_id")
+            if not session_id:
+                continue
+
+            # The hit's turn anchor: either `turn` (per-utterance) or
+            # the span of `turn_pair` (per-turn-pair summary).
+            anchors: list[int] = []
+            if isinstance(md.get("turn"), int):
+                anchors.append(int(md["turn"]))
+            pair = md.get("turn_pair") or []
+            if isinstance(pair, list):
+                anchors.extend(int(t) for t in pair if isinstance(t, int))
+            if not anchors:
+                continue
+
+            anchor_min, anchor_max = min(anchors), max(anchors)
+            window_min = anchor_min - prev_turns
+            window_max = anchor_max + next_turns
+
+            neighbours = await self.store.get_turn_neighbors(
+                partition_id=r.memory.partition_id,
+                session_id=str(session_id),
+                turn_min=window_min,
+                turn_max=window_max,
+                exclude_ids=list(seen_ids),
+            )
+            for n in neighbours:
+                if n.id in seen_ids:
+                    continue
+                seen_ids.add(n.id)
+                out.append(n)
+
+        return out
+
+    # ------------------------------------------------------------------
+    # Fusion
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _fuse_rrf(
+        *ranked_lists: list[tuple[Memory, float]],
+        k: int = 60,
+    ) -> dict[str, tuple[Memory, float]]:
+        """Reciprocal Rank Fusion of multiple ranked retrieval lists.
+
+        Args:
+            ranked_lists: One list per retrieval channel, each already
+                sorted by that channel's own score (highest first).
+            k: Standard RRF dampening constant. Larger ``k`` flattens the
+                contribution gap between top ranks; 60 is the value from the
+                original RRF paper and balances precision with diversity.
+
+        Returns:
+            ``{memory_id: (Memory, fused_score)}`` where ``fused_score`` is
+            the sum of ``1 / (k + rank_in_channel)`` contributions, capped
+            at ``1.0`` so downstream composite scoring stays in ``[0, 1]``.
+        """
+        merged: dict[str, tuple[Memory, float]] = {}
+        for ranked in ranked_lists:
+            for rank, (memory, _channel_score) in enumerate(ranked):
+                contribution = 1.0 / (k + rank + 1)
+                if memory.id in merged:
+                    existing_mem, existing_score = merged[memory.id]
+                    merged[memory.id] = (existing_mem, existing_score + contribution)
+                else:
+                    merged[memory.id] = (memory, contribution)
+
+        # Normalise into [0, 1] so the composite scorer (which mixes
+        # relevance with recency/importance — all already in [0, 1]) keeps
+        # comparable units. Max possible per memory is bounded by the number
+        # of channels: 3 * 1/(k+1).
+        max_per_hit = 3.0 / (k + 1)
+        return {mid: (mem, min(score / max_per_hit, 1.0)) for mid, (mem, score) in merged.items()}
 
     # ------------------------------------------------------------------
     # Path 1: Vector retrieval

@@ -277,6 +277,44 @@ class PGMemoryStore:
             )
         return [_record_to_memory(r) for r in rows]
 
+    async def get_turn_neighbors(
+        self,
+        partition_id: str,
+        session_id: str,
+        turn_min: int,
+        turn_max: int,
+        exclude_ids: _List[str] | None = None,
+    ) -> _List[Memory]:
+        """Fetch memories whose metadata.session_id matches and whose
+        metadata.turn (or any value in metadata.turn_pair) intersects the
+        requested range. Uses jsonb operators for the metadata predicate.
+        """
+        if turn_max < turn_min:
+            return []
+        exclude = list(exclude_ids or [])
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT * FROM memories
+                WHERE partition_id = $1
+                  AND metadata->>'session_id' = $2
+                  AND ($3::text[] IS NULL OR NOT (id = ANY($3)))
+                  AND (
+                    (metadata->>'turn')::int BETWEEN $4 AND $5
+                    OR EXISTS (
+                      SELECT 1 FROM jsonb_array_elements_text(metadata->'turn_pair') t(v)
+                      WHERE v::int BETWEEN $4 AND $5
+                    )
+                  )
+                """,
+                partition_id,
+                str(session_id),
+                exclude if exclude else None,
+                turn_min,
+                turn_max,
+            )
+        return [_record_to_memory(r) for r in rows]
+
     async def delete_expired(self) -> _List[str]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(

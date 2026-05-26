@@ -1,43 +1,63 @@
 # 安装
 
-## 安装
+## 安装（推荐：`pipx`）
 
 ```bash
-pip install --user -U hebb-mind
+pipx install hebb-mind
 ```
 
 需要 **Python >= 3.10**。无需外部数据库 — SQLite 内置。
 
-### PATH 一次性配置（仅 `pip install --user`）
+`pipx` 会把 `hebb-mind` 装到一个独立的虚拟环境里，并自动把 `hebb` / `hebb-mcp` 入口脚本软链到 `PATH` 上。它是 Python CLI 工具的现代标准做法，规避了 `pip install --user` 长期存在的两个坑：PATH 没更新、以及 Homebrew / Debian 系 Python 的 PEP 668 拦截。
 
-macOS 默认**不会**把 Python 用户脚本目录加进 `PATH`。`pip install --user` 之后敲 `hebb` 会 `command not found`，要配一次。挑你的 shell：
+### 如果还没装 `pipx`
 
-```bash
-# zsh（macOS 默认）
-echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+根据系统挑一段执行，**然后新开一个终端**让 `PATH` 生效。
 
-# bash
-echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+::: code-group
 
-# fish
-fish_add_path (python3 -m site --user-base)/bin
+```bash [macOS]
+brew install pipx
+pipx ensurepath
 ```
 
-`python3 -m site --user-base` 打印 pip 实际写入脚本的位置（macOS 通常是 `~/Library/Python/3.x`，Linux 是 `~/.local`）。可以单独跑一下确认。
+```bash [Debian / Ubuntu]
+sudo apt install pipx       # Ubuntu 23.04+ / Debian 12+
+pipx ensurepath
+```
 
-如果你**用虚拟环境**安装，可以跳过 PATH 配置：
+```bash [Fedora]
+sudo dnf install pipx
+pipx ensurepath
+```
+
+```powershell [Windows]
+python -m pip install --user pipx
+python -m pipx ensurepath
+```
+
+```bash [通用方案]
+python -m pip install --user pipx
+python -m pipx ensurepath
+```
+
+:::
+
+`ensurepath` 会修改你的 shell rc 或 Windows 用户 `PATH`，新开一个终端再执行 `pipx install hebb-mind`。
+
+后续升级：`pipx upgrade hebb-mind`；干净卸载：`pipx uninstall hebb-mind`。
+
+### 替代方案：虚拟环境 + `pip`
+
+如果你已经习惯在 venv 里工作（或想自己管理一切）：
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate
-pip install -U hebb-mind   # `hebb` 自动在 venv 的 PATH 上
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -U hebb-mind           # `hebb` 自动在 venv 的 PATH 上
 ```
 
-或者系统级安装（多数环境需要 `sudo`）：
-
-```bash
-sudo pip install -U hebb-mind
-```
+系统级 `sudo pip install` 在新版发行版上会被 PEP 668 拦截，`pipx` 是后续的官方推荐路径。
 
 ## Setup
 
@@ -69,7 +89,7 @@ docker compose -f docker/docker-compose.yml up
 生产环境推荐使用 PostgreSQL + pgvector：
 
 ```bash
-pip install hebb-mind[pg]
+pipx install 'hebb-mind[pg]'    # 或：pipx inject hebb-mind 'hebb-mind[pg]' --force
 hebb config set storage_type postgresql
 hebb config set pg_url postgresql://user:pass@localhost/hebb
 ```

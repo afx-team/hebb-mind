@@ -76,6 +76,12 @@ class BaseBenchmark:
 
     benchmark_name: str = ""
     dataset_name: str = ""
+    # Bumped when the evaluation methodology changes (ingest format,
+    # scoring metric, etc.) — NOT when system/model code changes. Reports
+    # are stored under {benchmark}/{eval_version}/run-N/ so numbers from
+    # different methodologies never accidentally compare against each
+    # other.
+    eval_version: str = "v1"
 
     def __init__(self, settings: EvalSettings):
         self.settings = settings
@@ -85,13 +91,27 @@ class BaseBenchmark:
         return self.benchmark_name
 
     def _format_turn(self, turn) -> str:
-        """Format a conversation turn for ingestion. Override for custom formatting."""
+        """Format a conversation turn for ingestion. Override for custom formatting.
+
+        The session timestamp is folded into the content string so that
+        temporal grounding ("yesterday", "last week") can be resolved by the
+        downstream LLM purely from retrieved memories — metadata-only dates
+        are invisible to the answer-generation prompt.
+        """
+        timestamp = getattr(turn, "timestamp", None) or ""
         session = turn.session_id
+        if session and timestamp:
+            return (
+                f"[{timestamp} | Session {session}, Turn {turn.turn_index}] "
+                f"{turn.role}: {turn.content}"
+            )
         if session:
             return (
                 f"[Session {session}, Turn {turn.turn_index}] "
                 f"{turn.role}: {turn.content}"
             )
+        if timestamp:
+            return f"[{timestamp} | Turn {turn.turn_index}] {turn.role}: {turn.content}"
         return f"[Turn {turn.turn_index}] {turn.role}: {turn.content}"
 
     async def setup(
@@ -210,6 +230,7 @@ class BaseBenchmark:
             },
             individual_results=results,
             config={
+                "eval_version": self.eval_version,
                 "llm_model": self.settings.llm_model,
                 "llm_thinking": self.settings.llm_thinking,
                 "llm_temperature": self.settings.llm_temperature,

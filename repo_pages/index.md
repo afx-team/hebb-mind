@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Hebb Mind
   text: Memory that wires itself.
-  tagline: 'A memory framework for AI agents — named for Donald Hebb, whose rule the brain learns by: neurons that fire together, wire together. Encode · replay · consolidate · forget. Local SQLite, zero external services.'
+  tagline: 'A memory framework for AI agents — named for Donald Hebb, whose rule the brain learns by: neurons that fire together, wire together.'
   actions:
     - theme: brand
       text: Get Started in 60s
@@ -19,7 +19,7 @@ hero:
 features:
   - icon: ⚡
     title: 60-second local start
-    details: "pip install + hebb setup + hebb service install. SQLite + sentence-transformers, zero external services. No API key needed for ingest and hybrid search."
+    details: "pipx install + hebb setup + hebb service install. SQLite + sentence-transformers, zero external services. No API key needed for ingest and hybrid search."
   - icon: 🧠
     title: Conflict-resolving consolidation
     details: An agent merges duplicates and overwrites stale facts — not just append. Bring any LLM via LiteLLM (OpenAI, Claude, Qwen, GLM, Kimi, …).
@@ -116,10 +116,10 @@ features:
 <div class="hippo-install">
   <div class="hippo-install-label">60-second start — no API key</div>
   <div class="hippo-install-cmd">
-    <code>pip install hebb-mind && hebb setup && hebb service install</code>
-    <button class="hippo-copy" onclick="navigator.clipboard.writeText('pip install hebb-mind && hebb setup && hebb service install');this.innerHTML='<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;20 6 9 17 4 12&quot;/></svg>';setTimeout(()=>{this.innerHTML='<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><rect x=&quot;9&quot; y=&quot;9&quot; width=&quot;13&quot; height=&quot;13&quot; rx=&quot;2&quot;/><path d=&quot;M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1&quot;/></svg>'},1200)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+    <code>pipx install hebb-mind && hebb setup && hebb service install</code>
+    <button class="hippo-copy" onclick="navigator.clipboard.writeText('pipx install hebb-mind && hebb setup && hebb service install');this.innerHTML='<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;20 6 9 17 4 12&quot;/></svg>';setTimeout(()=>{this.innerHTML='<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><rect x=&quot;9&quot; y=&quot;9&quot; width=&quot;13&quot; height=&quot;13&quot; rx=&quot;2&quot;/><path d=&quot;M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1&quot;/></svg>'},1200)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
   </div>
-  <div class="hippo-install-hint">Ingest + hybrid search work locally. Open <a href="http://localhost:8321/">http://localhost:8321/</a>. For LLM consolidation, see the <a href="/quick-start#path-b-5-minutes-with-llm-consolidation">5-minute path</a>.</div>
+  <div class="hippo-install-hint">No <code>pipx</code> yet? <a href="/guide/installation#install-pipx-if-you-don-t-have-it">One-time setup</a> (brew / apt / dnf / python -m pip). Then open <a href="http://localhost:8321/">http://localhost:8321/</a>. For LLM consolidation, see the <a href="/quick-start#path-b-5-minutes-with-llm-consolidation">5-minute path</a>.</div>
 </div>
 
 <!-- TODO(asset): screenshot of /index.html web console with sample memories. Save as repo_pages/public/web-console-hero.png, then uncomment the block below. -->

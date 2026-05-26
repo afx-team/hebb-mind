@@ -11,6 +11,7 @@ import aiosqlite
 import numpy as np
 
 from hebb.models.memory import Memory, MemoryCreate, MemoryMetadata, MemoryUpdate
+from hebb.retrieval.fts_query import build_fts_query
 
 # See `hebb.storage.base` — alias the builtin so class-scope annotations
 # don't resolve to the `list` method defined below.
@@ -225,6 +226,12 @@ class SQLiteMemoryStore:
         if not query.strip():
             return []
 
+        # Sanitize the natural-language query for FTS5: strip punctuation
+        # (``?`` is a syntax error), drop stopwords, OR-join terms.
+        match_expr = build_fts_query(query)
+        if not match_expr:
+            return []
+
         # FTS5 MATCH query; bm25() returns negative scores (lower = more relevant)
         try:
             cursor = await self.db.execute(
@@ -233,7 +240,7 @@ class SQLiteMemoryStore:
                    WHERE memory_fts MATCH ?
                    ORDER BY rank
                    LIMIT ?""",
-                (query, top_k * 3),
+                (match_expr, top_k * 3),
             )
         except Exception:
             # FTS table may not exist or query syntax invalid
@@ -261,6 +268,70 @@ class SQLiteMemoryStore:
         )
         rows = await cursor.fetchall()
         return [_row_to_memory(r) for r in rows]
+
+    async def get_turn_neighbors(
+        self,
+        partition_id: str,
+        session_id: str,
+        turn_min: int,
+        turn_max: int,
+        exclude_ids: _List[str] | None = None,
+    ) -> _List[Memory]:
+        """Fetch memories in *partition_id* whose metadata.session_id matches
+        *session_id* and whose metadata.turn (or any value in metadata.turn_pair)
+        intersects [turn_min, turn_max].
+
+        SQLite has no JSON path index here, so this scans the partition.
+        Partitions are small enough (turns of one session) that this is
+        cheap, but worth replacing with a proper JSON index if we ever
+        ingest tens of thousands of memories per partition.
+        """
+        if turn_max < turn_min:
+            return []
+        cursor = await self.db.execute(
+            "SELECT * FROM memories WHERE partition_id = ?",
+            (partition_id,),
+        )
+        rows = await cursor.fetchall()
+        exclude = set(exclude_ids or [])
+
+        results: _List[Memory] = []
+        for row in rows:
+            if row["id"] in exclude:
+                continue
+            try:
+                meta = json.loads(row["metadata"]) if row["metadata"] else {}
+            except (TypeError, ValueError):
+                continue
+            if str(meta.get("session_id", "")) != str(session_id):
+                continue
+            # A memory matches the requested turn range if its `turn`
+            # falls inside it, or if any element of `turn_pair`
+            # (used by the hook's per-pair summaries) falls inside it.
+            turn = meta.get("turn")
+            turn_pair = meta.get("turn_pair") or []
+            candidates: _List[int] = []
+            if isinstance(turn, int):
+                candidates.append(turn)
+            if isinstance(turn_pair, list):
+                candidates.extend(int(t) for t in turn_pair if isinstance(t, int))
+            if not candidates:
+                continue
+            if any(turn_min <= t <= turn_max for t in candidates):
+                results.append(_row_to_memory(row))
+
+        # Sort by turn for predictable downstream rendering.
+        def _sort_key(m: Memory) -> int:
+            md = m.metadata.model_dump()
+            if isinstance(md.get("turn"), int):
+                return int(md["turn"])
+            pair = md.get("turn_pair") or []
+            if isinstance(pair, list) and pair:
+                return int(pair[0])
+            return 0
+
+        results.sort(key=_sort_key)
+        return results
 
     async def delete_expired(self) -> _List[str]:
         now = _now_iso()

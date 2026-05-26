@@ -5,10 +5,12 @@ Hebb Mind 通过 MCP 工具集成 Codex。Codex 可以在需要时调用 `write_
 ## 安装
 
 ```bash
-pip install -U hebb-mind
+pipx install hebb-mind         # 后续升级用 `pipx upgrade hebb-mind`
 hebb setup
 hebb codex install --scope user
 ```
+
+没装 `pipx`？参考 [安装 → 如果还没装 pipx](./installation.md#如果还没装-pipx)。
 
 验证：
 

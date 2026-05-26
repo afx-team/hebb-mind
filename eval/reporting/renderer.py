@@ -34,7 +34,8 @@ def render_markdown(result: BenchmarkResult, output_path: Path) -> Path:
     lines: list[str] = []
     lines.append(f"# Hebb Mind Evaluation Report: {result.dataset_name}")
     lines.append("")
-    lines.append(f"**Date**: {result.timestamp}")
+    eval_version = config.get('eval_version', 'v1')
+    lines.append(f"**Eval version**: {eval_version}")
     eval_mode = config.get('mode', 'raw')
     lines.append(f"**Mode**: {eval_mode}")
     lines.append(f"**Model (judge)**: {config.get('llm_model', 'N/A')}")

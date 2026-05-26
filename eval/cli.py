@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import subprocess
-from datetime import datetime, timezone
 from pathlib import Path
 
 import click
@@ -28,6 +28,26 @@ logger = logging.getLogger(__name__)
 DATASET_NAMES = list(ADAPTERS.keys())
 BENCHMARK_NAMES = list(BENCHMARKS.keys())
 _RUNNABLE = [n for n in BENCHMARK_NAMES if n != "memoryarena"]
+
+_RUN_DIR_RE = re.compile(r"^run-(\d+)$")
+
+
+def _next_run_dir(version_dir: Path) -> Path:
+    """Return ``{version_dir}/run-{N+1}`` where N is the highest existing run.
+
+    Reports are layered as ``{reports_dir}/{benchmark}/{eval_version}/run-N/``
+    so dataset and methodology versions stay sticky while multiple runs of the
+    same protocol pile up as ``run-1``, ``run-2``, ... — no calendar dates in
+    the path. Cleanup is the operator's call.
+    """
+    version_dir.mkdir(parents=True, exist_ok=True)
+    used: list[int] = []
+    for child in version_dir.iterdir():
+        m = _RUN_DIR_RE.match(child.name)
+        if m and child.is_dir():
+            used.append(int(m.group(1)))
+    next_n = (max(used) + 1) if used else 1
+    return version_dir / f"run-{next_n}"
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -160,15 +180,12 @@ def run(
             top_p=settings.llm_top_p,
         )
 
-        # Use date-based subfolder for report isolation
-        run_ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        run_dir = settings.reports_dir / run_ts
-        run_dir.mkdir(parents=True, exist_ok=True)
         click.echo(f"Mode: {settings.mode.value}")
-        click.echo(f"Reports: {run_dir}")
+        click.echo(f"Reports root: {settings.reports_dir}")
 
         server_proc = None
         all_results = []
+        run_dirs: list[Path] = []
 
         try:
             for name in names:
@@ -187,6 +204,11 @@ def run(
 
                 adapter = adapter_cls()
                 benchmark = bench_cls(settings)
+                version_dir = settings.reports_dir / name / benchmark.eval_version
+                run_dir = _next_run_dir(version_dir)
+                run_dir.mkdir(parents=True, exist_ok=True)
+                run_dirs.append(run_dir)
+                click.echo(f"Eval version: {benchmark.eval_version}  ->  {run_dir}")
 
                 # 2. Download
                 click.echo("Downloading dataset...")
@@ -240,10 +262,13 @@ def run(
                             click.echo(f"  {cat}: {acc:.1%}")
                     click.echo(f"  Reports: {json_path}, {md_path}")
 
-            # Summary
+            # Summary — when running multiple benchmarks, write a single
+            # "latest cross-dataset summary" file. It always overwrites so
+            # the directory layout stays date-free.
             if len(all_results) > 1:
                 summary = render_summary_table(all_results)
-                summary_path = run_dir / "summary.md"
+                summary_path = settings.reports_dir / "summary-latest.md"
+                summary_path.parent.mkdir(parents=True, exist_ok=True)
                 summary_path.write_text(summary)
                 click.echo(f"\nSummary report: {summary_path}")
                 click.echo(summary)

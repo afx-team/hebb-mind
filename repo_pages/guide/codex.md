@@ -5,10 +5,12 @@ Hebb Mind integrates with Codex through MCP tools. Codex can call `write_memory`
 ## Install
 
 ```bash
-pip install -U hebb-mind
+pipx install hebb-mind         # use `pipx upgrade hebb-mind` to update later
 hebb setup
 hebb codex install --scope user
 ```
+
+No `pipx`? See [Installation → Install pipx](./installation.md#install-pipx-if-you-don-t-have-it).
 
 Verify:
 

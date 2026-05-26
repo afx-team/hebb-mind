@@ -123,12 +123,14 @@ async def initialize_schema(
                 "CREATE TABLE IF NOT EXISTS memory_embeddings (memory_id TEXT PRIMARY KEY, embedding BLOB)"
             )
 
-    # FTS5 full-text search table for keyword matching
-    # unicode61 tokenizer handles CJK via bigram, works cross-platform
+    # FTS5 full-text search table for keyword matching.
+    # `porter unicode61` chains Porter stemming on top of unicode61 so that
+    # plural/inflected forms match the query stem ("researched" matches
+    # "research"). Without stemming, BM25 misses on conjugated verbs.
     try:
         await db.execute(
             "CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5("
-            "memory_id UNINDEXED, content, tokenize='unicode61')"
+            "memory_id UNINDEXED, content, tokenize='porter unicode61')"
         )
     except Exception as e:
         logger.warning("Could not create FTS5 table: %s", e)

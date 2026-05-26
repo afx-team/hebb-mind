@@ -9,25 +9,30 @@
 ### 1. 安装
 
 ```bash
-pip install --user -U hebb-mind
+pipx install hebb-mind
 ```
 
 需要 **Python >= 3.10**。SQLite 内置，无需外部数据库。
 
-**`pip install --user` 用户的一次性 PATH 配置。** macOS 默认不会把 Python 的用户脚本目录加进 `PATH` —— 没配之前敲 `hebb` 会 `command not found`。挑你的 shell 跑一行就完事：
+**还没装 `pipx`？** 它是 Python CLI 工具的标准安装器：隔离 venv、自动配置 PATH、兼容 PEP 668。一次性装好就行：
 
 ```bash
-# zsh（macOS 默认）
-echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+# macOS（Homebrew）
+brew install pipx && pipx ensurepath
 
-# bash
-echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+# Linux — Debian / Ubuntu 23.04+
+sudo apt install pipx && pipx ensurepath
 
-# fish
-fish_add_path (python3 -m site --user-base)/bin
+# Linux — Fedora
+sudo dnf install pipx && pipx ensurepath
+
+# Windows / 其他装了 Python 3.10+ 的环境
+python -m pip install --user pipx && python -m pipx ensurepath
 ```
 
-如果你用虚拟环境（`python -m venv .venv && source .venv/bin/activate && pip install hebb-mind`）或系统级安装（`sudo pip install hebb-mind`），都不需要这一步 —— `hebb` 已经在 `PATH` 上。
+新开一个终端让 `PATH` 生效，再回来跑 `pipx install hebb-mind`。
+
+更习惯 `pip`？也可以：`python -m venv .venv && source .venv/bin/activate && pip install -U hebb-mind` —— `hebb` 自动落在 venv 的 `PATH` 上。
 
 ### 2. Setup
 

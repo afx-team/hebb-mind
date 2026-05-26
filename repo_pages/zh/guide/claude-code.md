@@ -14,10 +14,12 @@ Hebb Mind 与 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 深�
 ## 安装
 
 ```bash
-pip install -U hebb-mind       # 安装包
+pipx install hebb-mind         # 安装 CLI（后续升级用 `pipx upgrade hebb-mind`）
 hebb setup                     # 初始化并预下载 Embedding 模型
 hebb claude-code install --scope user   # 注入 hooks + MCP 到 Claude Code
 ```
+
+没装 `pipx`？参考 [安装 → 如果还没装 pipx](./installation.md#如果还没装-pipx)。
 
 重启 Claude Code 即可生效。Hebb Mind 会自动：
 

@@ -93,10 +93,15 @@ def create_default_config(target: Path) -> None:
         f.write("\n")
 
 
-def update_config_field(key: str, value: str, config_path: Path | None = None) -> Path:
+def update_config_field(key: str, value: str, config_path: Path | None = None) -> tuple[Path, Any]:
     """Update a single field in hebb.json.
 
     Handles type coercion: bool, int, float, None, or str.
+
+    Returns:
+        ``(path, coerced_value)`` — the config file path and the value after
+        Pydantic validation, so callers can apply the same value to a live
+        Settings instance without re-loading the file.
     """
     path = config_path or find_config_file() or Path("hebb.json")
     if not path.exists():
@@ -115,12 +120,13 @@ def update_config_field(key: str, value: str, config_path: Path | None = None) -
     coerced = _coerce_value(value, annotation)
     data[key] = coerced
     settings = Settings(**{k: v for k, v in data.items() if k in Settings.model_fields})
-    data[key] = getattr(settings, key)
+    validated = getattr(settings, key)
+    data[key] = validated
 
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
         f.write("\n")
-    return path
+    return path, validated
 
 
 def _coerce_value(value: str, annotation: type | None) -> str | int | float | bool | None:

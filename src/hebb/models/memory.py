@@ -81,6 +81,13 @@ class MemoryQuery(BaseModel):
     weight_recency: float = Field(default=1.0, ge=0.0)
     weight_importance: float = Field(default=1.0, ge=0.0)
     weight_relevance: float = Field(default=1.0, ge=0.0)
+    # Context window expansion: when a top result has session_id+turn
+    # metadata, also pull this many *adjacent* turns from the same
+    # session and return them via SearchResponse.related. The hit memory
+    # itself stays at its scored rank; the neighbours give the LLM the
+    # surrounding dialog without polluting the ranking signal.
+    prev_turns: int = Field(default=0, ge=0, le=20, description="Adjacent turns before each hit to include in related")
+    next_turns: int = Field(default=0, ge=0, le=20, description="Adjacent turns after each hit to include in related")
 
 
 class MemorySearchResult(BaseModel):

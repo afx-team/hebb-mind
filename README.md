@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center"><a href="https://afx-team.github.io/hebb-mind/">Hebb Mind</a></h1>
+  <h1 align="center"><a href="https://afx-team.github.io/hebb-mind/"><img src="logo.svg" width="40" height="40" alt="Hebb Mind logo" valign="middle"/> Hebb Mind</a></h1>
   <p align="center"><strong>A neuroscience-inspired memory framework for AI agents</strong></p>
   <p align="center"><em>Encode. Consolidate. Activate. Forget.</em></p>
   <p align="center"><a href="https://afx-team.github.io/hebb-mind/">Documentation</a> · <a href="README.md">English</a> | <a href="README_ZH.md">中文</a></p>
@@ -15,7 +15,7 @@
 
 ---
 
-Hebb Mind gives AI agents a neuroscience-inspired memory loop — **encode → replay → consolidate → forget**. A `pip install` and one command stand up a local REST + MCP endpoint: SQLite for storage, sentence-transformers for embedding, NetworkX for the tag graph. **Zero external services** — bring an LLM key only when you want consolidation to do its work.
+Hebb Mind gives AI agents a neuroscience-inspired memory loop — **encode → replay → consolidate → forget**. A `pipx install` and one command stand up a local REST + MCP endpoint: SQLite for storage, sentence-transformers for embedding, NetworkX for the tag graph. **Zero external services** — bring an LLM key only when you want consolidation to do its work.
 
 Where peers diverge: `mem0` is cloud-first and append-only; `letta` needs an external DB and a separate sleeptime agent; `zep` needs Postgres + Neo4j. **Hebb Mind runs on a single binary, with one biological loop.**
 
@@ -26,25 +26,30 @@ Where peers diverge: `mem0` is cloud-first and append-only; `letta` needs an ext
 Ingest and hybrid search work fully offline with the bundled local embedding.
 
 ```bash
-pip install --user -U hebb-mind
+pipx install hebb-mind
 hebb setup              # picks an embedding model based on your OS locale
 hebb service install    # registers a background service (launchd / systemd / Task Scheduler)
 ```
 
-**If `hebb` is not found after `pip install --user`**, your Python user-script directory is not on `PATH` (the macOS default). Add it once and you're done — run the one line that matches your shell:
+**Don't have `pipx`?** It's the recommended installer for Python CLI tools — isolated venv, automatic PATH, plays nice with PEP 668. Install it once:
 
 ```bash
-# zsh (macOS default)
-echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+# macOS (Homebrew)
+brew install pipx && pipx ensurepath
 
-# bash
-echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+# Linux — Debian / Ubuntu 23.04+
+sudo apt install pipx && pipx ensurepath
 
-# fish
-fish_add_path (python3 -m site --user-base)/bin
+# Linux — Fedora
+sudo dnf install pipx && pipx ensurepath
+
+# Windows / any platform with Python 3.10+
+python -m pip install --user pipx && python -m pipx ensurepath
 ```
 
-Installing in a virtualenv (`python -m venv .venv && source .venv/bin/activate && pip install hebb-mind`) sidesteps this entirely; a system-wide `sudo pip install hebb-mind` does too.
+Then **open a new terminal** so the updated `PATH` takes effect, and re-run `pipx install hebb-mind`.
+
+Prefer plain `pip` instead? `python -m venv .venv && source .venv/bin/activate && pip install -U hebb-mind` works fine — `hebb` lives on the venv's `PATH` automatically.
 
 Hebb Mind runs as an OS-managed background service — no foreground process to keep alive, no `start`/`stop` shells to remember. The service is per-user by default and needs no admin/sudo. Use `--scope system` for a system-wide install. See `hebb service --help`.
 
@@ -86,8 +91,9 @@ curl -X POST http://localhost:8321/api/v1/admin/consolidate
 ## Installation Paths
 
 ```bash
-pip install -U hebb-mind               # pip
-pip install -U hebb-mind[pg]           # + PostgreSQL/pgvector
+pipx install hebb-mind                 # recommended (isolated CLI install)
+pipx install 'hebb-mind[pg]'           # + PostgreSQL/pgvector
+pipx upgrade hebb-mind                 # upgrade later
 hebb claude-code install --scope user  # Claude Code: hooks-based auto memory
 hebb codex install --scope user        # Codex: MCP memory tools
 ```

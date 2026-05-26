@@ -35,9 +35,9 @@ Want to plug Hebb Mind into LangChain?        ──→  05_langchain_adapter.py
 
 ```bash
 # 1. Install the package (editable from a checkout, or from PyPI)
-pip install -e .          # from a clone of this repo
+pip install -e .          # from a clone of this repo (inside a venv)
 # OR
-pip install hebb-mind
+pipx install hebb-mind    # from PyPI (isolated CLI install)
 
 # 2. Optional: download the local embedding model (first run does this lazily)
 hebb setup

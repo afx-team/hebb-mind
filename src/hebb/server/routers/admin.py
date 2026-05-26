@@ -31,7 +31,7 @@ async def trigger_consolidation(
     kg: KnowledgeGraph = Depends(get_knowledge_graph),
     embedder: EmbeddingProvider = Depends(get_embedder),
     settings: Settings = Depends(get_settings),
-) -> dict[str, int]:
+) -> dict[str, Any]:
     results = await run_consolidation(
         memory_store=memory_store,
         partition_store=partition_store,
@@ -39,10 +39,14 @@ async def trigger_consolidation(
         embedder=embedder,
         settings=settings,
     )
+    failures = [
+        {"memory_id": r.original_memory_id, "error": r.error or "unknown error"} for r in results if not r.success
+    ]
     return {
         "processed": len(results),
         "succeeded": sum(1 for r in results if r.success),
-        "failed": sum(1 for r in results if not r.success),
+        "failed": len(failures),
+        "errors": failures,
     }
 
 

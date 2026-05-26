@@ -14,10 +14,12 @@ Most users want both — MCP for explicit memory operations, hooks for seamless 
 ## Install
 
 ```bash
-pip install -U hebb-mind       # Install the package
+pipx install hebb-mind         # Install the CLI (use `pipx upgrade hebb-mind` to update)
 hebb setup                     # Initialize + prefetch embedding model
 hebb claude-code install --scope user   # Inject hooks + MCP into Claude Code
 ```
+
+No `pipx`? See [Installation → Install pipx](./installation.md#install-pipx-if-you-don-t-have-it).
 
 That's it. Restart Claude Code and Hebb Mind will:
 

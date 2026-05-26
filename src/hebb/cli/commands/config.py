@@ -92,7 +92,7 @@ def config_set(key: str, value: str) -> None:
       hebb config set home /data/hebb
     """
     try:
-        path = update_config_field(key, value)
+        path, _ = update_config_field(key, value)
         # Re-read to show the coerced value
         with open(path) as f:
             data = json.load(f)

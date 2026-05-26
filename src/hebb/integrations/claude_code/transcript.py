@@ -112,17 +112,33 @@ def extract_last_turn(transcript_path: str | Path) -> TurnSummary | None:
     return summary
 
 
-def format_turn_memory(summary: TurnSummary, session_id: str = "") -> str:
+def format_turn_memory(
+    summary: TurnSummary,
+    session_id: str = "",
+    timestamp: str | None = None,
+) -> str:
     """Format a ``TurnSummary`` as a concise memory string.
+
+    A bracketed ISO timestamp leads the memory so the LLM can resolve
+    relative phrases ("yesterday", "last week", "4 years ago") into
+    concrete dates without having to consult metadata it does not see at
+    answer-generation time. Without this, every memory looks
+    time-of-event-less.
 
     Args:
         summary: The turn summary to format.
         session_id: Optional session identifier.
+        timestamp: ISO-8601 timestamp (default: now in UTC). Pass an
+            explicit value when replaying historical turns so the prefix
+            reflects when the conversation actually happened.
 
     Returns:
         A human-readable string suitable for storing as a memory.
     """
-    parts: list[str] = []
+    from datetime import datetime, timezone
+
+    ts = timestamp or datetime.now(timezone.utc).isoformat(timespec="seconds")
+    parts: list[str] = [f"[{ts}]"]
 
     if summary.user_input:
         parts.append(f"[User] {summary.user_input}")

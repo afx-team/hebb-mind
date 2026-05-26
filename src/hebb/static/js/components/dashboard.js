@@ -63,7 +63,13 @@ export async function renderDashboard(root) {
       res.textContent = t('common.loading');
       const r = await api.triggerConsolidate();
       res.textContent = `${r.succeeded} succeeded, ${r.failed} failed`;
-      success('Consolidation complete');
+      if (r.failed > 0 && Array.isArray(r.errors) && r.errors.length) {
+        const sample = r.errors.slice(0, 3).map(e => e.error).join(' | ');
+        const more = r.errors.length > 3 ? ` (+${r.errors.length - 3} more)` : '';
+        error(`Consolidation: ${r.failed} failed — ${sample}${more}`);
+      } else {
+        success('Consolidation complete');
+      }
     } catch (e) { res.textContent = ''; error(e.message); }
   };
   document.getElementById('btn-forget').onclick = async () => {

@@ -55,7 +55,39 @@ function guideSidebar(prefix = '') {
       items: [
         { text: prefix ? '故障排查' : 'Troubleshooting', link: `${prefix}/troubleshooting` },
         { text: prefix ? '常见问题' : 'FAQ', link: `${prefix}/faq` },
-        { text: prefix ? '基准测试' : 'Benchmarks', link: `${prefix}/benchmarks` },
+        // The English benchmarks page is split into a per-dataset
+        // folder; the Chinese mirror is still the single legacy page.
+        // Surface the deep tree only on the English side.
+        prefix
+          ? { text: '基准测试', link: `${prefix}/benchmarks` }
+          : {
+              text: 'Benchmarks',
+              link: '/benchmarks/',
+              collapsed: true,
+              items: [
+                {
+                  text: 'LoCoMo',
+                  link: '/benchmarks/locomo/',
+                  collapsed: true,
+                  items: [
+                    { text: 'vs MemPalace', link: '/benchmarks/locomo/vs-mempalace' },
+                    { text: 'vs mem0', link: '/benchmarks/locomo/vs-mem0' },
+                    { text: 'vs Letta', link: '/benchmarks/locomo/vs-letta' },
+                    { text: 'vs Zep', link: '/benchmarks/locomo/vs-zep' },
+                  ],
+                },
+                {
+                  text: 'LongMemEval',
+                  link: '/benchmarks/longmemeval/',
+                  collapsed: true,
+                  items: [
+                    { text: 'vs MemPalace', link: '/benchmarks/longmemeval/vs-mempalace' },
+                    { text: 'vs Zep / Graphiti', link: '/benchmarks/longmemeval/vs-zep' },
+                  ],
+                },
+                { text: 'PersonaMem', link: '/benchmarks/personamem/' },
+              ],
+            },
       ],
     },
   ]
@@ -89,7 +121,7 @@ export default defineConfig({
         nav: [
           { text: 'Quick Start', link: '/quick-start' },
           { text: 'API', link: '/api/memories' },
-          { text: 'Benchmarks', link: '/benchmarks' },
+          { text: 'Benchmarks', link: '/benchmarks/' },
           { text: 'FAQ', link: '/faq' },
         ],
         sidebar: guideSidebar(),
