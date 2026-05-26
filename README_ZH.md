@@ -179,7 +179,9 @@ LoCoMo（10 段多轮对话、共 1,986 题），按 MemPalace 同口径的 sess
 | **Hebb Mind v0.1.2** | MiniLM-384 | **89.7%** |
 | MemPalace hybrid v5 | MiniLM-384 | 88.9% |
 
-同 embedding 档位下稳定领先 ~+0.9 pp。Hebb Mind 的评测直接调用与生产同一份 Claude Code hook 代码路径（`integrations/claude_code/{write,stop}.py`）与 `/api/v1/search`，因此上表数字就是用户在生产环境里实际能拿到的数字。完整方法学、分类拆解、benchmark vs production 流水线差异的说明：[hebb-mind.github.io/benchmarks](https://afx-team.github.io/hebb-mind/benchmarks/)。
+同 embedding 档位下稳定领先 ~+0.9 pp。端到端 QA（同一检索 + Kimi-K2.5 judge with thinking，完整 1,978 题）：**76.0%** — 检索能找到正确 session 的概率约 90%，LLM 将其转化为正确答案的概率约 76%，这中间的差距来自 per-utterance 入库下的跨记忆综合成本。
+
+Hebb Mind 的评测直接调用与生产同一份 Claude Code hook 代码路径（`integrations/claude_code/{write,stop}.py`）与 `/api/v1/search`，因此上表数字就是用户在生产环境里实际能拿到的数字。完整方法学、分类拆解、benchmark vs production 流水线差异的说明：[hebb-mind.github.io/benchmarks](https://afx-team.github.io/hebb-mind/benchmarks/)。
 
 ## 为什么叫 "Hebb Mind"？
 

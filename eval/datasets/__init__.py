@@ -9,6 +9,9 @@ from eval.datasets.personamem import PersonaMemAdapter
 
 ADAPTERS: dict[str, type] = {
     "locomo": LoCoMoAdapter,
+    # locomo-qa shares the LoCoMo dataset; the QA benchmark just runs a
+    # different scorer over the same retrieval pipeline.
+    "locomo-qa": LoCoMoAdapter,
     "longmemeval": LongMemEvalAdapter,
     "convomem": ConvoMemAdapter,
     "membench": MemBenchAdapter,

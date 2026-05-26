@@ -31,13 +31,25 @@ The +3.6 pp jump moving from MiniLM-384 to bge-large-1024 is concentrated in `op
 
 ## (b) End-to-end QA accuracy
 
-Strictly harder than R@10 because the LLM must *produce* the answer, not just retrieve a candidate. Same retrieval pipeline plus a generation prompt + LLM-as-judge with semantic-equivalence rules (`eval/judge.py`). Run below predates v3 production-mirror and covers 3 of 10 scenarios (497q); section (a) is the headline.
+Strictly harder than R@10 because the LLM must *produce* the answer, not just retrieve a candidate. Same v3 production-mirror retrieval pipeline as (a); the LLM-as-judge stage uses `eval/judge.py` semantic-equivalence rules.
 
 | Hebb Mind config | Score | Source |
 |---|---|---|
-| **v0.1.1 raw + chunking + image captions, judge = Kimi-K2.5** | **90.3%** QA acc (497q, 3 scenarios) | `eval/reports/locomo/v1/run-1/locomo.md` |
+| **v0.1.2 prod-mirror, bge-large-1024, judge = Kimi-K2.5 (thinking on)** | **76.0%** QA acc (1,978q, full 10 scenarios) | `eval/reports/locomo-qa/v1/run-2/locomo-qa.md` |
 
-QA accuracy per category (90.3% run): open_ended 92.5, multi_hop 92.2, adversarial 91.1, single_hop 83.8, temporal 81.0. See [the MemPalace benchmark lessons](https://github.com/afx-team/hebb-mind/blob/main/docs/analysis/mempalace-benchmark-deep-dive.md) for the recipe behind the +52.7 pp jump over the earlier consolidated baseline (37.6 → 90.3%).
+Per-category breakdown:
+
+| Category | QA accuracy |
+|---|---|
+| adversarial | 95.1% |
+| open_ended | 83.6% |
+| multi_hop | 63.9% |
+| single_hop | 51.6% |
+| temporal | 29.2% |
+
+Same 1,978-question denominator as section (a) for direct comparison. **Session R@10 on the same run was 90.4%** (mean recall 0.852) — i.e. the right session is in the retrieved set 90% of the time, but the LLM only converts that retrieval into a correct answer 76% of the time.
+
+That gap (90.4 → 76.0%) is the synthesis cost of per-utterance ingestion. A real example from the run: *"Where did Caroline move from 4 years ago?"* — retrieval surfaces "I moved from my home country" (correct session), but the per-utterance memory holding "Sweden" is two turns away, and the LLM answers `home country` instead of `Sweden`. Multi-hop and single-hop questions pay this cost most; temporal lags because LoCoMo "temporal" questions are inferential ("Would X be considered Y?") rather than time-anchored. The fix space is consolidation (which merges related per-utterance memories into one statement) and re-ranking; both are on the roadmap.
 
 ## Per-competitor comparisons
 

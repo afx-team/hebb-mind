@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 # stop-by-port logic needs a deterministic value.
 BENCHMARK_PORTS: dict[str, int] = {
     "locomo": 8321,
+    "locomo-qa": 8327,
     "longmemeval": 8322,
     "convomem": 8323,
     "membench": 8324,
@@ -251,9 +252,12 @@ async def wait_for_server(base_url: str, timeout: float = 120.0) -> None:
 class HebbClient:
     """Async HTTP client wrapping every hebb API endpoint."""
 
-    def __init__(self, base_url: str = "http://localhost:8321", timeout: float = 30.0):
+    def __init__(self, base_url: str = "http://localhost:8321", timeout: float = 120.0):
         self.base_url = base_url.rstrip("/")
-        # trust_env=False bypasses system proxy — server is always local
+        # trust_env=False bypasses system proxy — server is always local.
+        # 120s default: bge-large encoding under concurrent eval load
+        # (and the searcher's own +overfetch / fusion work) can take 20-40s
+        # per query when 4 search calls + 4 judge calls are contending.
         self._client = httpx.AsyncClient(
             base_url=self.base_url, timeout=timeout, trust_env=False,
         )

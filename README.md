@@ -179,7 +179,9 @@ LoCoMo (1,986 questions across 10 multi-session conversations), session-level Re
 | **Hebb Mind v0.1.2** | MiniLM-384 | **89.7%** |
 | MemPalace hybrid v5 | MiniLM-384 | 88.9% |
 
-Same-embedding lead of ~+0.9 pp at both tiers. Hebb Mind's eval calls the same Claude Code hook code paths (`integrations/claude_code/{write,stop}.py`) and `/api/v1/search` endpoint that the shipped product uses — the numbers above are what a user actually gets in production. Full methodology, per-category breakdowns, and prod-vs-eval-pipeline caveats: [hebb-mind.github.io/benchmarks](https://afx-team.github.io/hebb-mind/benchmarks/).
+Same-embedding lead of ~+0.9 pp at both tiers. End-to-end QA (same retrieval + Kimi-K2.5 judge with thinking, full 1,978q): **76.0%** — retrieval surfaces the right session 90% of the time, the LLM converts that into a correct answer 76% of the time; the gap is the synthesis cost of per-utterance ingestion.
+
+Hebb Mind's eval calls the same Claude Code hook code paths (`integrations/claude_code/{write,stop}.py`) and `/api/v1/search` endpoint that the shipped product uses — the numbers above are what a user actually gets in production. Full methodology, per-category breakdowns, and prod-vs-eval-pipeline caveats: [hebb-mind.github.io/benchmarks](https://afx-team.github.io/hebb-mind/benchmarks/).
 
 ## Why "Hebb Mind"?
 
