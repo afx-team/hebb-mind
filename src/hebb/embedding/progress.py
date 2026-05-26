@@ -22,7 +22,7 @@ invocation in a bare ``except`` to enforce that.
 
 def make_progress_tqdm(callback: ProgressCallback) -> type:
     """Return a tqdm subclass that calls ``callback`` on every update."""
-    from tqdm import tqdm
+    from tqdm import tqdm  # type: ignore[import-untyped]
 
     class ProgressTqdm(tqdm):  # type: ignore[misc]
         def update(self, n: int | float = 1) -> bool | None:

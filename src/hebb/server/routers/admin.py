@@ -93,7 +93,7 @@ async def restart_service() -> dict[str, Any]:
         last_err: Exception | None = None
         for scope in ("user", "system"):
             try:
-                manager = get_manager(scope=scope)  # type: ignore[arg-type]
+                manager = get_manager(scope=scope)
                 manager.restart()
                 return
             except ServiceNotInstalledError as exc:
