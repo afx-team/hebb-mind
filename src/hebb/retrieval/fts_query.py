@@ -261,10 +261,10 @@ def build_fts_query(raw: str) -> str:
             break
 
     # Expand each token with its synonym group (small, general English).
-    # We rebuild `seen` from scratch so the original deduped tokens are
-    # always present even when they share a synonym group with an
-    # already-emitted term.
-    expanded: list[str] = []
+    # We rebuild the emitted set from scratch so the original deduped
+    # tokens are always present even when they share a synonym group
+    # with an already-emitted term.
+    expanded = []
     emitted: set[str] = set()
     for t in deduped:
         if t not in emitted:
