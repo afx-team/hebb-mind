@@ -8,7 +8,7 @@ PersonaMem is a preference-tracking benchmark where the system must reason about
 |---|---|---|
 | **v0.1.1 raw, judge = Kimi-K2.5** | **67.6%** QA acc (37q, 3 scenarios) | `eval/reports/personamem/v1/run-1/personamem.md` |
 
-Per-category, strongest on `track_full_preference_evolution` (88.9%), weakest on `recall_user_shared_facts` (40.0%) — i.e. the system tracks *change* better than it remembers individual *facts*. The same verbatim-preservation lever that drove LoCoMo's 90%+ result should help here too.
+Per-category, strongest on `track_full_preference_evolution` (88.9%), weakest on `recall_user_shared_facts` (40.0%) — i.e. the system tracks *change* better than it remembers individual *facts*. The same verbatim-preservation + prod-mirror ingestion lever that takes LoCoMo R@10 to 93.3% should help recall on the weakest category here too; a full PersonaMem rerun under v3 is on the roadmap.
 
 ## Per-competitor comparisons
 

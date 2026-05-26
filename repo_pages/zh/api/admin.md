@@ -90,6 +90,30 @@ curl http://localhost:8321/api/v1/admin/stats
 }
 ```
 
+## 重启服务
+
+重启 OS 托管的 Hebb Mind 服务。接口**立即返回**，真正的重启延迟约 1 秒后由 launchd / systemd / 任务计划程序触发，确保响应能在进程被杀掉之前发出。客户端应轮询 `GET /health` 等待新进程就绪。
+
+```
+POST /api/v1/admin/restart
+```
+
+```bash
+curl -X POST http://localhost:8321/api/v1/admin/restart
+```
+
+响应：
+
+```json
+{
+  "message": "Restart scheduled",
+  "expected_downtime_seconds": 5,
+  "poll": "/health"
+}
+```
+
+如果运行平台不被 service manager 支持（目前支持 macOS、systemd Linux、Windows 任务计划程序），返回 `501 Not Implemented`。Web 控制台在 Embedding 配置 Save 后，如有需要重启的字段会调用此端点。
+
 ## 健康检查
 
 用于监控和负载均衡器的轻量探针。
@@ -107,7 +131,7 @@ curl http://localhost:8321/health
 ```json
 {
   "status": "ok",
-  "version": "0.1.1"
+  "version": "0.1.2"
 }
 ```
 
@@ -127,7 +151,7 @@ curl http://localhost:8321/status
 
 ```json
 {
-  "version": "0.1.1",
+  "version": "0.1.2",
   "scheduler": {
     "running": true,
     "jobs": {

@@ -7,8 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-05-26
+
 ### Added
 
+- **Retrieval: turn-window context expansion.** `POST /api/v1/search` now
+  accepts `prev_turns` and `next_turns` (both default `0`). For memories
+  written with `metadata.session_id` + `metadata.turn`, the searcher
+  surfaces the requested number of adjacent same-session turns in
+  `related`, deduplicated across hits. This is what production Claude
+  Code uses by default (2/2 window) and is responsible for several
+  percentage points of the LoCoMo R@10 number.
+- **Retrieval: date-proximity boost.** New `src/hebb/retrieval/temporal_boost.py`
+  parses absolute (`August 2023`, `7 May 2023`, `in 2022`) and relative
+  (`last week`, `3 days ago`, `yesterday`) date anchors from queries and
+  multiplicatively boosts candidate memories whose `metadata.timestamp`
+  falls inside the tolerance window (up to +40%, decaying past 3×
+  tolerance). Reference for relative phrases is `today` by default.
+- **Retrieval: FTS5 query sanitiser + porter stemming + synonym groups.**
+  New `src/hebb/retrieval/fts_query.py` normalises LLM-generated queries
+  into safe MATCH expressions (strips punctuation, drops stopwords,
+  emits CJK bigrams, expands ~28 deliberately-general English synonym
+  groups: `kid/child`, `buy/purchase`, etc.). `migrations.py` now creates
+  the FTS5 table with `porter unicode61` so morphological variants
+  (`researched` ↔ `research`) match without per-term expansion.
+- **Storage: turn-neighbour fetch.** `MemoryStore.get_turn_neighbors()`
+  on both `SqliteStore` and `PgStore` for the turn-window expansion path.
+- **Claude Code hook: timestamp prefix.** `integrations/claude_code/transcript.py`
+  prepends `[<ISO timestamp>]` to every turn-summary memory so the
+  downstream LLM can resolve relative-time queries from retrieved text
+  alone, not just metadata.
+- **Eval: production-mirror LoCoMo benchmark + session-level R@k.**
+  `eval/benchmarks/locomo_bench.py` ingests via the *same* hook code
+  paths that ship to production (per-utterance + per-turn-pair, no
+  chunking, no image captions) and scores by MemPalace-style session
+  evidence recall. New `eval_version` field on each benchmark class
+  isolates protocol versions in the report tree
+  (`eval/reports/{benchmark}/{eval_version}/run-{N}/`) — no more
+  date-keyed directories.
 - **OS-managed background service is now the only supported way to run
   Hebb Mind.** `hebb service install` registers the server with launchd
   (macOS), systemd (Linux), or Task Scheduler (Windows) and starts it.
@@ -23,6 +59,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Community health files: `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue and pull
   request templates under `.github/`, `CODEOWNERS`, and a `dependabot.yml`
   config covering `pip` and `github-actions`.
+
+### Changed
+
+- **LoCoMo benchmark headline numbers (full 1,978q, session-level R@10):**
+  **93.3% bge-large-1024** / **89.7% MiniLM-384** — at both embedding
+  tiers ~+0.9 pp over MemPalace's published same-embedding pipelines
+  (92.4% / 88.9%). The previously-published 92.7% number was based on a
+  3-scenario / 494q slice and has been retired in favour of these
+  full-coverage figures. Headline runs preserved at
+  `eval/reports/locomo/v3/run-{1,2}/`.
+- `/api/v1/admin/consolidate` now returns per-batch error details on
+  partial failure instead of a single boolean.
+- `POST /api/v1/config` synchronises the live `Settings` singleton so
+  field updates take effect without a server restart, and returns the
+  coerced value.
 
 ### Removed
 
@@ -141,6 +192,7 @@ Initial release.
 - **Multi-model support** — OpenAI, Anthropic, Qwen, GLM, and Kimi via
   LiteLLM.
 
-[Unreleased]: https://github.com/afx-team/hebb-mind/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/afx-team/hebb-mind/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/afx-team/hebb-mind/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/afx-team/hebb-mind/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/afx-team/hebb-mind/releases/tag/v0.1.0

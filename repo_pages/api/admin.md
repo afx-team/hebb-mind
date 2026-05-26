@@ -96,6 +96,32 @@ curl http://localhost:8321/api/v1/admin/stats
 }
 ```
 
+## Restart Service
+
+Restart the OS-managed Hebb Mind service. The endpoint **returns immediately**; the actual restart is dispatched ~1 second later so the HTTP response can flush before launchd / systemd / Task Scheduler kills this process. Clients should then poll `GET /health` until the new process answers.
+
+```
+POST /api/v1/admin/restart
+```
+
+**Example:**
+
+```bash
+curl -X POST http://localhost:8321/api/v1/admin/restart
+```
+
+**Response:**
+
+```json
+{
+  "message": "Restart scheduled",
+  "expected_downtime_seconds": 5,
+  "poll": "/health"
+}
+```
+
+Returns `501 Not Implemented` if the host OS isn't supported by the service manager (only macOS, Linux with systemd, and Windows Task Scheduler are supported today). The Web Console's Embedding Save flow uses this endpoint when a restart-required field has changed.
+
 ## Health Check
 
 Lightweight liveness check for monitoring and load balancers.
@@ -115,7 +141,7 @@ curl http://localhost:8321/health
 ```json
 {
   "status": "ok",
-  "version": "0.1.1"
+  "version": "0.1.2"
 }
 ```
 
@@ -137,7 +163,7 @@ curl http://localhost:8321/status
 
 ```json
 {
-  "version": "0.1.1",
+  "version": "0.1.2",
   "scheduler": {
     "running": true,
     "jobs": {

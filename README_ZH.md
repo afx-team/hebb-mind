@@ -170,7 +170,16 @@ hebb config set pg_url postgresql://user:pass@localhost/hebb
 
 ## 基准测试
 
-TODO: 实验准备中
+LoCoMo（10 段多轮对话、共 1,986 题），按 MemPalace 同口径的 session 级 Recall@10。两组都基于完整的 1,978 道可评分题目（剔除 8 道 evidence 缺失/不可解析的 adversarial 题）。
+
+| 系统 | Embedding | R@10 |
+|---|---|---|
+| **Hebb Mind v0.1.2** | bge-large-1024 | **93.3%** |
+| MemPalace bge-large hybrid | bge-large-1024 | 92.4% |
+| **Hebb Mind v0.1.2** | MiniLM-384 | **89.7%** |
+| MemPalace hybrid v5 | MiniLM-384 | 88.9% |
+
+同 embedding 档位下稳定领先 ~+0.9 pp。Hebb Mind 的评测直接调用与生产同一份 Claude Code hook 代码路径（`integrations/claude_code/{write,stop}.py`）与 `/api/v1/search`，因此上表数字就是用户在生产环境里实际能拿到的数字。完整方法学、分类拆解、benchmark vs production 流水线差异的说明：[hebb-mind.github.io/benchmarks](https://afx-team.github.io/hebb-mind/benchmarks/)。
 
 ## 为什么叫 "Hebb Mind"？
 

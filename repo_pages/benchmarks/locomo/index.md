@@ -33,12 +33,13 @@ The +3.6 pp jump moving from MiniLM-384 to bge-large-1024 is concentrated in `op
 
 Strictly harder than R@10 because the LLM must *produce* the answer, not just retrieve a candidate. Same retrieval pipeline plus a generation prompt + LLM-as-judge with semantic-equivalence rules (`eval/judge.py`).
 
+> **Slice run, not headline.** The QA-mode run below covers 3 of 10 LoCoMo scenarios (497q) and predates the v3 production-mirror pipeline. It is *not* directly comparable to the full-coverage R@10 in section (a) above. A full-coverage QA-mode rerun under v3 is on the roadmap; until then treat (a) as the headline number.
+
 | Hebb Mind config | Score | Source |
 |---|---|---|
-| **v0.1.1 raw + chunking + image captions, judge = Kimi-K2.5** | **90.3%** QA acc (497q, 3 scenarios) | `eval/reports/locomo/v1/run-1/locomo.md` |
-| v0.1.1 consolidated, judge = Kimi-K2.5 | 37.6% QA acc (497q, 3 scenarios) | `eval/reports/locomo/v1/run-baseline/locomo.md` |
+| v0.1.1 raw + chunking + image captions, judge = Kimi-K2.5 | 90.3% QA acc (497q, 3 scenarios) | `eval/reports/locomo/v1/run-1/locomo.md` |
 
-QA accuracy per category (90.3% run): open_ended 92.5, multi_hop 92.2, adversarial 91.1, single_hop 83.8, temporal 81.0. The +52.7 pp jump over the consolidated baseline (37.6% → 90.3%) is hybrid-retrieval-only — no change to the consolidation pipeline; see [the MemPalace benchmark lessons](https://github.com/afx-team/hebb-mind/blob/main/docs/analysis/mempalace-benchmark-deep-dive.md) for the recipe.
+QA accuracy per category (90.3% run): open_ended 92.5, multi_hop 92.2, adversarial 91.1, single_hop 83.8, temporal 81.0. See [the MemPalace benchmark lessons](https://github.com/afx-team/hebb-mind/blob/main/docs/analysis/mempalace-benchmark-deep-dive.md) for the recipe behind the +52.7 pp jump over the earlier consolidated baseline (37.6 → 90.3%).
 
 ## Per-competitor comparisons
 

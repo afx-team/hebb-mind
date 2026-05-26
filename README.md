@@ -170,7 +170,16 @@ REST docs at `http://localhost:8321/docs` once the server is running. Key endpoi
 
 ## Benchmarks
 
-TODO: experiments in preparation.
+LoCoMo (1,986 questions across 10 multi-session conversations), session-level Recall@10 — the same metric MemPalace publishes. Both rows score the full 1,978 questions with parseable evidence.
+
+| System | Embedding | R@10 |
+|---|---|---|
+| **Hebb Mind v0.1.2** | bge-large-1024 | **93.3%** |
+| MemPalace bge-large hybrid | bge-large-1024 | 92.4% |
+| **Hebb Mind v0.1.2** | MiniLM-384 | **89.7%** |
+| MemPalace hybrid v5 | MiniLM-384 | 88.9% |
+
+Same-embedding lead of ~+0.9 pp at both tiers. Hebb Mind's eval calls the same Claude Code hook code paths (`integrations/claude_code/{write,stop}.py`) and `/api/v1/search` endpoint that the shipped product uses — the numbers above are what a user actually gets in production. Full methodology, per-category breakdowns, and prod-vs-eval-pipeline caveats: [hebb-mind.github.io/benchmarks](https://afx-team.github.io/hebb-mind/benchmarks/).
 
 ## Why "Hebb Mind"?
 

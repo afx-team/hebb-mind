@@ -19,6 +19,8 @@ POST /api/v1/search
 | `weight_relevance` | float | No | 1.0 | Weight for relevance scoring |
 | `weight_importance` | float | No | 1.0 | Weight for importance scoring |
 | `weight_recency` | float | No | 1.0 | Weight for recency scoring |
+| `prev_turns` | integer | No | 0 | For memories carrying `metadata.session_id`+`turn`, also surface this many turns *before* each top-k hit from the same session. Returned in `related`. |
+| `next_turns` | integer | No | 0 | Symmetric to `prev_turns`. Together they implement a turn-window expansion that recovers multi-utterance facts (e.g. "I moved from my home country" + "Sweden") without dragging in the whole session. |
 
 ### Basic Search
 
@@ -58,6 +60,23 @@ curl -X POST http://localhost:8321/api/v1/search \
     "weight_recency": 3.0
   }'
 ```
+
+### Conversational Search with Turn Context
+
+When memories are written by the Claude Code Stop hook (per-turn summaries with `metadata.session_id` and `metadata.turn`), expand each hit with adjacent turns from the same session. This is the production setup that drives the LoCoMo R@10 = 93.3% benchmark number — the 2-on-each-side window recovers facts spread across consecutive utterances.
+
+```bash
+curl -X POST http://localhost:8321/api/v1/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "what country did Melanie move from",
+    "top_k": 10,
+    "prev_turns": 2,
+    "next_turns": 2
+  }'
+```
+
+The expanded turns come back in `related`, deduplicated across hits.
 
 ## Response Format
 

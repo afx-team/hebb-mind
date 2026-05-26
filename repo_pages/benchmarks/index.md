@@ -1,6 +1,6 @@
 # Benchmarks
 
-> **Status:** v0.1.1, work in progress. LoCoMo is full-coverage (10/10 scenarios, 1,978q scored); LongMemEval and PersonaMem are still small-sample slices and clearly flagged on their respective pages. Treat the small-sample numbers as smoke, the LoCoMo number as a real baseline we are committing to improve in the open.
+> **Status:** v0.1.2, work in progress. LoCoMo is full-coverage (10/10 scenarios, 1,978q scored, R@10 = 93.3% bge-large / 89.7% MiniLM-384); LongMemEval and PersonaMem are still small-sample slices and clearly flagged on their respective pages. Treat the small-sample numbers as smoke, the LoCoMo number as a real baseline we are committing to improve in the open.
 
 Hebb Mind ships a reproducible eval harness at `eval/` so you (and we) can re-run every number on your own hardware and your own LLM. This page documents what we measure today, what we don't, and how to run it.
 
