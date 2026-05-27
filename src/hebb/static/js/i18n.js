@@ -11,6 +11,7 @@ const translations = {
     'nav.partitions': 'Partitions',
     'nav.graph': 'Graph',
     'nav.settings': 'Settings',
+    'nav.docs': 'Docs',
 
     // Dashboard
     'dashboard.title': 'Dashboard',
@@ -122,6 +123,7 @@ const translations = {
     'nav.partitions': '分区',
     'nav.graph': '图谱',
     'nav.settings': '设置',
+    'nav.docs': '文档',
 
     'dashboard.title': '仪表盘',
     'dashboard.subtitle': '系统概览与快捷操作',

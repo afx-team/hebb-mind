@@ -99,6 +99,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: var(-
 .sidebar.collapsed { width: var(--sidebar-collapsed); min-width: var(--sidebar-collapsed); }
 .sidebar.collapsed .logo-text,
 .sidebar.collapsed .nav-item span,
+.sidebar.collapsed .nav-external-icon,
 .sidebar.collapsed .status-text,
 .sidebar.collapsed .lang-label-text { display: none; }
 .sidebar.collapsed .sidebar-header { justify-content: center; }
@@ -138,6 +139,8 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: var(-
 .nav-item:hover { color: var(--text-primary); background: var(--bg-tertiary); }
 .nav-item.active { color: var(--text-primary); background: var(--bg-tertiary); }
 .nav-item svg { flex-shrink: 0; }
+.nav-item .nav-external-icon { margin-left: auto; opacity: 0.6; }
+.nav-item:hover .nav-external-icon { opacity: 1; }
 
 .sidebar-footer { padding: 10px 12px; border-top: 1px solid var(--border); }
 .sidebar-footer-row { display: flex; align-items: center; justify-content: space-between; }
