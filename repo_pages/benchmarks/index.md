@@ -1,6 +1,6 @@
 # Benchmarks
 
-> **Status:** v0.1.2, work in progress. LoCoMo is full-coverage (10/10 scenarios, 1,978q scored, R@10 = 93.3% bge-large / 89.7% MiniLM-384); LongMemEval and PersonaMem are still small-sample slices and clearly flagged on their respective pages. Treat the small-sample numbers as smoke, the LoCoMo number as a real baseline we are committing to improve in the open.
+> **Status:** v0.1.2, work in progress. LoCoMo, LongMemEval, ConvoMem, and MemBench (noisy/movie) are full-coverage; PersonaMem is still a small-sample slice and clearly flagged on its page. Treat PersonaMem as smoke, the other four as real baselines we are committing to improve in the open.
 
 Hebb Mind ships a reproducible eval harness at `eval/` so you (and we) can re-run every number on your own hardware and your own LLM. This page documents what we measure today, what we don't, and how to run it.
 
@@ -10,14 +10,16 @@ Hebb Mind ships a reproducible eval harness at `eval/` so you (and we) can re-ru
 
 This section is split **dataset first, then per-competitor**. Each dataset has its own folder; inside the folder, the `index` page shows Hebb Mind's own configuration and result, and each `vs-<project>` page covers one same-dataset comparison.
 
-- [LoCoMo](./locomo/) — multi-session conversational QA
+- [LoCoMo](./locomo/) — multi-session conversational QA (session R@k + end-to-end QA)
   - [vs MemPalace](./locomo/vs-mempalace) — same-metric R@10
   - [vs mem0](./locomo/vs-mem0) — TBD (same-harness re-run pending)
   - [vs Letta](./locomo/vs-letta) — TBD
   - [vs Zep](./locomo/vs-zep) — no public LoCoMo number
-- [LongMemEval](./longmemeval/) — long-horizon recall
+- [LongMemEval](./longmemeval/) — long-horizon recall (session R@k)
   - [vs MemPalace](./longmemeval/vs-mempalace) — published R@5
   - [vs Zep / Graphiti](./longmemeval/vs-zep) — published R@5
+- [ConvoMem](./convomem/) — 6-category evidence retrieval (end-to-end QA judge)
+- [MemBench](./membench/) — turn-level retrieval, noisy/movie slice (Hit@k)
 - [PersonaMem](./personamem/) — preference tracking; few public comparisons yet
 
 ## What gets measured
@@ -37,19 +39,29 @@ flowchart LR
     P3[PersonaMem<br/>preference tracking]:::probe -.probes.-> C
 ```
 
-LoCoMo and LongMemEval probe the *retrieval + answering* stage; PersonaMem stresses *consolidation* (does the right preference survive a rewrite?). All three use an LLM judge for correctness, so absolute numbers move with the judge model — we record it in every report.
+LoCoMo, LongMemEval, ConvoMem, and MemBench probe the *retrieval + answering* stage; PersonaMem stresses *consolidation* (does the right preference survive a rewrite?). Where we use an LLM judge, absolute numbers move with the judge model — we record it in every report.
 
 ## How we score
 
-Every benchmark uses one of two scoring modes:
+Picking the right metric per dataset matters more than picking one metric for everything. We use three scoring modes, **one per dataset**, chosen to match what the dataset's ground truth actually looks like:
 
-- **QA accuracy** (default) — for each question, the harness retrieves `top_k` memories (default 10), asks the judge LLM to generate an answer using only those memories, then asks the same judge to compare the answer against the ground truth. `is_correct ∈ {0, 1}`. Accuracy is the mean.
-- **Session-level Recall@k** (LoCoMo prod-mirror only) — no LLM at scoring time. Each question's `evidence` field is parsed into a set of session_ids; the question counts as correct iff any of those session_ids appears in the `metadata.session_id` of any top-k retrieved memory (or its prev/next-turn neighbours). Directly comparable to MemPalace's published R@k. `avg_recall_at_k` reports the mean fraction of evidence sessions actually surfaced per question.
-- **Avg latency** — wall-clock time from query submission to retrieval completion, in milliseconds. Excludes judge time.
-- **avg_top1_relevance** — mean of the `relevance_score` field returned by `/api/v1/search` for the top result. A weak proxy for retrieval quality; treat as directional, not absolute.
-- **Accuracy by category** — per the dataset's own taxonomy (`multi_hop`, `temporal`, etc.).
+| Dataset | Metric | Why this metric |
+|---|---|---|
+| [LoCoMo](./locomo/) | (a) **Session R@k** + (b) **End-to-end QA** | Evidence is session-tagged (`evidence: ["D1:3", ...]`) → R@k is the dataset's native signal. QA mode answers "did the system convert that retrieval into a usable answer?". |
+| [LongMemEval](./longmemeval/) | **Session R@k** | Ground truth is `answer_session_ids` — a clean set of session ids. R@k is exactly what the dataset's authors intended; an LLM judge would add noise without measuring anything different about retrieval. |
+| [ConvoMem](./convomem/) | **End-to-end QA judge** | Ground truth is a free-text answer. The dataset's published substring-match-on-evidence metric is a noisy proxy that punishes any normalisation; we deliberately do NOT report it. See [the ConvoMem page](./convomem/#how-we-evaluate) for the full rationale. |
+| [MemBench](./membench/) | **Turn-level Hit@k** | Ground truth is a turn-index pointer (`target_step_id`). The questions are 4-choice multiple choice → an LLM judge would score 25 % from random guessing alone, conflating retrieval failure with generation luck. |
+| [PersonaMem](./personamem/) | **End-to-end QA judge** | Ground truth is a free-text rewrite of an evolving preference; no clean retrieval-level identifier to match against. |
 
-The judge prompt and parser live in `eval/judge.py`. Both `temperature` and `top_p` are recorded in every report's config block, so a reviewer can recompute determinism bounds.
+Definitions:
+
+- **Session R@k / Hit@k** — no LLM at scoring time. The question counts as correct iff at least one ground-truth identifier (session id or turn id) appears in the retrieved set's metadata. We also report NDCG@k where the dataset's authors do.
+- **End-to-end QA** — retrieve top-k → judge LLM generates an answer using only those memories → same LLM judges the answer against the ground truth using the semantic-equivalence rules in `eval/judge.py`. `is_correct ∈ {0, 1}`. Accuracy is the mean.
+- **Avg latency** — wall-clock retrieval time; excludes judge time.
+- **avg_top1_relevance** — mean of `relevance_score` from `/api/v1/search` for the top result; directional only.
+- **Accuracy by category** — per the dataset's own taxonomy.
+
+Both `temperature` and `top_p` are recorded in every report's config block, so a reviewer can recompute determinism bounds.
 
 ## How to reproduce
 
@@ -88,8 +100,8 @@ The runner cleans the database between benchmarks so results are independent. It
 ## Honest gaps
 
 - We do **not** publish first-party comparisons against mem0 / Letta / Zep yet. Their harnesses, judges, and scenario counts differ; a fair head-to-head requires re-running each system through *the same* harness, which is on the roadmap.
-- The LongMemEval slice currently published is 3 questions. Treat as smoke, not signal.
-- The judge is `openai/Kimi-K2.5` for the published numbers; switching judges shifts absolute accuracy by several points. Always disclose the judge.
+- The judge is `openai/Kimi-K2.5` for our QA-mode numbers; switching judges shifts absolute accuracy by several points. Always disclose the judge.
 - Embedding model dimension (384 vs 1024) is a known confounder — the [mempalace deep-dive](https://github.com/afx-team/hebb-mind/blob/main/docs/analysis/mempalace-benchmark-deep-dive.md) shows ~16 pp swings on LoCoMo single-hop. We default `setup` to BGE; the harness inherits whatever your `hebb.json` specifies.
+- We deliberately do not chase MemPalace's ConvoMem substring-match number. See [the ConvoMem page](./convomem/#how-we-evaluate) for why.
 
 If you reproduce on different hardware / a different judge / a larger sample, please open a PR adding a row to the relevant page — that's the fastest way to make these numbers trustworthy.
