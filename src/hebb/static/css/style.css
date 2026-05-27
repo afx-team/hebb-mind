@@ -170,6 +170,38 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: var(-
 }
 .page-content { max-width: 1200px; margin: 0 auto; padding: 32px 40px; }
 
+/* Upgrade banner — sits above .page-content inside .main */
+.upgrade-banner {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  padding: 10px 24px;
+  font-size: 13px;
+}
+.upgrade-banner.hidden { display: none; }
+.upgrade-banner-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.upgrade-banner-icon { font-size: 16px; }
+.upgrade-banner-text { flex: 1; display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.upgrade-banner-text strong { font-weight: 600; }
+.upgrade-banner-current { color: var(--text-secondary); font-size: 12px; }
+.upgrade-banner-actions { display: flex; gap: 6px; align-items: center; }
+.upgrade-banner .btn-link {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 6px;
+}
+.upgrade-banner .btn-link:hover { color: var(--text-primary); }
+
 .page-header {
   margin-bottom: 28px;
 }

@@ -95,7 +95,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    from hebb.server.routers import admin, config, graph, health, memories, partitions, search
+    from hebb.server.routers import admin, config, graph, health, memories, partitions, search, upgrade
 
     app.include_router(health.router, tags=["health"])
     app.include_router(partitions.router, prefix="/api/v1", tags=["partitions"])
@@ -104,6 +104,7 @@ def create_app() -> FastAPI:
     app.include_router(graph.router, prefix="/api/v1", tags=["graph"])
     app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
     app.include_router(config.router, prefix="/api/v1/admin", tags=["config"])
+    app.include_router(upgrade.router, prefix="/api/v1/admin/upgrade", tags=["upgrade"])
 
     # Mount static web console (after API routers so they take precedence)
     static_dir = Path(__file__).resolve().parent.parent / "static"

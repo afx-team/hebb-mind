@@ -70,3 +70,7 @@ export const testEmbedding = (provider, model, base_url, api_key) => request('PO
 export const getTestEmbeddingStatus = (task_id) => request('GET', `/api/v1/admin/config/test-embedding/status/${task_id}`);
 export const getEmbeddingStatus = () => request('GET', '/api/v1/admin/config/embedding-status');
 export const revealConfigValue = (key) => request('GET', `/api/v1/admin/config/reveal/${key}`);
+
+/* Upgrade */
+export const getUpgradeState = () => request('GET', '/api/v1/admin/upgrade');
+export const forceUpgradeCheck = () => request('POST', '/api/v1/admin/upgrade/check');

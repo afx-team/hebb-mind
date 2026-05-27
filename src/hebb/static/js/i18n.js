@@ -98,6 +98,15 @@ const translations = {
     'settings.failed': 'Connection failed',
     'settings.restart_required': 'restart required',
 
+    // Upgrade
+    'upgrade.available': 'Hebb Mind {latest} is available',
+    'upgrade.current': 'Currently running {current}',
+    'upgrade.apply': 'Upgrade now',
+    'upgrade.apply_disabled_tooltip': 'Coming in the next release',
+    'upgrade.skip': 'Skip this version',
+    'upgrade.later': 'Later',
+    'upgrade.skipped': 'Hidden until a newer version appears',
+
     // Common
     'common.save': 'Save',
     'common.cancel': 'Cancel',
@@ -193,6 +202,14 @@ const translations = {
     'settings.success': '连接成功',
     'settings.failed': '连接失败',
     'settings.restart_required': '需重启',
+
+    'upgrade.available': 'Hebb Mind {latest} 可用',
+    'upgrade.current': '当前 {current}',
+    'upgrade.apply': '立即升级',
+    'upgrade.apply_disabled_tooltip': '将在后续版本中提供',
+    'upgrade.skip': '跳过此版本',
+    'upgrade.later': '稍后',
+    'upgrade.skipped': '已隐藏，新版本出现时再提示',
 
     'common.save': '保存',
     'common.cancel': '取消',
