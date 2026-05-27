@@ -215,3 +215,47 @@ systems under test are not symmetric.
 - **No comparison against MemPalace's dev-tuned ceiling numbers** (e.g.
   the LME `hybrid_v4` 100 % on 50 hand-picked questions). Their
   full-set numbers are what we beat.
+- **No ConvoMem substring-match recall in the public docs.** That
+  metric punishes any text normalisation in production ingest and
+  conflates retrieval with reformatting; it does not measure what
+  users care about. ConvoMem is reported as end-to-end QA accuracy
+  via the judge. See ``repo_pages/benchmarks/convomem/index.md``
+  "How we evaluate" for the rationale.
+
+## Eval-method choice per dataset
+
+One metric per dataset, picked from the shape of the dataset's ground
+truth — not a uniform metric forced across all datasets.
+
+| Dataset | Ground truth shape | Metric |
+|---|---|---|
+| LoCoMo      | session-tagged evidence + free-text answer | (a) session R@k + (b) end-to-end QA |
+| LongMemEval | `answer_session_ids` (clean id set)        | session R@k (no judge) |
+| ConvoMem    | free-text answer (substring is too noisy)  | end-to-end QA judge |
+| MemBench    | `target_step_id` integer pointer; MCQ      | turn-level Hit@k (no judge — MCQ would inflate via guessing) |
+| PersonaMem  | free-text answer with consolidated rewrite | end-to-end QA judge |
+
+Public-doc rule: never report a metric that doesn't measure what
+users care about for a given dataset, even if the dataset's authors
+report it.
+
+## Chinese-language coverage in the retrieval hacks
+
+`lexical_signals.py` and `preference_extractor.py` now accept Chinese
+input alongside English:
+
+- Predicate keywords: CJK character bigrams (zero-dep jieba
+  approximation) joined with English word tokens
+- Quoted phrases: 「」 『』 "" '' ASCII '' "" all recognised
+- Person names: 2-3 char CJK runs prefixed by one of the top-100
+  Chinese surnames (~85 % census coverage); arbitrary CJK vocabulary
+  is NOT misclassified as a name
+- PREF_PATTERNS: 21 English + 14 Chinese patterns
+  (我喜欢/我打算/我担心/我最近/我以前/小时候/等)
+- Assistant-reference triggers: English + Chinese
+  (你之前说/你建议/你推荐/我们讨论过/等)
+
+We don't yet have a public Chinese conversational benchmark to tune
+against — patterns were authored by surveying common openers in
+Chinese personal-memory contexts. Expect refinement once a Chinese
+dataset lands.

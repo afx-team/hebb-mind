@@ -41,6 +41,10 @@ from eval.datasets.base import EvalQuestion, EvalScenario
 from eval.judge import LLMJudge
 from eval.metrics.accuracy import compute_accuracy_by_category
 from eval.metrics.retrieval import ndcg_at_k, recall_at_k
+from hebb.retrieval.preference_extractor import (
+    extract_preferences,
+    synthesize_preference_memory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +134,24 @@ class LongMemEvalBenchmark(BaseBenchmark):
                     "metadata": metadata,
                     "source": "hook",
                 })
+
+                # Mirror integrations/claude_code/write.py: emit one
+                # short synthetic memory per preference / concern /
+                # nostalgia phrase the utterance contains. Lifts
+                # query→corpus vocabulary overlap on the
+                # single-session-preference and temporal-reasoning
+                # categories.
+                for phrase in extract_preferences(content):
+                    pref_metadata = dict(metadata)
+                    pref_metadata["synthetic"] = True
+                    batch.append({
+                        "content": synthesize_preference_memory(phrase)[:10000],
+                        "partition_id": scenario.scenario_id,
+                        "importance_score": 4.0,
+                        "tags": ["user-prompt", "preference", "hook"],
+                        "metadata": pref_metadata,
+                        "source": "hook:preference",
+                    })
 
                 if len(batch) >= self.settings.batch_size:
                     await client.create_memories_batch(batch)
@@ -361,6 +383,95 @@ class LongMemEvalBenchmark(BaseBenchmark):
                 "num_scenarios": len(scenarios),
                 "no_evidence_excluded": len(results) - len(scorable_results),
             },
+        )
+
+
+class LongMemEvalSessionDocBenchmark(LongMemEvalBenchmark):
+    """Session-doc ingest variant — one memory per haystack session.
+
+    Isolates *ingest granularity* as a variable so the gap vs MemPalace's
+    published R@5 (96.6% raw / 98.4% hybrid v2 on MiniLM-384) can be
+    attributed to embedding model + lexical hybrid rather than the prod
+    hook's per-utterance ingest. Inherits ``run()`` unchanged — scoring is
+    still session-level R@k against ``answer_session_ids``.
+
+    Trade-offs vs the parent v2 bench:
+      * MemoryCreate caps content at 10000 chars; ~50% of LongMemEval
+        sessions exceed that. We truncate; bge-large's 512-token (~2000
+        char) embedding cap is the real bottleneck anyway, and MemPalace
+        on MiniLM-384 hits the same ceiling.
+      * ``prev_turns`` / ``next_turns`` set to 0 — each memory IS a whole
+        session, so neighbour expansion would just pull in adjacent
+        sessions and inflate top-k.
+    """
+
+    benchmark_name = "longmemeval-session"
+    dataset_name = "LongMemEval (session-doc ingest)"
+    eval_version = "v1"
+
+    prev_turns = 0
+    next_turns = 0
+
+    async def setup(
+        self, client: HebbClient, scenarios: list[EvalScenario]
+    ) -> None:
+        """One verbatim doc per session, partition-isolated per question."""
+        total = 0
+        for scenario in scenarios:
+            await _ensure_partition(client, scenario.scenario_id)
+
+            sessions_by_id: dict[str, list] = {}
+            for turn in scenario.conversations:
+                if turn.session_id is None:
+                    continue
+                sessions_by_id.setdefault(str(turn.session_id), []).append(turn)
+
+            batch: list[dict] = []
+            for session_id, turns in sessions_by_id.items():
+                turns = sorted(
+                    turns,
+                    key=lambda t: t.turn_index if t.turn_index is not None else 0,
+                )
+
+                timestamp = next((t.timestamp for t in turns if t.timestamp), None)
+
+                lines: list[str] = []
+                if timestamp:
+                    lines.append(f"[{timestamp}]")
+                for t in turns:
+                    content = (t.content or "").strip()
+                    if not content:
+                        continue
+                    lines.append(f"[{t.role}] {content}")
+                doc = "\n".join(lines)
+                if len(doc) < _MIN_CONTENT_LEN:
+                    continue
+
+                metadata: dict = {"session_id": session_id}
+                if timestamp:
+                    metadata["timestamp"] = timestamp
+
+                batch.append({
+                    "content": doc[:10000],
+                    "partition_id": scenario.scenario_id,
+                    "importance_score": 5.0,
+                    "tags": ["session-doc"],
+                    "metadata": metadata,
+                    "source": "session-doc",
+                })
+
+                if len(batch) >= self.settings.batch_size:
+                    await client.create_memories_batch(batch)
+                    total += len(batch)
+                    batch.clear()
+
+            if batch:
+                await client.create_memories_batch(batch)
+                total += len(batch)
+
+        logger.info(
+            "Ingested %d session-doc memories across %d per-scenario partitions",
+            total, len(scenarios),
         )
 
 

@@ -166,7 +166,8 @@ def _mock_search(memory_texts: list[str]) -> dict:
 
 
 @pytest.mark.asyncio
-async def test_convomem_bench_per_category_aggregation() -> None:
+async def test_convomem_bench_uses_llm_judge_per_question() -> None:
+    """The bench drives an end-to-end QA loop, not substring matching."""
     scenarios = [
         _scenario("user_evidence", ["fact A"]),
         _scenario("user_evidence", ["fact B"]),
@@ -176,34 +177,46 @@ async def test_convomem_bench_per_category_aggregation() -> None:
     bench = ConvoMemBenchmark(settings)
 
     client = AsyncMock()
+    client.search = AsyncMock(return_value=_mock_search(["any retrieved content"]))
 
-    # First two questions: 'fact A' is retrieved, 'fact B' isn't, 'fact C' is.
-    responses = [
-        _mock_search(["I know fact A clearly"]),
-        _mock_search(["unrelated content"]),
-        _mock_search(["fact C is here"]),
-    ]
-    client.search = AsyncMock(side_effect=responses)
+    # Judge returns 2 of 3 correct.
+    judge = AsyncMock()
+    judge.generate_answer = AsyncMock(
+        side_effect=["answer for A", "answer for B", "answer for C"]
+    )
+    judge.judge_correctness = AsyncMock(
+        side_effect=[(True, 0.9), (False, 0.2), (True, 0.95)]
+    )
 
-    result = await bench.run(client, scenarios, judge=None)  # type: ignore[arg-type]
+    result = await bench.run(client, scenarios, judge)
 
     assert result.total_questions == 3
     assert result.correct == 2
-    # 1 of 2 user_evidence perfect, full preference_evidence perfect
-    assert result.accuracy_by_category["user_evidence"] == 0.5
-    assert result.accuracy_by_category["preference_evidence"] == 1.0
-    # Mean recall = (1 + 0 + 1) / 3
-    assert pytest.approx(result.retrieval_metrics["avg_evidence_recall"], rel=1e-3) == 2 / 3
-    assert result.retrieval_metrics["zero_recall_rate"] == pytest.approx(1 / 3, rel=1e-3)
+    # Per-category aggregation reflects judge verdicts
+    assert result.accuracy_by_category["user_evidence"] == 0.5  # 1/2
+    assert result.accuracy_by_category["preference_evidence"] == 1.0  # 1/1
+    # The judge was called once per question
+    assert judge.generate_answer.call_count == 3
+    assert judge.judge_correctness.call_count == 3
+    # Generated answers reach individual_results
+    answers = sorted(r.generated_answer for r in result.individual_results)
+    assert answers == ["answer for A", "answer for B", "answer for C"]
 
 
 @pytest.mark.asyncio
-async def test_convomem_bench_reports_metric_config() -> None:
+async def test_convomem_bench_reports_qa_metric_config() -> None:
     settings = EvalSettings(search_top_k=10, concurrency=1)
     bench = ConvoMemBenchmark(settings)
     client = AsyncMock()
     client.search = AsyncMock(return_value=_mock_search([]))
+    judge = AsyncMock()
+    judge.generate_answer = AsyncMock(return_value="x")
+    judge.judge_correctness = AsyncMock(return_value=(True, 1.0))
 
-    result = await bench.run(client, [_scenario("user_evidence", ["x"])], judge=None)  # type: ignore[arg-type]
-    assert result.config["metric"] == "substring_evidence_recall"
+    result = await bench.run(client, [_scenario("user_evidence", ["x"])], judge)
+    assert result.config["metric"] == "end_to_end_qa_llm_judge"
+    assert result.config["judge_used"] is True
     assert result.config["mode"] == "raw_per_message"
+    # avg_evidence_recall is no longer reported — substring metric retired
+    assert "avg_evidence_recall" not in result.retrieval_metrics
+    assert "avg_judge_confidence" in result.retrieval_metrics

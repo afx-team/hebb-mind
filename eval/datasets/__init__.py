@@ -13,6 +13,9 @@ ADAPTERS: dict[str, type] = {
     # different scorer over the same retrieval pipeline.
     "locomo-qa": LoCoMoAdapter,
     "longmemeval": LongMemEvalAdapter,
+    # Session-doc variant reuses the same dataset; only the bench's
+    # ingest strategy differs.
+    "longmemeval-session": LongMemEvalAdapter,
     "convomem": ConvoMemAdapter,
     "membench": MemBenchAdapter,
     "personamem": PersonaMemAdapter,
