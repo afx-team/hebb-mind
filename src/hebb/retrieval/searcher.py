@@ -8,7 +8,9 @@ from datetime import datetime, timezone
 from hebb.embedding.base import EmbeddingProvider
 from hebb.graph.knowledge_graph import KnowledgeGraph
 from hebb.models.memory import Memory, MemoryQuery, MemorySearchResult, SearchResponse
+from hebb.retrieval.lexical_signals import extract_query_signals, lexical_boost
 from hebb.retrieval.query_sanitizer import sanitize_query
+from hebb.retrieval.rerank import Reranker
 from hebb.retrieval.scorer import (
     compute_composite_score,
     compute_importance_score,
@@ -36,10 +38,12 @@ class MemorySearcher:
         store: MemoryStore,
         embedder: EmbeddingProvider,
         graph: KnowledgeGraph | None = None,
+        reranker: Reranker | None = None,
     ) -> None:
         self.store = store
         self.embedder = embedder
         self.graph = graph
+        self.reranker = reranker
 
     async def search(self, query: MemoryQuery) -> SearchResponse:
         # Sanitize LLM-generated queries (XML tags, tool artifacts, etc.)
@@ -49,7 +53,11 @@ class MemorySearcher:
 
         now = datetime.now(timezone.utc)
         # Overfetch generously so RRF has long ranked lists to merge across.
-        overfetch = max(query.top_k * 6, 30)
+        # When rerank is enabled, ensure the candidate pool is at least as
+        # deep as what rerank scores — otherwise rerank can't recover an
+        # answer that never made it past the recall phase.
+        rerank_top_n = self.reranker.top_n if self.reranker is not None else 0
+        overfetch = max(query.top_k * 6, rerank_top_n, 30)
 
         # === Phase 1: Three-path parallel recall ===
         vec_results, kw_results, graph_results = await asyncio.gather(
@@ -69,6 +77,13 @@ class MemorySearcher:
         # below. Reference for relative phrases is "today" — for
         # historical replay we trust the absolute anchors only.
         query_dates = parse_query_dates(query.query, reference=now.date())
+
+        # Extract lexical re-ranking signals once per search — predicate
+        # keywords, quoted phrases, person names. Used to multiplicatively
+        # lift candidates that share these surface tokens with the query.
+        # Cheap (regex only) but skipped when the query has no extractable
+        # signals to keep the fast path tight.
+        query_signals = extract_query_signals(query.query)
 
         # Tag filter + composite scoring
         results: list[MemorySearchResult] = []
@@ -98,6 +113,16 @@ class MemorySearcher:
                 if boost > 0:
                     score = min(1.0, score * (1.0 + boost))
 
+            # Lexical surface boost: predicate-keyword / quoted-phrase /
+            # person-name overlap. Multiplier sits in [1.0, ~2.3]. We
+            # do NOT cap at 1.0 here — capping would collapse the
+            # differentiation between two near-top candidates and lose
+            # the ranking signal the boost is trying to inject. The
+            # final sort cares about relative ordering, not absolute
+            # range.
+            if not query_signals.is_empty:
+                score = score * lexical_boost(query_signals, memory.content)
+
             results.append(
                 MemorySearchResult(
                     memory=memory,
@@ -109,6 +134,24 @@ class MemorySearcher:
             )
 
         results.sort(key=lambda r: r.score, reverse=True)
+
+        # === Phase 1.6: cross-encoder rerank (optional) ===
+        # Re-score the top-N composite candidates with a cross-encoder
+        # that reads (query, content) jointly. Cross-attention catches
+        # semantic matches that vector + lexical can't (e.g. "upgrade
+        # camera flash" ↔ "suggest accessories"). Skipped entirely when
+        # self.reranker is None — that branch is indistinguishable from
+        # the pre-rerank code path.
+        if self.reranker is not None and results:
+            pool = results[: self.reranker.top_n]
+            tail = results[self.reranker.top_n :]
+            rerank_scores = await self.reranker.score(query.query, [r.memory.content for r in pool])
+            for r, s in zip(pool, rerank_scores, strict=False):
+                r.score = float(s)
+                r.relevance_score = float(s)
+            pool.sort(key=lambda r: r.score, reverse=True)
+            results = pool + tail
+
         top_results = results[: query.top_k]
         top_ids = {r.memory.id for r in top_results}
 
