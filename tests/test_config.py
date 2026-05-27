@@ -182,7 +182,7 @@ class TestConfigLoader:
         config_path = default_home / "hebb.json"
         config_path.write_text("{}")
         monkeypatch.delenv("HEBB_HOME", raising=False)
-        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
 
         empty_dir = tmp_path / "empty"
         empty_dir.mkdir()

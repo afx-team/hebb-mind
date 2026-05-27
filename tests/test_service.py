@@ -61,6 +61,7 @@ def test_get_manager_unsupported_platform_raises(monkeypatch: pytest.MonkeyPatch
 def test_launchd_install_writes_plist_and_bootstraps(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     plist_path = tmp_path / "com.hebb.server.plist"
     monkeypatch.setattr(service_manager, "_launchd_path", lambda scope: plist_path)
+    monkeypatch.setattr(service_manager, "_launchd_domain", lambda scope: "gui/501")
     monkeypatch.setattr(service_manager, "hebb_command", lambda: ["/usr/local/bin/hebb"])
     monkeypatch.setattr(service_manager, "workspace_dir", lambda: str(tmp_path))
 
@@ -94,6 +95,7 @@ def test_launchd_install_writes_plist_and_bootstraps(tmp_path: Path, monkeypatch
 def test_launchd_install_raises_when_bootstrap_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     plist_path = tmp_path / "com.hebb.server.plist"
     monkeypatch.setattr(service_manager, "_launchd_path", lambda scope: plist_path)
+    monkeypatch.setattr(service_manager, "_launchd_domain", lambda scope: "gui/501")
     monkeypatch.setattr(service_manager, "hebb_command", lambda: ["/usr/local/bin/hebb"])
     monkeypatch.setattr(service_manager, "workspace_dir", lambda: str(tmp_path))
     monkeypatch.setattr(

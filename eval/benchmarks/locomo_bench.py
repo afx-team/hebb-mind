@@ -56,7 +56,10 @@ class LoComoBenchmark(BaseBenchmark):
     # v1: sliding-window chunk ingest, end-to-end QA + LLM judge.
     # v2: production-hook mirror (per-utterance + per-pair), containment recall.
     # v3: same ingest, MemPalace-style session-level evidence Recall@k.
-    eval_version = "v3"
+    # v4: v3 retrieval + concurrently run LLM-judge end-to-end QA (both
+    #     metrics in one pass — R@k headline accuracy, QA acc in
+    #     retrieval_metrics["qa_accuracy"]).
+    eval_version = "v4"
 
     # Symmetric turn-context window forwarded to /api/v1/search. Two
     # neighbours on each side recovers most multi-utterance facts (e.g.
@@ -172,7 +175,7 @@ class LoComoBenchmark(BaseBenchmark):
         )
 
     # ------------------------------------------------------------------
-    # Containment-recall evaluation — no LLM gen, no LLM judge
+    # v4 evaluation: session-level R@k headline + end-to-end QA (judge)
     # ------------------------------------------------------------------
 
     async def run(
@@ -181,10 +184,19 @@ class LoComoBenchmark(BaseBenchmark):
         scenarios: list[EvalScenario],
         judge: LLMJudge,
     ) -> BenchmarkResult:
-        """Retrieve top-k and score each question by ground-truth containment.
+        """Retrieve top-k, then score in two ways from the same retrieval:
 
-        Skips the entire LLM generate-+-judge pipeline. ``judge`` is
-        accepted only to satisfy the ``Benchmark`` protocol.
+        1. **Session-level Recall@k** (MemPalace-equivalent) — set on
+           ``is_correct`` so it remains the headline accuracy. Adversarial
+           questions with no parseable evidence are excluded by the caller.
+        2. **End-to-end QA accuracy** — run ``judge.generate_answer`` on
+           the retrieved contents and ``judge.judge_correctness`` against
+           the ground truth, recorded on ``RetrievalResult.generated_answer``
+           and aggregated into ``retrieval_metrics["qa_accuracy"]``.
+
+        Both metrics share the same retrieval pipeline so the only thing
+        moving between them is the post-retrieval task (set intersection
+        vs. answer generation).
         """
         sem = asyncio.Semaphore(self.settings.concurrency)
 
@@ -202,12 +214,8 @@ class LoComoBenchmark(BaseBenchmark):
                 )
                 results_list = raw.get("results", raw) if isinstance(raw, dict) else raw
                 related_list: list[dict] = raw.get("related", []) if isinstance(raw, dict) else []
-                latency_ms = (time.monotonic() - t0) * 1000
+                retrieval_latency_ms = (time.monotonic() - t0) * 1000
 
-                # Collect retrieved memory contents (for debugging) AND
-                # the set of session_ids those memories carry — the
-                # MemPalace-equivalent metric is "did any session that
-                # contains evidence appear among retrieved memories?".
                 memory_contents: list[str] = []
                 retrieved_sessions: set[str] = set()
 
@@ -222,32 +230,56 @@ class LoComoBenchmark(BaseBenchmark):
                 for r in results_list:
                     _absorb(r.get("memory", {}))
                 for r in related_list:
-                    # related items are bare Memory dicts, not wrapped in
-                    # {"memory": ...}.
                     _absorb(r)
 
                 relevance_scores = [r.get("relevance_score", 0.0) for r in results_list]
-
                 is_correct, confidence = _evidence_recall(q.evidence, retrieved_sessions)
-                return RetrievalResult(
+
+                # End-to-end QA: generate answer from retrieved context,
+                # then judge against ground truth. Both calls share the
+                # search semaphore so judge concurrency stays bounded by
+                # ``settings.concurrency``.
+                generated = ""
+                qa_correct = False
+                try:
+                    generated = await judge.generate_answer(q.question, memory_contents)
+                    qa_correct, _qa_conf = await judge.judge_correctness(
+                        q.question, q.ground_truth, generated
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "QA judge failed for %s: %s — treating as incorrect",
+                        q.question_id, e,
+                    )
+
+                total_latency_ms = (time.monotonic() - t0) * 1000
+
+                result = RetrievalResult(
                     question_id=q.question_id,
                     question=q.question,
                     ground_truth=q.ground_truth,
                     category=q.category,
                     retrieved_memories=memory_contents,
-                    generated_answer="",
+                    generated_answer=generated,
                     is_correct=is_correct,
                     confidence=confidence,
                     relevance_scores=relevance_scores,
-                    latency_ms=latency_ms,
+                    latency_ms=total_latency_ms,
                 )
+                # Stash retrieval-only latency + QA verdict in confidence
+                # adjacent fields via a side channel — the dataclass is
+                # frozen-flat so we tack the QA result onto the object as
+                # a regular attribute the aggregator picks up below.
+                result.qa_correct = qa_correct  # type: ignore[attr-defined]
+                result.retrieval_latency_ms = retrieval_latency_ms  # type: ignore[attr-defined]
+                return result
 
         tasks: list = []
         for scenario in scenarios:
             for q in scenario.questions:
                 tasks.append(evaluate(q))
 
-        logger.info("Evaluating %d questions by session-level evidence recall...", len(tasks))
+        logger.info("Evaluating %d questions (R@k + end-to-end QA)...", len(tasks))
         results: list[RetrievalResult] = await asyncio.gather(*tasks)
 
         # Index by question_id for evidence lookup.
@@ -275,6 +307,35 @@ class LoComoBenchmark(BaseBenchmark):
         avg_latency = (
             sum(r.latency_ms for r in results) / len(results) if results else 0.0
         )
+        avg_retrieval_latency = (
+            sum(getattr(r, "retrieval_latency_ms", r.latency_ms) for r in results)
+            / len(results) if results else 0.0
+        )
+
+        # End-to-end QA accuracy is computed on the same scorable set so
+        # the two metrics share a denominator. Per-category QA accuracy
+        # uses a shadow list of "QA-correct" RetrievalResults so we can
+        # reuse compute_accuracy_by_category without changing its signature.
+        qa_correct_count = sum(
+            1 for r in scorable if getattr(r, "qa_correct", False)
+        )
+        qa_accuracy = (qa_correct_count / len(scorable)) if scorable else 0.0
+        qa_shadow = [
+            RetrievalResult(
+                question_id=r.question_id,
+                question=r.question,
+                ground_truth=r.ground_truth,
+                category=r.category,
+                retrieved_memories=[],
+                generated_answer=r.generated_answer,
+                is_correct=getattr(r, "qa_correct", False),
+                confidence=1.0 if getattr(r, "qa_correct", False) else 0.0,
+                relevance_scores=[],
+                latency_ms=r.latency_ms,
+            )
+            for r in scorable
+        ]
+        qa_by_category = compute_accuracy_by_category(qa_shadow)
 
         return BenchmarkResult(
             benchmark_name=self.benchmark_name,
@@ -296,18 +357,41 @@ class LoComoBenchmark(BaseBenchmark):
                 # evidence sessions surfaced per question. Equivalent to
                 # confidence averaged over scorable questions.
                 "avg_recall_at_k": avg_recall,
+                "qa_accuracy": qa_accuracy,
+                "qa_correct": float(qa_correct_count),
+                "qa_accuracy_open_ended": qa_by_category.get(
+                    "open_ended", {}
+                ).get("accuracy", 0.0),
+                "qa_accuracy_multi_hop": qa_by_category.get(
+                    "multi_hop", {}
+                ).get("accuracy", 0.0),
+                "qa_accuracy_single_hop": qa_by_category.get(
+                    "single_hop", {}
+                ).get("accuracy", 0.0),
+                "qa_accuracy_temporal": qa_by_category.get(
+                    "temporal", {}
+                ).get("accuracy", 0.0),
+                "qa_accuracy_adversarial": qa_by_category.get(
+                    "adversarial", {}
+                ).get("accuracy", 0.0),
+                "avg_retrieval_latency_ms": avg_retrieval_latency,
                 "no_evidence_excluded": len(results) - len(scorable),
             },
             individual_results=results,
             config={
                 "eval_version": self.eval_version,
                 "mode": "raw_production_mirror",
-                "metric": "session_evidence_recall",
+                "metric": "session_evidence_recall+end_to_end_qa",
                 "search_top_k": self.settings.search_top_k,
                 "concurrency": self.settings.concurrency,
                 "weight_recency": self.settings.weight_recency,
                 "weight_importance": self.settings.weight_importance,
                 "weight_relevance": self.settings.weight_relevance,
+                "prev_turns": self.prev_turns,
+                "next_turns": self.next_turns,
+                "llm_model": self.settings.llm_model,
+                "llm_thinking": self.settings.llm_thinking,
+                "llm_temperature": self.settings.llm_temperature,
                 "num_scenarios": len(scenarios),
                 "adversarial_excluded": len(results) - len(scorable),
             },
