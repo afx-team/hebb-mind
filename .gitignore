@@ -39,6 +39,7 @@ Thumbs.db
 *.log
 
 .claude/memory-bank.json
+.claude/scheduled_tasks.lock
 knowledge_graph.json
 
 # VitePress docs
