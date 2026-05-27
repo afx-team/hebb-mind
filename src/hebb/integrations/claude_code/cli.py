@@ -1,4 +1,4 @@
-"""Claude Code CLI subgroup: hebb claude-code {install|uninstall|recall|write|stop}."""
+"""Claude Code CLI subgroup: hebb claude-code {install|uninstall|recall|prompt|stop}."""
 
 from __future__ import annotations
 
@@ -47,16 +47,16 @@ def recall() -> None:
 
 
 @cc.command()
-def write() -> None:
-    """Write user message to memory (UserPromptSubmit hook)."""
-    from hebb.integrations.claude_code.write import handle
+def prompt() -> None:
+    """Recall memories relevant to the user's prompt (UserPromptSubmit hook)."""
+    from hebb.integrations.claude_code.recall import handle_prompt
 
-    handle()
+    handle_prompt()
 
 
 @cc.command()
 def stop() -> None:
-    """Trigger consolidation and cleanup (Stop hook)."""
+    """Record turn summary (Stop hook)."""
     from hebb.integrations.claude_code.stop import handle
 
     handle()

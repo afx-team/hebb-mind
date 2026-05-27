@@ -20,13 +20,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from hebb.ingest.noise import strip_noise
+from hebb.ingest.noise import clean_user_input, is_greeting_only
 
 logger = logging.getLogger(__name__)
 
 # Truncation limits (characters) for the stored summary.
 _MAX_USER_LEN = 500
 _MAX_ASSISTANT_LEN = 800
+# Anything shorter than this *after* noise/code/html/base64 stripping is
+# treated as low-signal — too short to be worth a memory slot, even if
+# the assistant produced a long reply. Tuned to drop "fix it" / "thanks
+# more" while keeping "Why does X fail?" (15 chars) and similar.
+_MIN_USER_LEN = 10
 
 
 @dataclass
@@ -161,14 +166,29 @@ def format_turn_memory(
 
 
 def _extract_user_text(msg: dict[str, Any]) -> str:
-    """Pull plain-text from a user message, stripping system noise."""
+    """Pull plain-text from a user message, then run the user-input filter.
+
+    Returns ``""`` when the prompt is low-signal — Stop hook reads that as
+    "skip this turn entirely". Two trivial cases trigger the skip:
+
+        - Pure greeting / acknowledgement ("hi", "thanks", "你好").
+        - Anything that filters down to fewer than ``_MIN_USER_LEN`` chars
+          (e.g. an utterance that was just a code block or HTML dump).
+
+    Substantive prose is cleaned (system tags, code fences, HTML, base64
+    blobs all removed) and truncated to ``_MAX_USER_LEN``.
+    """
     content = msg.get("message", {}).get("content", [])
     texts: list[str] = []
     for block in _iter_blocks(content):
         if block.get("type") == "text":
             texts.append(block.get("text", ""))
     raw = "\n".join(texts).strip()
-    cleaned = strip_noise(raw)
+    cleaned = clean_user_input(raw)
+    if is_greeting_only(cleaned):
+        return ""
+    if len(cleaned) < _MIN_USER_LEN:
+        return ""
     if len(cleaned) > _MAX_USER_LEN:
         cleaned = cleaned[:_MAX_USER_LEN] + "…"
     return cleaned
