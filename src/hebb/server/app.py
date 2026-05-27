@@ -15,6 +15,7 @@ from hebb import __version__
 from hebb.config.loader import load_settings
 from hebb.embedding.factory import create_embedder
 from hebb.graph.knowledge_graph import KnowledgeGraph
+from hebb.retrieval.rerank import create_reranker
 from hebb.retrieval.searcher import MemorySearcher
 from hebb.scheduler.manager import SchedulerManager
 from hebb.storage.factory import create_stores
@@ -45,8 +46,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     kg = KnowledgeGraph(Path(settings.kg_path))  # kg_path already resolved to absolute
     app.state.knowledge_graph = kg
 
-    # Searcher (with graph for hybrid retrieval)
-    searcher = MemorySearcher(store=ctx.memory_store, embedder=embedder, graph=kg)
+    # Optional cross-encoder reranker (None when settings.rerank_enabled=False).
+    reranker = create_reranker(settings)
+    app.state.reranker = reranker
+
+    # Searcher (with graph for hybrid retrieval, optional rerank pass)
+    searcher = MemorySearcher(store=ctx.memory_store, embedder=embedder, graph=kg, reranker=reranker)
     app.state.searcher = searcher
 
     # Scheduler

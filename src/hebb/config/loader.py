@@ -50,6 +50,9 @@ def load_settings(config_path: Path | None = None) -> Settings:
 
     Resolves the workspace root and sets ``settings.home_dir`` so that
     ``settings.db_path`` and ``settings.kg_path`` return absolute paths.
+
+    Env var overrides (top priority, override hebb.json):
+        - ``HEBB_AUTO_UPGRADE`` — ``auto`` / ``notify`` / ``off`` for fleet/CI control
     """
     values: dict[str, Any] = {}
 
@@ -60,6 +63,10 @@ def load_settings(config_path: Path | None = None) -> Settings:
         for k, v in raw.items():
             if k in Settings.model_fields:
                 values[k] = v
+
+    env_mode = os.environ.get("HEBB_AUTO_UPGRADE")
+    if env_mode in ("auto", "notify", "off"):
+        values["auto_upgrade_mode"] = env_mode
 
     settings = Settings(**values)
 

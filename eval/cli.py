@@ -153,12 +153,24 @@ async def _fresh_server(workdir: Path, port: int) -> subprocess.Popen:
 @click.option("--top-k", default=None, type=int, help="Search top_k")
 @click.option("--llm-model", default=None, help="LLM model for judge")
 @click.option("--max-scenarios", default=None, type=int, help="Limit scenarios per dataset")
+@click.option(
+    "--enable-rerank/--disable-rerank",
+    default=None,
+    help="Override rerank_enabled in workdir hebb.json (leaves project-root config untouched)",
+)
+@click.option(
+    "--rerank-model",
+    default=None,
+    help="Override rerank_model (e.g. BAAI/bge-reranker-base, BAAI/bge-reranker-v2-m3)",
+)
 def run(
     dataset: str,
     mode: str | None,
     top_k: int | None,
     llm_model: str | None,
     max_scenarios: int | None,
+    enable_rerank: bool | None,
+    rerank_model: str | None,
 ) -> None:
     """Run evaluation benchmark(s) against an isolated hebb instance per dataset.
 
@@ -220,6 +232,23 @@ def run(
                 workdir, port = prepare_workdir(
                     name, settings.workdir_root, settings.project_root
                 )
+                # Patch workdir hebb.json AFTER prepare_workdir so CLI
+                # rerank overrides don't require mutating the user's
+                # project-root config. Re-applied per benchmark in case a
+                # future run targets multiple datasets.
+                if enable_rerank is not None or rerank_model is not None:
+                    import json as _json
+                    cfg_path = workdir / "hebb.json"
+                    cfg = _json.loads(cfg_path.read_text())
+                    if enable_rerank is not None:
+                        cfg["rerank_enabled"] = enable_rerank
+                    if rerank_model is not None:
+                        cfg["rerank_model"] = rerank_model
+                    cfg_path.write_text(_json.dumps(cfg, indent=2))
+                    click.echo(
+                        f"Rerank override: enabled={cfg.get('rerank_enabled')} "
+                        f"model={cfg.get('rerank_model')}"
+                    )
                 click.echo(f"Workdir: {workdir}  port: {port}")
                 server_proc = await _fresh_server(workdir, port)
                 active_port = port

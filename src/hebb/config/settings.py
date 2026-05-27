@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -40,6 +41,17 @@ class Settings(BaseModel):
         default=None, description="HuggingFace mirror endpoint (e.g. https://hf-mirror.com)"
     )
 
+    # Rerank (optional cross-encoder pass after hybrid retrieval)
+    rerank_enabled: bool = Field(default=False, description="Enable rerank pass after hybrid retrieval")
+    rerank_provider: str = Field(default="local", description="'local' (sentence-transformers CrossEncoder)")
+    rerank_model: str = Field(default="BAAI/bge-reranker-base", description="Model name or HF repo id")
+    rerank_top_n: int = Field(
+        default=30,
+        ge=5,
+        le=200,
+        description="Candidates to rerank before final top_k; auto-bumps searcher overfetch",
+    )
+
     # LLM
     llm_model: str | None = Field(default=None, description="LLM model identifier (e.g. openai/gpt-4o-mini)")
     llm_base_url: str | None = Field(default=None, description="Custom LLM API base URL")
@@ -68,6 +80,16 @@ class Settings(BaseModel):
     weight_recency: float = Field(default=1.0)
     weight_importance: float = Field(default=1.0)
     weight_relevance: float = Field(default=1.0)
+
+    # Auto-upgrade
+    auto_upgrade_mode: Literal["auto", "notify", "off"] = Field(
+        default="notify",
+        description="'auto' = upgrade without prompting; 'notify' = banner + OS notification only; 'off' = no check",
+    )
+    upgrade_grace_seconds: int = Field(
+        default=30,
+        description="Seconds to wait for in-flight requests before forcing the daemon down during upgrade",
+    )
 
     # Computed (not persisted to JSON) — set by loader after workspace resolution
     home_dir: Path | None = Field(default=None, exclude=True, description="Resolved workspace root directory")
