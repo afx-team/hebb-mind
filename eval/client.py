@@ -37,6 +37,7 @@ BENCHMARK_PORTS: dict[str, int] = {
     "longmemeval": 8322,
     "longmemeval-session": 8328,
     "convomem": 8323,
+    "convomem-substring": 8329,
     "membench": 8324,
     "personamem": 8325,
     "memoryarena": 8326,
@@ -58,6 +59,11 @@ _INHERITED_HEBB_FIELDS = (
     "rerank_provider",
     "rerank_model",
     "rerank_top_n",
+    "keyword_search_enabled",
+    "graph_search_enabled",
+    "lexical_boost_enabled",
+    "temporal_boost_enabled",
+    "graph_expansion_enabled",
     "weight_recency",
     "weight_importance",
     "weight_relevance",
@@ -68,13 +74,18 @@ def prepare_workdir(
     name: str,
     workdir_root: Path,
     project_root: Path,
+    mode: str = "raw",
 ) -> tuple[Path, int]:
     """Create (or refresh) the per-benchmark workdir, return (workdir, port).
 
-    The workdir is ``workdir_root / name`` and contains its own
-    ``hebb.json``. ``hebb.db`` is NOT touched here — that's
+    The workdir is ``workdir_root / f"{name}-{mode}"`` and contains its
+    own ``hebb.json``. ``hebb.db`` is NOT touched here — that's
     ``clean_storage``'s job and runs immediately before the server
-    starts.
+    starts (and only when the CLI decides to wipe).
+
+    Splitting by ``mode`` lets the expensive ``consolidated`` workdir
+    persist between runs while the cheap ``raw`` workdir is rebuilt
+    every time, with no risk of a stale-mode db lying around.
 
     Idempotent: re-running rewrites ``hebb.json`` from the current
     project-root template, so changes to the user's embedding settings
@@ -87,7 +98,7 @@ def prepare_workdir(
             f"Add it to eval.client.BENCHMARK_PORTS."
         )
 
-    workdir = workdir_root / name
+    workdir = workdir_root / f"{name}-{mode}"
     workdir.mkdir(parents=True, exist_ok=True)
 
     project_cfg = _read_hebb_config(project_root)

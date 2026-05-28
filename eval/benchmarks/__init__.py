@@ -1,6 +1,9 @@
 """Benchmark runners for evaluation."""
 
-from eval.benchmarks.convomem_bench import ConvoMemBenchmark
+from eval.benchmarks.convomem_bench import (
+    ConvoMemBenchmark,
+    ConvoMemSubstringBenchmark,
+)
 from eval.benchmarks.locomo_bench import LoComoBenchmark
 from eval.benchmarks.locomo_qa_bench import LoComoQABenchmark
 from eval.benchmarks.longmemeval_bench import (
@@ -17,6 +20,7 @@ BENCHMARKS: dict[str, type] = {
     "longmemeval": LongMemEvalBenchmark,
     "longmemeval-session": LongMemEvalSessionDocBenchmark,
     "convomem": ConvoMemBenchmark,
+    "convomem-substring": ConvoMemSubstringBenchmark,
     "membench": MemBenchBenchmark,
     "personamem": PersonaMemBenchmark,
     "memoryarena": MemoryArenaBenchmark,
@@ -25,6 +29,7 @@ BENCHMARKS: dict[str, type] = {
 __all__ = [
     "BENCHMARKS",
     "ConvoMemBenchmark",
+    "ConvoMemSubstringBenchmark",
     "LoComoBenchmark",
     "LoComoQABenchmark",
     "LongMemEvalBenchmark",

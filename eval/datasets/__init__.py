@@ -17,6 +17,8 @@ ADAPTERS: dict[str, type] = {
     # ingest strategy differs.
     "longmemeval-session": LongMemEvalAdapter,
     "convomem": ConvoMemAdapter,
+    # MemPalace-aligned 5×50 substring slice — reuses the same dataset.
+    "convomem-substring": ConvoMemAdapter,
     "membench": MemBenchAdapter,
     "personamem": PersonaMemAdapter,
     "memoryarena": MemoryArenaAdapter,

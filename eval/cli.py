@@ -116,20 +116,29 @@ def download(dataset: str, data_dir: str | None) -> None:
 # ------------------------------------------------------------------
 
 
-async def _fresh_server(workdir: Path, port: int) -> subprocess.Popen:
-    """Stop server on ``port``, wipe the workdir's db, start a fresh one.
+async def _fresh_server(
+    workdir: Path, port: int, *, wipe: bool = True
+) -> subprocess.Popen:
+    """Stop server on ``port``, optionally wipe the workdir's db, start one.
 
     Operates entirely inside ``workdir`` — the user's project-root
     ``hebb.json`` and ``hebb.db`` are never touched. The workdir
     itself is kept on disk between runs so a crashed benchmark can be
     inspected by opening ``workdir / "hebb.db"`` directly.
+
+    When ``wipe=False`` the existing ``hebb.db`` is reused — the typical
+    case for the ``consolidated`` mode workdir, whose db is expensive to
+    rebuild.
     """
     click.echo(f"Stopping any process on port {port}...")
     stop_server(port)
-    click.echo(f"Cleaning workdir db (workdir={workdir.name})...")
-    deleted = clean_storage(workdir)
-    if deleted:
-        click.echo(f"  Deleted: {', '.join(Path(d).name for d in deleted)}")
+    if wipe:
+        click.echo(f"Cleaning workdir db (workdir={workdir.name})...")
+        deleted = clean_storage(workdir)
+        if deleted:
+            click.echo(f"  Deleted: {', '.join(Path(d).name for d in deleted)}")
+    else:
+        click.echo(f"Reusing existing workdir db (workdir={workdir.name})")
     click.echo(f"Starting fresh server on port {port}...")
     proc = start_server(workdir)
     await wait_for_server(_bench_base_url(port))
@@ -163,6 +172,28 @@ async def _fresh_server(workdir: Path, port: int) -> subprocess.Popen:
     default=None,
     help="Override rerank_model (e.g. BAAI/bge-reranker-base, BAAI/bge-reranker-v2-m3)",
 )
+@click.option("--disable-fts5", is_flag=True, default=False,
+              help="Disable FTS5/tsvector keyword path in the 3-way RRF recall")
+@click.option("--disable-graph-search", is_flag=True, default=False,
+              help="Disable knowledge-graph tag-match path in the 3-way RRF recall")
+@click.option("--disable-lexical-boost", is_flag=True, default=False,
+              help="Disable predicate/quoted-phrase/person-name boost over composite score")
+@click.option("--disable-temporal-boost", is_flag=True, default=False,
+              help="Disable date-proximity boost on memories with timestamp metadata")
+@click.option("--disable-graph-expand", is_flag=True, default=False,
+              help="Disable post-search graph expansion of top-k tags")
+@click.option("--embedding-model", default=None,
+              help="Override embedding_model in workdir hebb.json (e.g. sentence-transformers/all-MiniLM-L6-v2)")
+@click.option(
+    "--rebuild",
+    is_flag=True,
+    default=False,
+    help=(
+        "Force wipe + re-ingest (+ re-consolidate, in consolidated mode) "
+        "even if the workdir's hebb.db already exists. Without this flag, "
+        "consolidated mode reuses the existing db; raw mode always wipes."
+    ),
+)
 def run(
     dataset: str,
     mode: str | None,
@@ -171,13 +202,27 @@ def run(
     max_scenarios: int | None,
     enable_rerank: bool | None,
     rerank_model: str | None,
+    disable_fts5: bool,
+    disable_graph_search: bool,
+    disable_lexical_boost: bool,
+    disable_temporal_boost: bool,
+    disable_graph_expand: bool,
+    embedding_model: str | None,
+    rebuild: bool,
 ) -> None:
     """Run evaluation benchmark(s) against an isolated hebb instance per dataset.
 
     Each benchmark gets its own port (see ``eval.client.BENCHMARK_PORTS``)
-    and its own workdir under ``eval/workdirs/<name>/`` with a dedicated
-    ``hebb.json`` and ``hebb.db``. Sequential — one server at a time.
-    Workdirs are retained between runs for post-hoc inspection.
+    and its own workdir under ``eval/workdirs/<name>-<mode>/`` with a
+    dedicated ``hebb.json`` and ``hebb.db``. Sequential — one server at
+    a time. Workdirs are retained between runs for post-hoc inspection.
+
+    Reuse policy:
+
+    * ``--mode raw`` always wipes (ingest is cheap).
+    * ``--mode consolidated`` reuses the existing db when present,
+      skipping ingest + consolidation. Pass ``--rebuild`` to force a
+      full rebuild (e.g. after a consolidation-pipeline change).
     """
     settings = load_eval_settings()
     if top_k:
@@ -230,27 +275,63 @@ def run(
                 if active_port is not None and active_port != BENCHMARK_PORTS[name]:
                     stop_server(active_port)
                 workdir, port = prepare_workdir(
-                    name, settings.workdir_root, settings.project_root
+                    name,
+                    settings.workdir_root,
+                    settings.project_root,
+                    mode=settings.mode.value,
                 )
                 # Patch workdir hebb.json AFTER prepare_workdir so CLI
                 # rerank overrides don't require mutating the user's
                 # project-root config. Re-applied per benchmark in case a
                 # future run targets multiple datasets.
-                if enable_rerank is not None or rerank_model is not None:
+                searcher_overrides: dict[str, bool | str] = {}
+                if enable_rerank is not None:
+                    searcher_overrides["rerank_enabled"] = enable_rerank
+                if rerank_model is not None:
+                    searcher_overrides["rerank_model"] = rerank_model
+                if disable_fts5:
+                    searcher_overrides["keyword_search_enabled"] = False
+                if disable_graph_search:
+                    searcher_overrides["graph_search_enabled"] = False
+                if disable_lexical_boost:
+                    searcher_overrides["lexical_boost_enabled"] = False
+                if disable_temporal_boost:
+                    searcher_overrides["temporal_boost_enabled"] = False
+                if disable_graph_expand:
+                    searcher_overrides["graph_expansion_enabled"] = False
+                if embedding_model:
+                    searcher_overrides["embedding_model"] = embedding_model
+                    # embedding_dim is auto-detected at server startup
+                    # (server/app.py overwrites it via embedder.dimension),
+                    # so drop the inherited 1024 so settings.py picks up
+                    # the per-model default until the embedder reports.
+                    searcher_overrides["embedding_dim"] = 384  # safe default; corrected on startup
+                if searcher_overrides:
                     import json as _json
                     cfg_path = workdir / "hebb.json"
                     cfg = _json.loads(cfg_path.read_text())
-                    if enable_rerank is not None:
-                        cfg["rerank_enabled"] = enable_rerank
-                    if rerank_model is not None:
-                        cfg["rerank_model"] = rerank_model
+                    cfg.update(searcher_overrides)
                     cfg_path.write_text(_json.dumps(cfg, indent=2))
-                    click.echo(
-                        f"Rerank override: enabled={cfg.get('rerank_enabled')} "
-                        f"model={cfg.get('rerank_model')}"
-                    )
+                    click.echo(f"Searcher overrides: {searcher_overrides}")
+
+                # Reuse policy. raw mode always wipes (ingest is cheap);
+                # consolidated mode reuses when a db is present, since
+                # re-running consolidation burns LLM calls. --rebuild
+                # forces a wipe regardless.
+                db_exists = (workdir / "hebb.db").exists()
+                reuse_db = (
+                    settings.mode == EvalMode.CONSOLIDATED
+                    and db_exists
+                    and not rebuild
+                )
+                wipe = not reuse_db
+
                 click.echo(f"Workdir: {workdir}  port: {port}")
-                server_proc = await _fresh_server(workdir, port)
+                if reuse_db:
+                    click.echo("Reusing persisted consolidated db — skipping ingest + consolidation")
+                elif rebuild and db_exists:
+                    click.echo("--rebuild: wiping existing db before fresh ingest")
+                server_proc = await _fresh_server(workdir, port, wipe=wipe)
                 active_port = port
 
                 adapter = adapter_cls()
@@ -278,19 +359,25 @@ def run(
                 click.echo(f"Loaded {len(scenarios)} scenarios, {total_q} questions")
 
                 async with HebbClient(_bench_base_url(port)) as client:
-                    # 4. Ingest into mem_hippocampus
-                    click.echo("Ingesting memories into mem_hebb...")
-                    await benchmark.setup(client, scenarios)
-
-                    # 5. Consolidation (if mode == consolidated)
+                    # 4. Ingest into mem_hippocampus (skipped when reusing
+                    #    a persisted consolidated db).
                     consolidation_stats = None
-                    if settings.mode == EvalMode.CONSOLIDATED:
-                        click.echo("Triggering memory consolidation...")
-                        consolidation_stats = await client.trigger_consolidation()
+                    if reuse_db:
                         click.echo(
-                            f"  Consolidation: {consolidation_stats.get('succeeded', 0)}"
-                            f"/{consolidation_stats.get('processed', 0)} succeeded"
+                            "Skipping ingest — persisted consolidated db already populated"
                         )
+                    else:
+                        click.echo("Ingesting memories into mem_hebb...")
+                        await benchmark.setup(client, scenarios)
+
+                        # 5. Consolidation (if mode == consolidated)
+                        if settings.mode == EvalMode.CONSOLIDATED:
+                            click.echo("Triggering memory consolidation...")
+                            consolidation_stats = await client.trigger_consolidation()
+                            click.echo(
+                                f"  Consolidation: {consolidation_stats.get('succeeded', 0)}"
+                                f"/{consolidation_stats.get('processed', 0)} succeeded"
+                            )
 
                     # 6. Run evaluation
                     click.echo("Running evaluation...")
