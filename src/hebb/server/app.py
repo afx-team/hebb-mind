@@ -50,8 +50,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     reranker = create_reranker(settings)
     app.state.reranker = reranker
 
-    # Searcher (with graph for hybrid retrieval, optional rerank pass)
-    searcher = MemorySearcher(store=ctx.memory_store, embedder=embedder, graph=kg, reranker=reranker)
+    # Searcher (with graph for hybrid retrieval, optional rerank pass,
+    # plus per-pipeline-stage toggles for A/B ablation).
+    searcher = MemorySearcher(
+        store=ctx.memory_store,
+        embedder=embedder,
+        graph=kg,
+        reranker=reranker,
+        keyword_search_enabled=settings.keyword_search_enabled,
+        graph_search_enabled=settings.graph_search_enabled,
+        lexical_boost_enabled=settings.lexical_boost_enabled,
+        temporal_boost_enabled=settings.temporal_boost_enabled,
+        graph_expansion_enabled=settings.graph_expansion_enabled,
+    )
     app.state.searcher = searcher
 
     # Scheduler

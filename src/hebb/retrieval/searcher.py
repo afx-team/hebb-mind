@@ -39,11 +39,24 @@ class MemorySearcher:
         embedder: EmbeddingProvider,
         graph: KnowledgeGraph | None = None,
         reranker: Reranker | None = None,
+        *,
+        keyword_search_enabled: bool = True,
+        graph_search_enabled: bool = True,
+        lexical_boost_enabled: bool = True,
+        temporal_boost_enabled: bool = True,
+        graph_expansion_enabled: bool = True,
     ) -> None:
         self.store = store
         self.embedder = embedder
         self.graph = graph
         self.reranker = reranker
+        # Pipeline toggles — each defaults True so callers that don't
+        # opt-in to ablation get the current behaviour bit-for-bit.
+        self.keyword_search_enabled = keyword_search_enabled
+        self.graph_search_enabled = graph_search_enabled
+        self.lexical_boost_enabled = lexical_boost_enabled
+        self.temporal_boost_enabled = temporal_boost_enabled
+        self.graph_expansion_enabled = graph_expansion_enabled
 
     async def search(self, query: MemoryQuery) -> SearchResponse:
         # Sanitize LLM-generated queries (XML tags, tool artifacts, etc.)
@@ -60,11 +73,20 @@ class MemorySearcher:
         overfetch = max(query.top_k * 6, rerank_top_n, 30)
 
         # === Phase 1: Three-path parallel recall ===
-        vec_results, kw_results, graph_results = await asyncio.gather(
-            self._vector_search(query.query, overfetch, query.partition_ids),
-            self._keyword_search(query.query, overfetch, query.partition_ids),
-            self._graph_search(query.query, overfetch),
+        # Each path is independently toggleable. Disabled paths return
+        # an empty ranked list so RRF merges over only the enabled
+        # channels. All three paths return list[tuple[Memory, float]].
+        async def _empty_ranked() -> list[tuple[Memory, float]]:
+            return []
+
+        vec_task = self._vector_search(query.query, overfetch, query.partition_ids)
+        kw_task = (
+            self._keyword_search(query.query, overfetch, query.partition_ids)
+            if self.keyword_search_enabled
+            else _empty_ranked()
         )
+        graph_task = self._graph_search(query.query, overfetch) if self.graph_search_enabled else _empty_ranked()
+        vec_results, kw_results, graph_results = await asyncio.gather(vec_task, kw_task, graph_task)
 
         # Reciprocal Rank Fusion across the three retrieval channels.
         # Each channel contributes 1/(k+rank) to a memory's relevance, so a
@@ -107,7 +129,7 @@ class MemorySearcher:
             # "last week", up-weight candidates whose metadata.timestamp
             # falls in that window. Decays linearly past tolerance, capped
             # at 1.0 so the boosted score still fits the composite scale.
-            if query_dates:
+            if self.temporal_boost_enabled and query_dates:
                 ts = memory.metadata.model_dump().get("timestamp")
                 boost = temporal_boost(str(ts) if ts else None, query_dates)
                 if boost > 0:
@@ -120,7 +142,7 @@ class MemorySearcher:
             # the ranking signal the boost is trying to inject. The
             # final sort cares about relative ordering, not absolute
             # range.
-            if not query_signals.is_empty:
+            if self.lexical_boost_enabled and not query_signals.is_empty:
                 score = score * lexical_boost(query_signals, memory.content)
 
             results.append(
@@ -170,8 +192,11 @@ class MemorySearcher:
             )
 
         # === Phase 2b: Post-expansion via graph ===
-        exclude_for_graph = top_ids | {m.id for m in turn_neighbours}
-        graph_related = await self._graph_expand_from_results(top_results, exclude_ids=exclude_for_graph, limit=5)
+        if self.graph_expansion_enabled:
+            exclude_for_graph = top_ids | {m.id for m in turn_neighbours}
+            graph_related = await self._graph_expand_from_results(top_results, exclude_ids=exclude_for_graph, limit=5)
+        else:
+            graph_related = []
 
         related: list[Memory] = [*turn_neighbours, *graph_related]
         return SearchResponse(results=top_results, related=related)

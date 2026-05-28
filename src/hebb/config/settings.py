@@ -41,6 +41,19 @@ class Settings(BaseModel):
         default=None, description="HuggingFace mirror endpoint (e.g. https://hf-mirror.com)"
     )
 
+    # Retrieval pipeline toggles — each path/boost is independently
+    # switchable so users can A/B individual contributions and so the
+    # eval harness can run ablations without rebuilding the searcher.
+    keyword_search_enabled: bool = Field(default=True, description="FTS5/tsvector keyword path in 3-way RRF recall")
+    graph_search_enabled: bool = Field(default=True, description="Knowledge-graph tag-match path in 3-way RRF recall")
+    lexical_boost_enabled: bool = Field(
+        default=True, description="Predicate/quoted-phrase/person-name boost over composite score"
+    )
+    temporal_boost_enabled: bool = Field(
+        default=True, description="Date-proximity boost when query mentions a time anchor"
+    )
+    graph_expansion_enabled: bool = Field(default=True, description="Post-search graph expansion of top-k tags")
+
     # Rerank (optional cross-encoder pass after hybrid retrieval)
     rerank_enabled: bool = Field(default=False, description="Enable rerank pass after hybrid retrieval")
     rerank_provider: str = Field(default="local", description="'local' (sentence-transformers CrossEncoder)")

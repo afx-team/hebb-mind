@@ -13,19 +13,36 @@ from hebb.embedding.catalog import model_cache_dir, workspace_model_available
 logger = logging.getLogger(__name__)
 
 
-def _workspace_models_dir(model_name: str) -> Path:
-    """Return the models/ directory within the current workspace.
+def _install_relative_models_dir(model_name: str) -> Path:
+    """Install-relative ``<repo>/models/<id>`` fallback path.
 
-    Falls back to the install-relative path if no workspace is found.
+    Used when the active workspace lacks a model dir — e.g. the eval
+    harness sets ``HEBB_HOME=eval/workdirs/<bench>`` for db/kg isolation,
+    but model weights legitimately live next to the source tree.
     """
+    return Path(__file__).resolve().parent.parent.parent.parent / "models" / model_name
+
+
+def _workspace_models_dir(model_name: str) -> Path:
+    """Return the directory to load the model from.
+
+    Prefer ``<workspace>/models/<id>`` (the per-workspace cache the
+    embedding catalog populates) but fall back to the install-relative
+    ``<repo>/models/<id>`` when the workspace path is missing the model.
+    This lets eval runs (HEBB_HOME=workdir) reuse the project-root model
+    cache without symlinks.
+    """
+    install_relative = _install_relative_models_dir(model_name)
     try:
         from hebb.config.workspace import resolve_workspace
 
         workspace = resolve_workspace()
-        return model_cache_dir(workspace, model_name)
+        workspace_path = model_cache_dir(workspace, model_name)
+        if workspace_path.is_dir():
+            return workspace_path
+        return install_relative
     except Exception:
-        # Fallback: install-relative path (legacy behavior)
-        return Path(__file__).resolve().parent.parent.parent.parent / "models" / model_name
+        return install_relative
 
 
 def is_model_cached(model_name: str) -> bool:
@@ -35,10 +52,17 @@ def is_model_cached(model_name: str) -> bool:
 
         if workspace_model_available(resolve_workspace(), model_name):
             return True
+    except Exception:
+        pass
 
+    # Install-relative fallback — same as _workspace_models_dir uses.
+    install_relative = _install_relative_models_dir(model_name)
+    if install_relative.is_dir() and (install_relative / "config.json").is_file():
+        return True
+
+    try:
         from huggingface_hub import try_to_load_from_cache
 
-        # sentence-transformers models always have config.json
         result = try_to_load_from_cache(model_name, "config.json")
         return result is not None and isinstance(result, (str, Path))
     except Exception:
