@@ -17,7 +17,10 @@
 
 Hebb Mind gives AI agents a neuroscience-inspired memory loop — **encode → replay → consolidate → forget**. A `pipx install` and one command stand up a local REST + MCP endpoint: SQLite for storage, sentence-transformers for embedding, NetworkX for the tag graph. **Zero external services** — bring an LLM key only when you want consolidation to do its work.
 
-Where peers diverge: `mem0` is cloud-first and append-only; `letta` needs an external DB and a separate sleeptime agent; `zep` needs Postgres + Neo4j. **Hebb Mind runs on a single binary, with one biological loop.**
+
+<p align="center">
+  <img src="repo_pages/public/architecture-en.jpg" alt="Hebb Mind architecture — agent integrations · hebb CLI · 4-stage memory loop with LLM-driven 7-step consolidation agent · SQLite + pgvector" width="900">
+</p>
 
 ## Quick Start
 

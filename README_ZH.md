@@ -17,7 +17,11 @@
 
 Hebb Mind 给 AI Agent 装上一条受神经科学启发的记忆回路 —— **编码 → 回放 → 巩固 → 遗忘**。`pipx install` 后一行命令即可在本地拉起 REST + MCP 端点：SQLite 做存储、sentence-transformers 做嵌入、NetworkX 维护标签图谱。**零外部服务**，只有想让巩固阶段"工作"时才需要 LLM Key。
 
-与同类相比：`mem0` 云优先、只追加；`letta` 需外部 DB + 独立 sleeptime agent；`zep` 依赖 Postgres + Neo4j。**Hebb Mind 是一个二进制、一条生物学意义上的回路。**
+与同类相比，**Hebb Mind 是一个二进制、一条生物学意义上的回路。**
+
+<p align="center">
+  <img src="repo_pages/public/architecture-zh.jpg" alt="Hebb Mind 架构 —— 接入层 · hebb CLI · 四阶段记忆回路与 LLM 驱动 7 步巩固 Agent · SQLite + pgvector" width="900">
+</p>
 
 ## 快速开始
 
