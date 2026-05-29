@@ -57,10 +57,27 @@ function guideSidebar(prefix = '') {
         { text: prefix ? '故障排查' : 'Troubleshooting', link: `${prefix}/troubleshooting` },
         { text: prefix ? '常见问题' : 'FAQ', link: `${prefix}/faq` },
         // The English benchmarks page is split into a per-dataset
-        // folder; the Chinese mirror is still the single legacy page.
-        // Surface the deep tree only on the English side.
+        // folder. The Chinese mirror has the LoCoMo tree translated;
+        // the remaining datasets still fall back to the legacy page.
         prefix
-          ? { text: '基准测试', link: `${prefix}/benchmarks` }
+          ? {
+              text: '基准测试',
+              link: `${prefix}/benchmarks/`,
+              collapsed: true,
+              items: [
+                {
+                  text: 'LoCoMo',
+                  link: `${prefix}/benchmarks/locomo/`,
+                  collapsed: true,
+                  items: [
+                    { text: 'vs MemPalace', link: `${prefix}/benchmarks/locomo/vs-mempalace` },
+                    { text: 'vs mem0', link: `${prefix}/benchmarks/locomo/vs-mem0` },
+                    { text: 'vs Letta', link: `${prefix}/benchmarks/locomo/vs-letta` },
+                    { text: 'vs Zep', link: `${prefix}/benchmarks/locomo/vs-zep` },
+                  ],
+                },
+              ],
+            }
           : {
               text: 'Benchmarks',
               link: '/benchmarks/',
@@ -148,7 +165,7 @@ export default defineConfig({
         nav: [
           { text: '快速上手', link: '/zh/quick-start' },
           { text: 'API', link: '/zh/api/memories' },
-          { text: '基准测试', link: '/zh/benchmarks' },
+          { text: '基准测试', link: '/zh/benchmarks/' },
           { text: '常见问题', link: '/zh/faq' },
         ],
         sidebar: { '/zh/': guideSidebar('/zh') },

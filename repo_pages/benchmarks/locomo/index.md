@@ -1,59 +1,56 @@
 # LoCoMo
 
-[snap-research/locomo](https://github.com/snap-research/locomo) — multi-session conversations between two personas, 1,986 questions across single-hop, multi-hop, temporal, open-ended, and adversarial categories. Each conversation spans 19–32 sessions; questions test whether a memory system can *answer* (not just *retrieve*) facts that were established sessions earlier.
+[snap-research/locomo](https://github.com/snap-research/locomo) — multi-session conversations between two personas, 1,986 questions across single-hop, multi-hop, temporal, open-ended, and adversarial categories. Each conversation spans 19–32 sessions; questions test whether a memory system can surface facts that were established sessions earlier.
 
-We report LoCoMo two ways. Both share the same retrieval pipeline; they differ in what is being asked of it.
+We report LoCoMo as **session-level Recall@10** — the same metric MemPalace publishes, so the numbers compare directly.
 
 > **Production parity.** Ingestion calls the exact same Claude Code hook code paths that fire in real usage (`src/hebb/integrations/claude_code/write.py` + `stop.py`), and retrieval goes through the same `/api/v1/search` endpoint that the MCP server, CLI, and Web Console use. The numbers below are what a user actually gets in production — not an idealised eval-only configuration. See [vs MemPalace](./vs-mempalace#production-parity-the-most-important-caveat) for how this contrasts with eval setups that diverge from their own production pipeline.
 
-## (a) Session-level Recall@10
+## Session-level Recall@10
 
-No LLM at scoring time. The question is "did the retrieved set surface a memory tagged with any of the evidence sessions?". Ingestion mirrors the production Claude Code hooks (`integrations/claude_code/{write,stop}.py`): one memory per user utterance + one memory per turn round-trip with an ISO timestamp prefix, no chunking, no image captions. Search uses the new `prev_turns=2 / next_turns=2` context-window expansion plus a date-proximity boost on query timestamps (`src/hebb/retrieval/temporal_boost.py`) and a small general-English synonym group expander inside the FTS query builder (`src/hebb/retrieval/fts_query.py`).
+No LLM at scoring time. The question is "did the retrieved set surface a memory tagged with any of the evidence sessions?". Ingestion mirrors the production Claude Code hooks (`integrations/claude_code/{write,stop}.py`): one memory per user utterance + one memory per turn round-trip with an ISO timestamp prefix, no chunking, no image captions. Search uses `prev_turns=2 / next_turns=2` context-window expansion, a date-proximity boost on query timestamps (`src/hebb/retrieval/temporal_boost.py`), and a general-English synonym group expander inside the FTS query builder (`src/hebb/retrieval/fts_query.py`). An **optional local cross-encoder rerank** pass (`src/hebb/retrieval/rerank/`, `BAAI/bge-reranker-base`) can be enabled on top.
 
-| Hebb Mind config | Score | Source |
-|---|---|---|
-| **v0.1.1 prod-mirror, bge-large-1024, no rerank** | **93.3%** R@10 (1,978q, full 10 scenarios) | `eval/reports/locomo/v3/run-2/locomo.md` |
-| v0.1.1 prod-mirror, MiniLM-384, no rerank | 89.7% R@10 (1,978q, full 10 scenarios) | `eval/reports/locomo/v3/run-1/locomo.md` |
+### Embedding × rerank sweep (full 10 scenarios, 1,978q)
 
-Denominator is 1,978 not 1,986 because 8 questions carry empty/unparseable `evidence` (adversarial-by-design); per MemPalace convention they are excluded from the R@k denominator. Mean per-question recall is **0.889** under bge-large, **0.846** under MiniLM-384.
+| Config | Embedding | Rerank | R@10 | Mean recall |
+|---|---|---|---|---|
+| **prod-mirror + rerank** | bge-large-1024 | bge-reranker-base | **95.75%** | 0.917 |
+| prod-mirror + rerank | MiniLM-384 | bge-reranker-base | 94.69% | 0.902 |
+| prod-mirror + rerank | e5-small-384 | bge-reranker-base | 94.44% | 0.903 |
+| **prod-mirror (default)** | bge-large-1024 | — | **94.14%** | 0.899 |
+| prod-mirror | e5-small-384 | — | 92.01% | 0.870 |
+| prod-mirror | jina-v3-1024 | — | 92.01% | 0.870 |
+| prod-mirror | MiniLM-384 | — | 91.41% | 0.865 |
 
-Per-category breakdown (bge-large, headline run):
+Source: `eval/reports/locomo/matrix/<config>/locomo/v4/run-1/` and `eval/reports/locomo/matrix/SUMMARY.md`. Denominator is 1,978 not 1,986 because 8 questions carry empty/unparseable `evidence` (adversarial-by-design); per MemPalace convention they are excluded from the R@k denominator.
+
+The shipped default (`bge-large-1024`, rerank off) scores **94.14%**. Enabling the optional cross-encoder rerank lifts it to **95.75%** — the best configuration.
+
+### Rerank lift
+
+| Embedding | No rerank | + rerank | Δ |
+|---|---|---|---|
+| bge-large-1024 | 94.14% | 95.75% | **+1.61 pp** |
+| MiniLM-384 | 91.41% | 94.69% | **+3.28 pp** |
+| e5-small-384 | 92.01% | 94.44% | **+2.43 pp** |
+
+Rerank helps at every embedding tier, and helps the cheaper 384-dim embedders most — it nearly closes the embedding-capacity gap (MiniLM-384 + rerank, 94.69%, edges past bge-large-1024 with no rerank, 94.14%).
+
+### Per-category (bge-large-1024 + rerank, headline)
 
 | Category | R@10 |
 |---|---|
-| open_ended | 96.8% |
-| adversarial | 93.3% |
-| multi_hop | 91.6% |
-| single_hop | 89.3% |
+| open_ended | 98.2% |
+| adversarial | 97.3% |
+| multi_hop | 94.1% |
+| single_hop | 92.9% |
 | temporal | 79.8% |
 
-The +3.6 pp jump moving from MiniLM-384 to bge-large-1024 is concentrated in `open_ended` (+4.9) and `temporal` (+5.6) — categories where richer semantic embeddings rescue queries that the keyword path alone misses. Temporal still lags because LoCoMo "temporal" questions are inferential ("Would X be considered Y?") rather than time-anchored, so the date boost rarely fires.
-
-## (b) End-to-end QA accuracy
-
-Strictly harder than R@10 because the LLM must *produce* the answer, not just retrieve a candidate. Same v3 production-mirror retrieval pipeline as (a); the LLM-as-judge stage uses `eval/judge.py` semantic-equivalence rules.
-
-| Hebb Mind config | Score | Source |
-|---|---|---|
-| **v0.1.2 prod-mirror, bge-large-1024, judge = Kimi-K2.5 (thinking on)** | **76.0%** QA acc (1,978q, full 10 scenarios) | `eval/reports/locomo-qa/v1/run-2/locomo-qa.md` |
-
-Per-category breakdown:
-
-| Category | QA accuracy |
-|---|---|
-| adversarial | 95.1% |
-| open_ended | 83.6% |
-| multi_hop | 63.9% |
-| single_hop | 51.6% |
-| temporal | 29.2% |
-
-Same 1,978-question denominator as section (a) for direct comparison. **Session R@10 on the same run was 90.4%** (mean recall 0.852) — i.e. the right session is in the retrieved set 90% of the time, but the LLM only converts that retrieval into a correct answer 76% of the time.
-
-That gap (90.4 → 76.0%) is the synthesis cost of per-utterance ingestion. A real example from the run: *"Where did Caroline move from 4 years ago?"* — retrieval surfaces "I moved from my home country" (correct session), but the per-utterance memory holding "Sweden" is two turns away, and the LLM answers `home country` instead of `Sweden`. Multi-hop and single-hop questions pay this cost most; temporal lags because LoCoMo "temporal" questions are inferential ("Would X be considered Y?") rather than time-anchored. The fix space is consolidation (which merges related per-utterance memories into one statement) and re-ranking; both are on the roadmap.
+Temporal lags because LoCoMo "temporal" questions are largely inferential ("Would X be considered Y?") rather than time-anchored, so the date-proximity boost rarely fires; every other category is ≥ 92%.
 
 ## Per-competitor comparisons
 
 - [vs MemPalace](./vs-mempalace) — same-metric R@10
 - [vs mem0](./vs-mem0) — TBD (different judge / scoring; same-harness re-run pending)
 - [vs Letta](./vs-letta) — TBD (no public LoCoMo result found)
-- [vs Zep](./vs-zep) — no public LoCoMo result; LongMemEval is their primary benchmark
+- [vs Zep](./vs-zep) — same-metric QA: ~tied (Hebb ~74–78% vs Zep 75.14% on cat 1–4); Zep publishes no R@10

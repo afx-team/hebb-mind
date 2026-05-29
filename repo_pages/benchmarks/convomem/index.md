@@ -16,7 +16,7 @@ We evaluate on 600 items (100 per category × 6). MemPalace's published numbers 
 2. **The metric conflates retrieval and reformatting.** A successful system can summarise across multiple retrieved messages without surfacing the evidence verbatim. Substring match punishes synthesis, which is exactly what production-quality answering needs to do.
 3. **End-to-end QA directly measures what production users get.** Did the system answer the user's question correctly? That is the only thing that matters.
 
-We therefore use the same generate-then-judge loop as [LoCoMo (b)](../locomo/#b-end-to-end-qa-accuracy), with the same judge prompt and the same semantic-equivalence rules.
+We therefore use the same generate-then-judge loop (`eval/judge.py`), with the same judge prompt and the same semantic-equivalence rules.
 
 ## Hebb Mind on ConvoMem
 
