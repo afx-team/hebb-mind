@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      New entries are derived from Conventional Commit messages and prepended
      automatically when the Release PR is merged. See release-please-config.json. -->
 
+## [0.1.4] - 2026-05-29
+
+Maintenance release. No changes to the published Python package (`src/`
+and dependencies are unchanged from 0.1.3); this version bump covers
+documentation-site, evaluation-harness, and CI updates and was cut
+manually because the release-please Release PR could not be opened
+(GitHub Actions lacked permission to create pull requests).
+
+### Changed
+
+- **Docs site.** Home-page background video and navbar visibility,
+  responsive-layout fixes (removed scroll-snap), new Simplified-Chinese
+  benchmark pages (LoCoMo, PersonaMem) and updated quick-start links.
+- **Eval harness.** Updated PersonaMem accuracy numbers and LoCoMo
+  rank-matrix reports.
+- **CI.** Enabled Git LFS in the docs checkout step; added repository
+  link to the docs-site `package.json`.
+
 ## [0.1.2] - 2026-05-26
 
 ### Added
