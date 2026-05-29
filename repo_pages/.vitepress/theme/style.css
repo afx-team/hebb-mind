@@ -48,3 +48,42 @@
   background-size: 200% 200% !important;
   animation: gradient-shift 6s ease infinite !important;
 }
+
+/* ── Home navbar over the dark hero video ──────────────────────────────
+   On the home page at the top of the scroll (`.home.top`), VitePress makes
+   the navbar transparent so the background video shows through. The default
+   navbar text/icons are theme-colored — in light mode they're dark and
+   vanish against the dark video (see the unreadable "Quick Start / API /
+   Benchmarks" header). Force light text + icons here, regardless of theme,
+   because the video backdrop is always dark. Once the user scrolls, `.top`
+   is dropped, the navbar gains a solid background, and these rules stop
+   applying — reverting cleanly to the theme defaults. */
+.VPNavBar.home.top .VPNavBarTitle .title,
+.VPNavBar.home.top .VPNavBarMenuLink,
+.VPNavBar.home.top .VPNavBarMenuGroup .VPNavBarMenuLink,
+.VPNavBar.home.top .VPFlyout .text,
+.VPNavBar.home.top .VPNavBarTranslations .text {
+  color: rgba(255, 255, 255, 0.94) !important;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+}
+.VPNavBar.home.top .VPNavBarMenuLink:hover,
+.VPNavBar.home.top .VPNavBarMenuLink.active {
+  color: #fff !important;
+}
+/* Icon-only controls (GitHub, language, appearance, hamburger) render their
+   glyphs via `currentColor` masks — lighten the icon color in this state. */
+.VPNavBar.home.top .VPSocialLink,
+.VPNavBar.home.top .VPNavBarTranslations,
+.VPNavBar.home.top .VPNavBarExtra,
+.VPNavBar.home.top .VPNavBarHamburger {
+  color: rgba(255, 255, 255, 0.94) !important;
+}
+
+/* ── Hide the search box on the home page ──────────────────────────────
+   It's redundant on the landing page (the header already lists every
+   section). Hide only the inner `#local-search` button and keep the
+   `.VPNavBarSearch` flex spacer (`flex-grow: 1`) so the nav menu stays
+   right-aligned. Documentation pages are unaffected and keep search. */
+.VPNavBar.home .VPNavBarSearch #local-search {
+  display: none !important;
+}
