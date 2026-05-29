@@ -122,13 +122,12 @@ const GROUP_RECALL = {
 const GROUP_RERANK = {
   title: 'Rerank',
   icon: '&#127919;',
-  keys: ['rerank_enabled', 'rerank_provider', 'rerank_model', 'rerank_top_n', 'rerank_max_length'],
+  keys: ['rerank_enabled', 'rerank_provider', 'rerank_model', 'rerank_top_n'],
   hints: {
     rerank_enabled: 'Cross-encoder pass over the top candidates after hybrid retrieval. Scores are sigmoid-normalised to [0,1].',
     rerank_provider: "'local' = sentence-transformers CrossEncoder",
     rerank_model: 'Model name or HuggingFace repo id',
     rerank_top_n: 'Candidates to rerank before the final top_k (5–200)',
-    rerank_max_length: 'Max tokens per (query, content) pair; longer pairs are truncated (64–2048)',
   },
 };
 const GROUP_WEIGHTS = {
@@ -199,7 +198,7 @@ const RESTART_KEYS = new Set([
   'forget_interval_seconds',
   'keyword_search_enabled', 'graph_search_enabled', 'lexical_boost_enabled',
   'temporal_boost_enabled', 'graph_expansion_enabled',
-  'rerank_enabled', 'rerank_provider', 'rerank_model', 'rerank_top_n', 'rerank_max_length',
+  'rerank_enabled', 'rerank_provider', 'rerank_model', 'rerank_top_n',
   'host', 'port', 'home',
 ]);
 

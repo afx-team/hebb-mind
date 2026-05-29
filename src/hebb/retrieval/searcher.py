@@ -116,10 +116,22 @@ class MemorySearcher:
             recency = compute_recency_score(memory.last_accessed_at, now)
             importance_norm = compute_importance_score(memory.importance_score)
 
+            # Lexical surface boost: predicate-keyword / quoted-phrase /
+            # person-name overlap. The multiplier sits in [1.0, ~2.3] and is
+            # applied to the *relevance* signal (then capped at 1.0), not to
+            # the whole composite. Folding it into a single [0, 1] component
+            # keeps the composite a genuine weighted average of three [0, 1]
+            # signals, so the final score never exceeds 1.0 by construction —
+            # no post-hoc clamp needed, and one [0, 1] scale serves both the
+            # caller-visible score and the min_score floor.
+            rel = relevance
+            if self.lexical_boost_enabled and not query_signals.is_empty:
+                rel = min(1.0, rel * lexical_boost(query_signals, memory.content))
+
             score = compute_composite_score(
                 recency=recency,
                 importance=importance_norm,
-                relevance=relevance,
+                relevance=rel,
                 weight_recency=query.weight_recency,
                 weight_importance=query.weight_importance,
                 weight_relevance=query.weight_relevance,
@@ -128,22 +140,12 @@ class MemorySearcher:
             # Date proximity boost: when the query names "August 2023" or
             # "last week", up-weight candidates whose metadata.timestamp
             # falls in that window. Decays linearly past tolerance, capped
-            # at 1.0 so the boosted score still fits the composite scale.
+            # at 1.0 so the boosted score stays within the [0, 1] scale.
             if self.temporal_boost_enabled and query_dates:
                 ts = memory.metadata.model_dump().get("timestamp")
                 boost = temporal_boost(str(ts) if ts else None, query_dates)
                 if boost > 0:
                     score = min(1.0, score * (1.0 + boost))
-
-            # Lexical surface boost: predicate-keyword / quoted-phrase /
-            # person-name overlap. Multiplier sits in [1.0, ~2.3]. We
-            # do NOT cap at 1.0 here — capping would collapse the
-            # differentiation between two near-top candidates and lose
-            # the ranking signal the boost is trying to inject. The
-            # final sort cares about relative ordering, not absolute
-            # range.
-            if self.lexical_boost_enabled and not query_signals.is_empty:
-                score = score * lexical_boost(query_signals, memory.content)
 
             results.append(
                 MemorySearchResult(
@@ -151,7 +153,7 @@ class MemorySearcher:
                     score=score,
                     recency_score=recency,
                     importance_score_normalized=importance_norm,
-                    relevance_score=relevance,
+                    relevance_score=rel,
                 )
             )
 
@@ -174,18 +176,11 @@ class MemorySearcher:
             pool.sort(key=lambda r: r.score, reverse=True)
             results = pool + tail
 
-        # Bound the score to [0, 1] for output and thresholding. The lexical
-        # boost is deliberately uncapped while ranking (it differentiates the
-        # top candidates), so a composite can exceed 1.0. Ranking order is
-        # already fixed above, so clamping here only rewrites values — it never
-        # changes which results win — and lets callers reason on a [0, 1] scale.
-        for r in results:
-            if r.score > 1.0:
-                r.score = 1.0
-
-        # Relevance floor: drop anything below min_score. Applied after rerank
-        # and clamping so it filters on the final [0, 1] score the caller sees.
-        # Used by strict recall surfaces (hook, MCP); 0.0 (console default) is a no-op.
+        # Relevance floor: drop anything below min_score. The composite is
+        # bounded to [0, 1] by construction (each signal is in [0, 1] and the
+        # weights are normalised) and rerank scores are sigmoid-normalised, so
+        # the floor lives on a [0, 1] scale in both modes. Used by strict recall
+        # surfaces (hook, MCP); 0.0 (console default) is a no-op.
         if query.min_score > 0.0:
             results = [r for r in results if r.score >= query.min_score]
 

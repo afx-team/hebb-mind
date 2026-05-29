@@ -15,7 +15,7 @@
 
 ---
 
-Hebb Mind 给 AI Agent 装上一条受神经科学启发的记忆回路 —— **编码 → 回放 → 巩固 → 遗忘**。`pipx install` 后一行命令即可在本地拉起 REST + MCP 端点：SQLite 做存储、sentence-transformers 做嵌入、NetworkX 维护标签图谱。**零外部服务**，只有想让巩固阶段"工作"时才需要 LLM Key。
+Hebb Mind 给 AI Agent 装上一条受神经科学启发的记忆回路 —— **存储 → 激活 → 回放 → 巩固 → 遗忘**。`pipx install` 后一行命令即可在本地拉起 REST + MCP 端点：SQLite 做存储、sentence-transformers 做嵌入、NetworkX 维护标签图谱。**零外部服务**，只有想让巩固阶段"工作"时才需要 LLM Key。
 
 与同类相比，**Hebb Mind 是一个二进制、一条生物学意义上的回路。**
 

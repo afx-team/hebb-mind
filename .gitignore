@@ -58,3 +58,4 @@ eval/workdirs/
 models/BAAI/bge-m3
 models/BAAI/bge-large-en-v1.5
 .research/
+.playwright-mcp/

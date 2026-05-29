@@ -16,15 +16,37 @@ const translations = {
 
     // Dashboard
     'dashboard.title': 'Dashboard',
-    'dashboard.subtitle': 'System overview and quick actions',
+    'dashboard.subtitle': 'System overview and memory maintenance',
     'dashboard.total_memories': 'Total Memories',
     'dashboard.partitions': 'Partitions',
     'dashboard.graph_nodes': 'Graph Nodes',
     'dashboard.graph_edges': 'Graph Edges',
     'dashboard.partition_dist': 'Partition Distribution',
-    'dashboard.quick_actions': 'Quick Actions',
-    'dashboard.run_consolidation': 'Run Consolidation',
-    'dashboard.run_forget': 'Run Forget',
+
+    // Memory maintenance (manual triggers for the background lifecycle jobs)
+    'maint.title': 'Memory Maintenance',
+    'maint.subtitle': 'These run automatically in the background — trigger them manually only when you want the result right now.',
+    'maint.consolidate.title': 'Organize new memories',
+    'maint.consolidate.term': 'consolidate',
+    'maint.consolidate.desc': 'Sort newly written memories into long-term partitions and update the knowledge graph.',
+    'maint.consolidate.btn': 'Organize now',
+    'maint.consolidate.pending': '{n} pending',
+    'maint.consolidate.none_pending': 'Nothing pending',
+    'maint.consolidate.done': 'Organized {ok} memories',
+    'maint.consolidate.done_fail': 'Organized {ok}, {fail} failed',
+    'maint.consolidate.nothing': 'No new memories to organize',
+    'maint.forget.title': 'Clean up expired memories',
+    'maint.forget.term': 'forget',
+    'maint.forget.desc': 'Delete memories past their retention window to free up space. Memories still within their window are kept.',
+    'maint.forget.btn': 'Clean up now',
+    'maint.forget.confirm_title': 'Clean up expired memories?',
+    'maint.forget.confirm_body': 'This permanently deletes every memory past its retention window and cannot be undone. Memories still within their retention window are not affected.',
+    'maint.forget.confirm_ok': 'Clean up',
+    'maint.forget.done': 'Cleaned up {n} expired memories',
+    'maint.forget.none': 'No expired memories — nothing to clean up',
+    'maint.auto_next': 'Auto-runs next at {time}',
+    'maint.auto_bg': 'Runs automatically in the background',
+    'maint.running': 'Working…',
 
     // Memories
     'memories.title': 'Memories',
@@ -150,15 +172,37 @@ const translations = {
     'nav.docs': '文档',
 
     'dashboard.title': '仪表盘',
-    'dashboard.subtitle': '系统概览与快捷操作',
+    'dashboard.subtitle': '系统概览与记忆维护',
     'dashboard.total_memories': '记忆总数',
     'dashboard.partitions': '分区数',
     'dashboard.graph_nodes': '图谱节点',
     'dashboard.graph_edges': '图谱边数',
     'dashboard.partition_dist': '分区分布',
-    'dashboard.quick_actions': '快捷操作',
-    'dashboard.run_consolidation': '执行巩固',
-    'dashboard.run_forget': '执行遗忘',
+
+    // 记忆维护（后台生命周期任务的手动触发）
+    'maint.title': '记忆维护',
+    'maint.subtitle': '以下任务会在后台自动运行，只有当你想立刻看到结果时才需要手动触发。',
+    'maint.consolidate.title': '整理新记忆',
+    'maint.consolidate.term': '巩固',
+    'maint.consolidate.desc': '把新写入的记忆分类归档到长期分区，并更新知识图谱。',
+    'maint.consolidate.btn': '立即整理',
+    'maint.consolidate.pending': '{n} 条待处理',
+    'maint.consolidate.none_pending': '暂无待处理',
+    'maint.consolidate.done': '已整理 {ok} 条记忆',
+    'maint.consolidate.done_fail': '已整理 {ok} 条，{fail} 条失败',
+    'maint.consolidate.nothing': '没有需要整理的新记忆',
+    'maint.forget.title': '清理过期记忆',
+    'maint.forget.term': '遗忘',
+    'maint.forget.desc': '删除已超过保留期限的记忆，释放空间。仍在保留期内的记忆不受影响。',
+    'maint.forget.btn': '立即清理',
+    'maint.forget.confirm_title': '确认清理过期记忆？',
+    'maint.forget.confirm_body': '将永久删除所有已超过保留期限的记忆，此操作不可撤销。仍在保留期内的记忆不受影响。',
+    'maint.forget.confirm_ok': '确认清理',
+    'maint.forget.done': '已清理 {n} 条过期记忆',
+    'maint.forget.none': '没有需要清理的过期记忆',
+    'maint.auto_next': '下次自动运行 {time}',
+    'maint.auto_bg': '后台自动运行',
+    'maint.running': '处理中…',
 
     'memories.title': '记忆管理',
     'memories.new': '+ 新建记忆',
@@ -246,7 +290,7 @@ const translations = {
     'settings.tab.llm': 'LLM',
     'settings.tab.embedding': '嵌入',
     'settings.tab.retrieval': '检索',
-    'settings.tab.lifecycle': '生命周期',
+    'settings.tab.lifecycle': '记忆周期',
     'settings.tab.storage': '存储',
     'settings.tab.server': '服务',
 
@@ -268,8 +312,9 @@ const translations = {
 
 let currentLang = localStorage.getItem('hebb-lang') || 'en';
 
-export function t(key) {
-  return translations[currentLang]?.[key] || translations['en']?.[key] || key;
+export function t(key, vars) {
+  const s = translations[currentLang]?.[key] || translations['en']?.[key] || key;
+  return vars ? s.replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? '')) : s;
 }
 
 export function getLang() {

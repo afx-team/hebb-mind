@@ -263,6 +263,9 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: var(-
 .btn-danger:hover { background: rgba(248,81,73,0.1); border-color: var(--accent-red); }
 .btn-sm { padding: 4px 10px; font-size: 12px; }
 .btn-group { display: flex; gap: 8px; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn:disabled:hover { background: var(--bg-tertiary); border-color: var(--border); }
+.btn-primary:disabled:hover { background: var(--accent); border-color: var(--accent); }
 
 /* ============================================================
    Inputs & Forms
@@ -448,12 +451,48 @@ tr:hover td { background: var(--bg-tertiary); }
 .bar-value { font-size: 12px; font-family: var(--font-mono); color: var(--text-secondary); min-width: 36px; text-align: right; }
 
 /* ============================================================
+   Memory maintenance cards
+   ============================================================ */
+.maint-list { display: flex; flex-direction: column; gap: 12px; }
+.maint-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.maint-icon { font-size: 22px; line-height: 1; flex-shrink: 0; width: 28px; text-align: center; }
+.maint-body { flex: 1; min-width: 0; }
+.maint-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.maint-term {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-left: 8px;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  vertical-align: middle;
+}
+.maint-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-top: 3px; }
+.maint-meta { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 6px; }
+.maint-action { flex-shrink: 0; }
+@media (max-width: 600px) {
+  .maint-card { flex-wrap: wrap; }
+  .maint-action { width: 100%; }
+  .maint-action .btn { width: 100%; justify-content: center; }
+}
+
+/* ============================================================
    Utilities
    ============================================================ */
 .hidden { display: none !important; }
 .text-muted { color: var(--text-secondary); }
 .text-sm { font-size: 12px; }
 .text-mono { font-family: var(--font-mono); }
+.mt-1 { margin-top: 4px; }
 .mt-4 { margin-top: 16px; }
 .mt-6 { margin-top: 24px; }
 .mb-4 { margin-bottom: 16px; }
@@ -507,10 +546,11 @@ tr:hover td { background: var(--bg-tertiary); }
   padding: 10px 0; border-bottom: 1px solid var(--border-light);
 }
 .setting-row:last-child { border-bottom: none; }
-.setting-label { display: flex; align-items: center; gap: 8px; min-width: 260px; }
+.setting-label { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 200px; max-width: 55%; }
+.setting-key-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .setting-key { font-size: 13px; font-family: var(--font-mono); color: var(--text-primary); }
-.setting-input-wrap { display: flex; align-items: center; gap: 8px; flex: 1; justify-content: flex-end; }
-.setting-input { max-width: 320px; text-align: right; font-family: var(--font-mono); font-size: 13px; }
+.setting-input-wrap { display: flex; align-items: center; gap: 8px; flex: 1; justify-content: flex-end; min-width: 180px; }
+.setting-input { width: 100%; max-width: 320px; min-width: 120px; text-align: right; font-family: var(--font-mono); font-size: 13px; }
 .setting-save { transition: opacity var(--transition); }
 .settings-fields .toggle { flex-shrink: 0; }
 

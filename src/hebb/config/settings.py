@@ -64,12 +64,6 @@ class Settings(BaseModel):
         le=200,
         description="Candidates to rerank before final top_k; auto-bumps searcher overfetch",
     )
-    rerank_max_length: int = Field(
-        default=512,
-        ge=64,
-        le=2048,
-        description="Max tokens per (query, content) pair fed to the cross-encoder; longer pairs are truncated",
-    )
 
     # Relevance floor for strict recall surfaces (Claude Code hook, MCP). Those
     # callers send strict_recall=True and the server drops any result scoring
