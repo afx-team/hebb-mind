@@ -33,4 +33,4 @@ Currently noisy/movie only. The full 11-category sweep is on the roadmap; sweepi
 
 ## Per-competitor comparisons
 
-- [vs MemPalace](./vs-mempalace) — TBD (full vs-page pending; raw number above is already directly comparable)
+- **vs MemPalace** — TBD (full vs-page pending; raw number above is already directly comparable)
