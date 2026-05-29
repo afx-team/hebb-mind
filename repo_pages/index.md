@@ -499,8 +499,5 @@ onMounted(() => {
     })
   }, { threshold: 0.08, rootMargin: '0px 0px -60px 0px' })
   sections.forEach(s => io.observe(s))
-  // Scroll snap on the actual scroll container
-  const scroller = document.documentElement
-  scroller.style.scrollSnapType = 'y proximity'
 })
 </script>

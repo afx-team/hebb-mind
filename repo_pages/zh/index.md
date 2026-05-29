@@ -37,7 +37,7 @@ features:
     details: 三行命令为 Claude Code 启用跨会话记忆；hebb codex install 一键将能力以 MCP 工具形式接入 Codex。REST 文档位于 /docs。
 ---
 
-<div class="hippo-home hippo-snap">
+<div class="hippo-home">
 
 <!-- ─────────────── 赫布学习 ─────────────── -->
 <div class="hippo-section">
@@ -278,9 +278,6 @@ features:
   .hippo-hero-bg { display: none; }
 }
 
-/* ── Scroll Snap ── */
-.hippo-snap > .hippo-section { scroll-snap-align: start; }
-
 /* ── Fade-in animation ── */
 @keyframes hippoFadeUp {
   from { opacity: 0; transform: translateY(40px) scale(0.98); }
@@ -324,9 +321,9 @@ features:
 
 /* ── Sections ── */
 .hippo-section {
-  min-height: 100vh; margin: 0;
+  margin: 0;
   display: flex; flex-direction: column; justify-content: center;
-  padding: 60px 0; box-sizing: border-box;
+  padding: 72px 0; box-sizing: border-box;
 }
 .hippo-section h2 { text-align: center; margin-bottom: 8px; border-top: none; padding-top: 0; }
 .hippo-section-sub { text-align: center; color: var(--vp-c-text-2); margin-bottom: 36px; font-size: 15px; }
@@ -453,7 +450,6 @@ features:
 @media (prefers-reduced-motion: reduce) {
   .hippo-section > * { opacity: 1; }
   .hippo-section.is-visible > * { animation: none; }
-  .hippo-snap { scroll-snap-type: none; }
 }
 </style>
 
@@ -490,8 +486,5 @@ onMounted(() => {
     })
   }, { threshold: 0.08, rootMargin: '0px 0px -60px 0px' })
   sections.forEach(s => io.observe(s))
-  // Scroll snap on the actual scroll container
-  const scroller = document.documentElement
-  scroller.style.scrollSnapType = 'y proximity'
 })
 </script>
