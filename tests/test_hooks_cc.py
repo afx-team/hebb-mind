@@ -367,7 +367,10 @@ class TestPromptRecallHook:
         monkeypatch.setattr(recall, "get_client", lambda timeout=5: client)
         recall.handle_prompt()
         assert client.calls == [
-            ("/api/v1/search", {"query": "How do I reset my password?", "top_k": 20}),
+            (
+                "/api/v1/search",
+                {"query": "How do I reset my password?", "top_k": 20, "strict_recall": True},
+            ),
         ]
         assert client.closed is True
 
