@@ -108,7 +108,7 @@ class LoComoBenchmark(BaseBenchmark):
                     "content": content[:10000],
                     "partition_id": PARTITION_ID,
                     "importance_score": 5.0,
-                    "tags": ["user-prompt", "hook"],
+                    "tags": ["locomo"],
                     "metadata": metadata,
                     "source": "hook",
                 })

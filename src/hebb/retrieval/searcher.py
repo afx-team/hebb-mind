@@ -40,6 +40,7 @@ class MemorySearcher:
         graph: KnowledgeGraph | None = None,
         reranker: Reranker | None = None,
         *,
+        vector_search_enabled: bool = True,
         keyword_search_enabled: bool = True,
         graph_search_enabled: bool = True,
         lexical_boost_enabled: bool = True,
@@ -52,6 +53,7 @@ class MemorySearcher:
         self.reranker = reranker
         # Pipeline toggles — each defaults True so callers that don't
         # opt-in to ablation get the current behaviour bit-for-bit.
+        self.vector_search_enabled = vector_search_enabled
         self.keyword_search_enabled = keyword_search_enabled
         self.graph_search_enabled = graph_search_enabled
         self.lexical_boost_enabled = lexical_boost_enabled
@@ -79,7 +81,11 @@ class MemorySearcher:
         async def _empty_ranked() -> list[tuple[Memory, float]]:
             return []
 
-        vec_task = self._vector_search(query.query, overfetch, query.partition_ids)
+        vec_task = (
+            self._vector_search(query.query, overfetch, query.partition_ids)
+            if self.vector_search_enabled
+            else _empty_ranked()
+        )
         kw_task = (
             self._keyword_search(query.query, overfetch, query.partition_ids)
             if self.keyword_search_enabled

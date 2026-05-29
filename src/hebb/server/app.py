@@ -63,6 +63,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         embedder=embedder,
         graph=kg,
         reranker=reranker,
+        vector_search_enabled=settings.vector_search_enabled,
         keyword_search_enabled=settings.keyword_search_enabled,
         graph_search_enabled=settings.graph_search_enabled,
         lexical_boost_enabled=settings.lexical_boost_enabled,

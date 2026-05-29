@@ -44,6 +44,7 @@ class Settings(BaseModel):
     # Retrieval pipeline toggles — each path/boost is independently
     # switchable so users can A/B individual contributions and so the
     # eval harness can run ablations without rebuilding the searcher.
+    vector_search_enabled: bool = Field(default=True, description="Embedding vector path in 3-way RRF recall")
     keyword_search_enabled: bool = Field(default=True, description="FTS5/tsvector keyword path in 3-way RRF recall")
     graph_search_enabled: bool = Field(default=True, description="Knowledge-graph tag-match path in 3-way RRF recall")
     lexical_boost_enabled: bool = Field(
