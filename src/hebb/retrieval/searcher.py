@@ -174,6 +174,21 @@ class MemorySearcher:
             pool.sort(key=lambda r: r.score, reverse=True)
             results = pool + tail
 
+        # Bound the score to [0, 1] for output and thresholding. The lexical
+        # boost is deliberately uncapped while ranking (it differentiates the
+        # top candidates), so a composite can exceed 1.0. Ranking order is
+        # already fixed above, so clamping here only rewrites values — it never
+        # changes which results win — and lets callers reason on a [0, 1] scale.
+        for r in results:
+            if r.score > 1.0:
+                r.score = 1.0
+
+        # Relevance floor: drop anything below min_score. Applied after rerank
+        # and clamping so it filters on the final [0, 1] score the caller sees.
+        # Used by strict recall surfaces (hook, MCP); 0.0 (console default) is a no-op.
+        if query.min_score > 0.0:
+            results = [r for r in results if r.score >= query.min_score]
+
         top_results = results[: query.top_k]
         top_ids = {r.memory.id for r in top_results}
 

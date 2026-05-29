@@ -74,7 +74,7 @@ def _recall_and_print(query: str, current_session_id: str, timeout: float) -> No
     try:
         resp = client.post(
             "/api/v1/search",
-            json={"query": query, "top_k": _TOP_K_FETCH},
+            json={"query": query, "top_k": _TOP_K_FETCH, "strict_recall": True},
         )
         resp.raise_for_status()
         data = resp.json()

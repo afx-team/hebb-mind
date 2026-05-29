@@ -108,7 +108,7 @@ async def search_memory(
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"{_base_url()}/api/v1/search",
-            json={"query": query, "top_k": top_k},
+            json={"query": query, "top_k": top_k, "strict_recall": True},
         )
         resp.raise_for_status()
         data = resp.json()

@@ -25,11 +25,17 @@ async def search_memories(
     explicitly — so callers like the recall hook honour the user's tuning,
     while the console Search sliders still override per query.
     """
-    weight_updates = {
+    updates: dict[str, object] = {
         field: getattr(settings, field)
         for field in ("weight_recency", "weight_importance", "weight_relevance")
         if field not in query.model_fields_set
     }
-    if weight_updates:
-        query = query.model_copy(update=weight_updates)
+    # Strict recall surfaces (hook, MCP) opt in via ``strict_recall`` rather
+    # than hardcoding a number — the floor lives in server config so the
+    # console Settings edit is the single source of truth. An explicit
+    # ``min_score`` on the request still wins.
+    if query.strict_recall and "min_score" not in query.model_fields_set:
+        updates["min_score"] = settings.recall_min_score
+    if updates:
+        query = query.model_copy(update=updates)
     return await searcher.search(query)

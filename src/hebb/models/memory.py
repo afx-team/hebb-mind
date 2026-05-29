@@ -81,6 +81,16 @@ class MemoryQuery(BaseModel):
     weight_recency: float = Field(default=1.0, ge=0.0)
     weight_importance: float = Field(default=1.0, ge=0.0)
     weight_relevance: float = Field(default=1.0, ge=0.0)
+    # Relevance floor in [0, 1]: drop results whose final score is below this.
+    # 0 means no filtering (the console default). The searcher clamps scores to
+    # [0, 1] before this filter, so the floor lives on the same [0, 1] scale.
+    min_score: float = Field(
+        default=0.0, ge=0.0, le=1.0, description="Drop results scoring below this floor (0-1); 0 = no filter"
+    )
+    # Strict recall surfaces (Claude Code hook, MCP) set this so the server
+    # applies its configured ``recall_min_score`` floor without the caller
+    # needing to know the value. Ignored when ``min_score`` is set explicitly.
+    strict_recall: bool = Field(default=False, description="Apply the server's configured recall_min_score floor")
     # Context window expansion: when a top result has session_id+turn
     # metadata, also pull this many *adjacent* turns from the same
     # session and return them via SearchResponse.related. The hit memory

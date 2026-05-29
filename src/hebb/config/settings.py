@@ -64,6 +64,22 @@ class Settings(BaseModel):
         le=200,
         description="Candidates to rerank before final top_k; auto-bumps searcher overfetch",
     )
+    rerank_max_length: int = Field(
+        default=512,
+        ge=64,
+        le=2048,
+        description="Max tokens per (query, content) pair fed to the cross-encoder; longer pairs are truncated",
+    )
+
+    # Relevance floor for strict recall surfaces (Claude Code hook, MCP). Those
+    # callers send strict_recall=True and the server drops any result scoring
+    # below this. Does not affect the console Search page, which is unfiltered.
+    recall_min_score: float = Field(
+        default=0.8,
+        ge=0.0,
+        le=1.0,
+        description="Min relevance score (0-1) for hook/MCP recall; results below are dropped (console Search unaffected)",
+    )
 
     # LLM
     llm_model: str | None = Field(default=None, description="LLM model identifier (e.g. openai/gpt-4o-mini)")

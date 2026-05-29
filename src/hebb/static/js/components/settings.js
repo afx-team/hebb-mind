@@ -109,24 +109,26 @@ const EMB_PRESETS = [
 const GROUP_RECALL = {
   title: 'Recall Pipeline',
   icon: '&#128269;',
-  keys: ['keyword_search_enabled', 'graph_search_enabled', 'lexical_boost_enabled', 'temporal_boost_enabled', 'graph_expansion_enabled'],
+  keys: ['keyword_search_enabled', 'graph_search_enabled', 'lexical_boost_enabled', 'temporal_boost_enabled', 'graph_expansion_enabled', 'recall_min_score'],
   hints: {
     keyword_search_enabled: 'FTS5 / keyword path in the 3-way RRF recall',
     graph_search_enabled: 'Knowledge-graph tag-match recall path',
     lexical_boost_enabled: 'Predicate / quoted-phrase / person-name surface boost',
     temporal_boost_enabled: 'Date-proximity boost when the query names a time',
     graph_expansion_enabled: 'Expand top-k tags through the graph for related memories',
+    recall_min_score: 'Score floor (0–1) for strict recall (Claude Code hook + MCP). Results below are dropped; the console Search page is unaffected. Applies immediately, no restart.',
   },
 };
 const GROUP_RERANK = {
   title: 'Rerank',
   icon: '&#127919;',
-  keys: ['rerank_enabled', 'rerank_provider', 'rerank_model', 'rerank_top_n'],
+  keys: ['rerank_enabled', 'rerank_provider', 'rerank_model', 'rerank_top_n', 'rerank_max_length'],
   hints: {
-    rerank_enabled: 'Cross-encoder pass over the top candidates after hybrid retrieval',
+    rerank_enabled: 'Cross-encoder pass over the top candidates after hybrid retrieval. Scores are sigmoid-normalised to [0,1].',
     rerank_provider: "'local' = sentence-transformers CrossEncoder",
     rerank_model: 'Model name or HuggingFace repo id',
     rerank_top_n: 'Candidates to rerank before the final top_k (5–200)',
+    rerank_max_length: 'Max tokens per (query, content) pair; longer pairs are truncated (64–2048)',
   },
 };
 const GROUP_WEIGHTS = {
@@ -197,7 +199,7 @@ const RESTART_KEYS = new Set([
   'forget_interval_seconds',
   'keyword_search_enabled', 'graph_search_enabled', 'lexical_boost_enabled',
   'temporal_boost_enabled', 'graph_expansion_enabled',
-  'rerank_enabled', 'rerank_provider', 'rerank_model', 'rerank_top_n',
+  'rerank_enabled', 'rerank_provider', 'rerank_model', 'rerank_top_n', 'rerank_max_length',
   'host', 'port', 'home',
 ]);
 
@@ -822,8 +824,10 @@ function buildGenericSection(group, config) {
     row.className = 'setting-row';
     row.innerHTML = `
       <div class="setting-label">
-        <span class="setting-key">${key}</span>
-        ${restart ? `<span class="tag tag-yellow" style="font-size:10px">${t('settings.restart_required')}</span>` : ''}
+        <div class="setting-key-row">
+          <span class="setting-key">${key}</span>
+          ${restart ? `<span class="tag tag-yellow" style="font-size:10px">${t('settings.restart_required')}</span>` : ''}
+        </div>
         ${hint ? `<span class="text-muted text-sm" style="display:block;font-family:var(--font);margin-top:2px">${hint}</span>` : ''}
       </div>
       <div class="setting-input-wrap">
@@ -872,7 +876,7 @@ function renderInput(key, value) {
     </div>`;
   }
   const type = SENSITIVE_KEYS.has(key) ? 'password' : 'text';
-  const displayValue = value === null ? '' : String(value);
+  const displayValue = value == null ? '' : String(value);
   if (key === 'consolidation_time') {
     return `<input class="form-input setting-input" type="time" step="60" value="${esc(displayValue)}" data-key="${key}">`;
   }
