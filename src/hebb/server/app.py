@@ -117,13 +117,24 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    from hebb.server.routers import admin, config, graph, health, memories, partitions, search, upgrade
+    from hebb.server.routers import (
+        admin,
+        claude_memory,
+        config,
+        graph,
+        health,
+        memories,
+        partitions,
+        search,
+        upgrade,
+    )
 
     app.include_router(health.router, tags=["health"])
     app.include_router(partitions.router, prefix="/api/v1", tags=["partitions"])
     app.include_router(memories.router, prefix="/api/v1", tags=["memories"])
     app.include_router(search.router, prefix="/api/v1", tags=["search"])
     app.include_router(graph.router, prefix="/api/v1", tags=["graph"])
+    app.include_router(claude_memory.router, prefix="/api/v1/claude-memory", tags=["claude-memory"])
     app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
     app.include_router(config.router, prefix="/api/v1/admin", tags=["config"])
     app.include_router(upgrade.router, prefix="/api/v1/admin/upgrade", tags=["upgrade"])

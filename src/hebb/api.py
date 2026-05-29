@@ -332,9 +332,9 @@ class HebbMind:
         top_k: int = 10,
         partition_ids: list[str] | None = None,
         tags: list[str] | None = None,
-        weight_recency: float = 1.0,
-        weight_importance: float = 1.0,
-        weight_relevance: float = 1.0,
+        weight_recency: float | None = None,
+        weight_importance: float | None = None,
+        weight_relevance: float | None = None,
     ) -> list[MemorySearchResult]:
         """Hybrid (vector + keyword + graph) search across memories.
 
@@ -346,10 +346,13 @@ class HebbMind:
             tags: Optional tag filter; only memories whose tag set
                 intersects ``tags`` are returned.
             weight_recency: Weight on the recency factor in the
-                composite score.
-            weight_importance: Weight on the importance factor.
+                composite score. ``None`` uses the configured
+                ``weight_recency`` default.
+            weight_importance: Weight on the importance factor. ``None``
+                uses the configured ``weight_importance`` default.
             weight_relevance: Weight on the embedding/keyword relevance
-                factor.
+                factor. ``None`` uses the configured ``weight_relevance``
+                default.
 
         Returns:
             A list of :class:`MemorySearchResult` objects sorted by
@@ -368,9 +371,9 @@ class HebbMind:
             partition_ids=partition_ids,
             tags=tags,
             top_k=top_k,
-            weight_recency=weight_recency,
-            weight_importance=weight_importance,
-            weight_relevance=weight_relevance,
+            weight_recency=self.settings.weight_recency if weight_recency is None else weight_recency,
+            weight_importance=self.settings.weight_importance if weight_importance is None else weight_importance,
+            weight_relevance=self.settings.weight_relevance if weight_relevance is None else weight_relevance,
         )
         try:
             response = self._run(self._searcher.search(mq))

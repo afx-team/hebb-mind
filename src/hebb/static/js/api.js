@@ -74,3 +74,12 @@ export const revealConfigValue = (key) => request('GET', `/api/v1/admin/config/r
 /* Upgrade */
 export const getUpgradeState = () => request('GET', '/api/v1/admin/upgrade');
 export const forceUpgradeCheck = () => request('POST', '/api/v1/admin/upgrade/check');
+
+/* Claude Code memory documents */
+export const listCCProjects = () => request('GET', '/api/v1/claude-memory/projects');
+export const listCCFiles = (project) =>
+  request('GET', `/api/v1/claude-memory/files?project=${encodeURIComponent(project)}`);
+export const getCCFile = (project, name) =>
+  request('GET', `/api/v1/claude-memory/file?project=${encodeURIComponent(project)}&name=${encodeURIComponent(name)}`);
+export const saveCCFile = (project, name, content) =>
+  request('PUT', '/api/v1/claude-memory/file', { project, name, content });

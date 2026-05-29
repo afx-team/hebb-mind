@@ -10,6 +10,7 @@ const translations = {
     'nav.search': 'Search',
     'nav.partitions': 'Partitions',
     'nav.graph': 'Graph',
+    'nav.cc-memory': 'CC Memory',
     'nav.settings': 'Settings',
     'nav.docs': 'Docs',
 
@@ -84,6 +85,22 @@ const translations = {
     'graph.search_placeholder': 'Search tags...',
     'graph.no_nodes': 'No nodes in the knowledge graph yet.',
 
+    // Claude Code memory
+    'cc.title': 'Claude Code Memory',
+    'cc.subtitle': 'View and edit the file-based memory Claude Code keeps on disk',
+    'cc.project': 'Project',
+    'cc.no_projects': 'No Claude Code memory found on this machine',
+    'cc.no_files': 'No memory documents in this project',
+    'cc.select_file': 'Select a document on the left to view it',
+    'cc.index_badge': 'index',
+    'cc.files': 'documents',
+    'cc.edit': 'Edit',
+    'cc.save': 'Save',
+    'cc.cancel': 'Cancel',
+    'cc.saved_ok': 'Memory saved',
+    'cc.save_failed': 'Save failed',
+    'cc.updated': 'Updated',
+
     // Settings
     'settings.title': 'Settings',
     'settings.subtitle': 'Configuration from hebb.json',
@@ -98,6 +115,12 @@ const translations = {
     'settings.success': 'Connection successful',
     'settings.failed': 'Connection failed',
     'settings.restart_required': 'restart required',
+    'settings.tab.llm': 'LLM',
+    'settings.tab.embedding': 'Embedding',
+    'settings.tab.retrieval': 'Retrieval',
+    'settings.tab.lifecycle': 'Lifecycle',
+    'settings.tab.storage': 'Storage',
+    'settings.tab.server': 'Server',
 
     // Upgrade
     'upgrade.available': 'Hebb Mind {latest} is available',
@@ -122,6 +145,7 @@ const translations = {
     'nav.search': '搜索',
     'nav.partitions': '分区',
     'nav.graph': '图谱',
+    'nav.cc-memory': 'CC 记忆',
     'nav.settings': '设置',
     'nav.docs': '文档',
 
@@ -191,6 +215,21 @@ const translations = {
     'graph.search_placeholder': '搜索标签...',
     'graph.no_nodes': '知识图谱暂无节点。',
 
+    'cc.title': 'Claude Code 记忆',
+    'cc.subtitle': '查看并编辑 Claude Code 存放在磁盘上的文件型记忆',
+    'cc.project': '项目',
+    'cc.no_projects': '本机未发现 Claude Code 记忆',
+    'cc.no_files': '该项目暂无记忆文档',
+    'cc.select_file': '选择左侧文档查看内容',
+    'cc.index_badge': '索引',
+    'cc.files': '个文档',
+    'cc.edit': '编辑',
+    'cc.save': '保存',
+    'cc.cancel': '取消',
+    'cc.saved_ok': '记忆已保存',
+    'cc.save_failed': '保存失败',
+    'cc.updated': '更新于',
+
     'settings.title': '设置',
     'settings.subtitle': '来自 hebb.json 的配置',
     'settings.llm_title': 'LLM 配置',
@@ -204,6 +243,12 @@ const translations = {
     'settings.success': '连接成功',
     'settings.failed': '连接失败',
     'settings.restart_required': '需重启',
+    'settings.tab.llm': 'LLM',
+    'settings.tab.embedding': '嵌入',
+    'settings.tab.retrieval': '检索',
+    'settings.tab.lifecycle': '生命周期',
+    'settings.tab.storage': '存储',
+    'settings.tab.server': '服务',
 
     'upgrade.available': 'Hebb Mind {latest} 可用',
     'upgrade.current': '当前 {current}',
