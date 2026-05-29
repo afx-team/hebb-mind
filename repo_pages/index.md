@@ -37,7 +37,7 @@ features:
     details: Three-line install gives Claude Code cross-session memory; hebb codex install adds the same as MCP tools. REST docs at /docs.
 ---
 
-<div class="hippo-home hippo-snap">
+<div class="hippo-home">
 
 <!-- ─────────────── The Hebbian Idea ─────────────── -->
 <div class="hippo-section">
@@ -241,9 +241,6 @@ features:
 <style>
 .hippo-home { max-width: 1100px; margin: 0 auto; padding: 0 32px 0; }
 
-/* ── Scroll Snap ── */
-.hippo-snap > .hippo-section { scroll-snap-align: start; }
-
 /* ── Fade-in animation ── */
 @keyframes hippoFadeUp {
   from { opacity: 0; transform: translateY(40px) scale(0.98); }
@@ -300,9 +297,9 @@ features:
 
 /* ── Sections ── */
 .hippo-section {
-  min-height: 100vh; margin: 0;
+  margin: 0;
   display: flex; flex-direction: column; justify-content: center;
-  padding: 60px 0; box-sizing: border-box;
+  padding: 72px 0; box-sizing: border-box;
 }
 
 /* ── Hero background video ── */
@@ -466,7 +463,6 @@ features:
 @media (prefers-reduced-motion: reduce) {
   .hippo-section > * { opacity: 1; }
   .hippo-section.is-visible > * { animation: none; }
-  .hippo-snap { scroll-snap-type: none; }
 }
 </style>
 
@@ -503,8 +499,5 @@ onMounted(() => {
     })
   }, { threshold: 0.08, rootMargin: '0px 0px -60px 0px' })
   sections.forEach(s => io.observe(s))
-  // Scroll snap on the actual scroll container
-  const scroller = document.documentElement
-  scroller.style.scrollSnapType = 'y proximity'
 })
 </script>
