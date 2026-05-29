@@ -37,7 +37,7 @@ def _hooks_config() -> dict[str, list[dict[str, object]]]:
             {
                 "matcher": "",
                 "hooks": [
-                    {"type": "command", "command": shell_quote([*hebb, "claude-code", "write"]), "timeout": 10},
+                    {"type": "command", "command": shell_quote([*hebb, "claude-code", "prompt"]), "timeout": 5},
                 ],
             }
         ],
@@ -126,22 +126,27 @@ def handle(scope: str) -> None:
 
     # Inject hooks — replace any existing hebb hook (bare or absolute) with the
     # freshly-resolved absolute one. Idempotent: re-running picks up a new
-    # install location automatically.
+    # install location automatically. We scrub hebb entries from *every*
+    # existing event (not just the ones we register now) so retired hook
+    # registrations from older installs don't survive a reinstall.
     hooks_config = _hooks_config()
     raw_hooks = settings.get("hooks", {})
     existing_hooks: dict[str, list[dict[str, object]]] = raw_hooks if isinstance(raw_hooks, dict) else {}
-    for event, hook_list in hooks_config.items():
-        existing = existing_hooks.get(event, [])
-        # Drop any prior hebb entries before adding the new one.
+    for event in list(existing_hooks.keys()):
         cleaned: list[dict[str, object]] = []
-        for entry in existing:
+        for entry in existing_hooks.get(event, []):
             inner_raw = entry.get("hooks", [])
             if not isinstance(inner_raw, list):
                 continue
             inner = [h for h in inner_raw if isinstance(h, dict) and not _is_hebb_hook(str(h.get("command", "")))]
             if inner:
                 cleaned.append({**entry, "hooks": inner})
-        existing_hooks[event] = cleaned + hook_list
+        if cleaned:
+            existing_hooks[event] = cleaned
+        else:
+            del existing_hooks[event]
+    for event, hook_list in hooks_config.items():
+        existing_hooks[event] = existing_hooks.get(event, []) + hook_list
     settings["hooks"] = existing_hooks
 
     # Install MCP server. Prefer the official Claude CLI so `claude mcp list`
@@ -156,7 +161,7 @@ def handle(scope: str) -> None:
     _save_settings(settings_path, settings)
 
     click.secho(f"Installed hebb into {settings_path}", fg="green")
-    click.echo("  Hooks:  SessionStart (recall), UserPromptSubmit (write), Stop (consolidate)")
+    click.echo("  Hooks:  SessionStart (recall), UserPromptSubmit (prompt recall), Stop (turn summary)")
     click.echo(f"  hebb:   {shell_quote(hebb_argv)}")
     click.echo(
         f"  MCP:    {shell_quote(mcp_argv)}"

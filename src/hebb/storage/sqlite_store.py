@@ -69,13 +69,14 @@ class SQLiteMemoryStore:
         if embedding:
             vec_bytes = np.array(embedding, dtype=np.float32).tobytes()
             await self.db.execute(
-                "INSERT INTO memory_embeddings (memory_id, embedding) VALUES (?, ?)",
-                (memory_id, vec_bytes),
+                "INSERT INTO memory_embeddings (memory_id, partition_id, embedding) VALUES (?, ?, ?)",
+                (memory_id, data.partition_id, vec_bytes),
             )
-        # FTS5 index for keyword search
+        # FTS5 index for keyword search — partition_id is UNINDEXED but
+        # carried so retrieval can filter by partition inside MATCH.
         await self.db.execute(
-            "INSERT INTO memory_fts (memory_id, content) VALUES (?, ?)",
-            (memory_id, data.content),
+            "INSERT INTO memory_fts (memory_id, partition_id, content) VALUES (?, ?, ?)",
+            (memory_id, data.partition_id, data.content),
         )
         await self.db.commit()
         return await self.get(memory_id)  # type: ignore[return-value]
@@ -160,8 +161,8 @@ class SQLiteMemoryStore:
         if data.content is not None:
             await self.db.execute("DELETE FROM memory_fts WHERE memory_id = ?", (memory_id,))
             await self.db.execute(
-                "INSERT INTO memory_fts (memory_id, content) VALUES (?, ?)",
-                (memory_id, data.content),
+                "INSERT INTO memory_fts (memory_id, partition_id, content) VALUES (?, ?, ?)",
+                (memory_id, existing.partition_id, data.content),
             )
         await self.db.commit()
         return await self.get(memory_id)
@@ -182,38 +183,59 @@ class SQLiteMemoryStore:
         top_k: int = 10,
         partition_ids: _List[str] | None = None,
     ) -> _List[tuple[Memory, float]]:
+        """Partition-aware vector KNN.
+
+        ``partition_id`` is a metadata column on the vec0 virtual table,
+        so the partition filter pushes into MATCH itself — no global
+        KNN + post-filter, no vec0 4096-row cap, no per-row ``get()``
+        fan-out. KNN is scoped to the requested partitions from the
+        start; we ask for ``top_k * 3`` candidates and trust the index.
+        """
         if not query_embedding:
             return []
         vec_bytes = np.array(query_embedding, dtype=np.float32).tobytes()
+        k = top_k * 3
 
-        # sqlite-vec KNN query (requires vec0 virtual table)
         try:
-            cursor = await self.db.execute(
-                """SELECT me.memory_id, me.distance
-                   FROM memory_embeddings me
-                   WHERE me.embedding MATCH ? AND k = ?
-                   ORDER BY me.distance""",
-                (vec_bytes, top_k * 3),  # over-fetch for filtering
-            )
+            if partition_ids:
+                placeholders = ",".join("?" * len(partition_ids))
+                cursor = await self.db.execute(
+                    f"""SELECT me.memory_id, me.distance
+                        FROM memory_embeddings me
+                        WHERE me.embedding MATCH ?
+                          AND k = ?
+                          AND me.partition_id IN ({placeholders})
+                        ORDER BY me.distance""",
+                    (vec_bytes, k, *partition_ids),
+                )
+            else:
+                cursor = await self.db.execute(
+                    """SELECT me.memory_id, me.distance
+                       FROM memory_embeddings me
+                       WHERE me.embedding MATCH ? AND k = ?
+                       ORDER BY me.distance""",
+                    (vec_bytes, k),
+                )
         except Exception:
-            # vec0 not available — fallback table does not support MATCH
+            # vec0 unavailable or fallback table doesn't support MATCH
             return []
-        rows = await cursor.fetchall()
 
-        results = []
-        for row in rows:
-            memory = await self.get(row["memory_id"])
-            if not memory:
-                continue
-            if partition_ids and memory.partition_id not in partition_ids:
+        rows = list(await cursor.fetchall())
+        if not rows:
+            return []
+
+        # Single round-trip fetch of full Memory rows by id, preserving
+        # the vec0 ranking order.
+        ids = [row["memory_id"] for row in rows[:top_k]]
+        memories_by_id = await self._get_many(ids)
+        results: _List[tuple[Memory, float]] = []
+        for row in rows[:top_k]:
+            memory = memories_by_id.get(row["memory_id"])
+            if memory is None:
                 continue
             # sqlite-vec returns L2 distance; convert to similarity [0, 1]
-            distance = row["distance"]
-            similarity = 1.0 / (1.0 + distance)
+            similarity = 1.0 / (1.0 + row["distance"])
             results.append((memory, similarity))
-            if len(results) >= top_k:
-                break
-
         return results
 
     async def search_by_keyword(
@@ -222,44 +244,73 @@ class SQLiteMemoryStore:
         top_k: int = 10,
         partition_ids: _List[str] | None = None,
     ) -> _List[tuple[Memory, float]]:
-        """Full-text search using FTS5 with BM25 ranking."""
+        """Partition-aware FTS5 BM25 search.
+
+        ``partition_id`` is an UNINDEXED FTS5 column, so the partition
+        filter sits in the same WHERE clause as MATCH and the LIMIT
+        applies after the BM25 ranker has already restricted to the
+        right partitions. No global LIMIT + post-filter starvation.
+        """
         if not query.strip():
             return []
-
-        # Sanitize the natural-language query for FTS5: strip punctuation
-        # (``?`` is a syntax error), drop stopwords, OR-join terms.
         match_expr = build_fts_query(query)
         if not match_expr:
             return []
 
-        # FTS5 MATCH query; bm25() returns negative scores (lower = more relevant)
         try:
-            cursor = await self.db.execute(
-                """SELECT f.memory_id, bm25(memory_fts) AS rank
-                   FROM memory_fts f
-                   WHERE memory_fts MATCH ?
-                   ORDER BY rank
-                   LIMIT ?""",
-                (match_expr, top_k * 3),
-            )
+            if partition_ids:
+                placeholders = ",".join("?" * len(partition_ids))
+                cursor = await self.db.execute(
+                    f"""SELECT f.memory_id, bm25(memory_fts) AS rank
+                        FROM memory_fts f
+                        WHERE memory_fts MATCH ?
+                          AND f.partition_id IN ({placeholders})
+                        ORDER BY rank
+                        LIMIT ?""",
+                    (match_expr, *partition_ids, top_k * 3),
+                )
+            else:
+                cursor = await self.db.execute(
+                    """SELECT f.memory_id, bm25(memory_fts) AS rank
+                       FROM memory_fts f
+                       WHERE memory_fts MATCH ?
+                       ORDER BY rank
+                       LIMIT ?""",
+                    (match_expr, top_k * 3),
+                )
         except Exception:
-            # FTS table may not exist or query syntax invalid
             return []
 
-        rows = await cursor.fetchall()
-        results = []
-        for row in rows:
-            memory = await self.get(row["memory_id"])
-            if not memory:
+        rows = list(await cursor.fetchall())
+        if not rows:
+            return []
+        ids = [row["memory_id"] for row in rows[:top_k]]
+        memories_by_id = await self._get_many(ids)
+        results: _List[tuple[Memory, float]] = []
+        for row in rows[:top_k]:
+            memory = memories_by_id.get(row["memory_id"])
+            if memory is None:
                 continue
-            if partition_ids and memory.partition_id not in partition_ids:
-                continue
-            # bm25 returns negative; convert to [0, 1] similarity
             similarity = 1.0 / (1.0 + abs(row["rank"]))
             results.append((memory, similarity))
-            if len(results) >= top_k:
-                break
         return results
+
+    async def _get_many(self, memory_ids: _List[str]) -> dict[str, Memory]:
+        """Batch fetch memories by id, preserving caller-side ordering.
+
+        Returns a dict mapping memory_id → Memory so callers can index
+        in whatever order the upstream ranking produced. Missing ids
+        (e.g. deleted between MATCH and SELECT) are simply absent.
+        """
+        if not memory_ids:
+            return {}
+        placeholders = ",".join("?" * len(memory_ids))
+        cursor = await self.db.execute(
+            f"SELECT * FROM memories WHERE id IN ({placeholders})",
+            tuple(memory_ids),
+        )
+        rows = await cursor.fetchall()
+        return {row["id"]: _row_to_memory(row) for row in rows}
 
     async def get_by_partition(self, partition_id: str) -> _List[Memory]:
         cursor = await self.db.execute(
@@ -372,11 +423,18 @@ class SQLiteMemoryStore:
     async def update_embedding(self, memory_id: str, embedding: _List[float]) -> None:
         if not embedding:
             return
+        # Read partition_id from the memories row so the vec0 index keeps
+        # the metadata column in sync with the parent record.
+        cursor = await self.db.execute("SELECT partition_id FROM memories WHERE id = ?", (memory_id,))
+        row = await cursor.fetchone()
+        if row is None:
+            return
+        partition_id = row["partition_id"]
         vec_bytes = np.array(embedding, dtype=np.float32).tobytes()
         await self.db.execute("DELETE FROM memory_embeddings WHERE memory_id = ?", (memory_id,))
         await self.db.execute(
-            "INSERT INTO memory_embeddings (memory_id, embedding) VALUES (?, ?)",
-            (memory_id, vec_bytes),
+            "INSERT INTO memory_embeddings (memory_id, partition_id, embedding) VALUES (?, ?, ?)",
+            (memory_id, partition_id, vec_bytes),
         )
         await self.db.commit()
 

@@ -44,9 +44,11 @@ def test_prepare_workdir_creates_dir_and_writes_hebb_json(
 
     workdir, port = prepare_workdir("convomem", workdir_root, project_root)
 
-    assert workdir == workdir_root / "convomem"
+    # Defaults to mode="raw", appended as a suffix so the consolidated
+    # workdir can persist independently.
+    assert workdir == workdir_root / "convomem-raw"
     assert workdir.is_dir()
-    assert port == BENCHMARK_PORTS["convomem"] == 8323
+    assert port == BENCHMARK_PORTS["convomem"] == 8403
 
     cfg = json.loads((workdir / "hebb.json").read_text())
     # Inherited from project root
@@ -56,7 +58,7 @@ def test_prepare_workdir_creates_dir_and_writes_hebb_json(
     assert cfg["storage_type"] == "sqlite"
     # Overridden
     assert cfg["host"] == "0.0.0.0"
-    assert cfg["port"] == 8323
+    assert cfg["port"] == 8403
     # Reset so HEBB_HOME env wins
     assert cfg["home"] is None
 
@@ -72,9 +74,30 @@ def test_prepare_workdir_assigns_distinct_ports_per_benchmark(
     }
     # No collisions
     assert len(set(ports.values())) == len(ports)
-    # Each benchmark got its own dir
+    # Each benchmark got its own dir (raw mode by default)
     for name in ports:
-        assert (workdir_root / name / "hebb.json").exists()
+        assert (workdir_root / f"{name}-raw" / "hebb.json").exists()
+
+
+def test_prepare_workdir_separates_modes(
+    tmp_path: Path, project_root: Path
+) -> None:
+    """raw and consolidated must land in different subdirs so the
+    persisted consolidated db isn't shadowed by a raw wipe."""
+    workdir_root = tmp_path / "workdirs"
+
+    wd_raw, port_raw = prepare_workdir(
+        "convomem", workdir_root, project_root, mode="raw"
+    )
+    wd_cons, port_cons = prepare_workdir(
+        "convomem", workdir_root, project_root, mode="consolidated"
+    )
+
+    assert wd_raw == workdir_root / "convomem-raw"
+    assert wd_cons == workdir_root / "convomem-consolidated"
+    assert wd_raw != wd_cons
+    # Same benchmark → same port (sequential by design)
+    assert port_raw == port_cons == BENCHMARK_PORTS["convomem"]
 
 
 def test_prepare_workdir_rejects_unknown_benchmark(

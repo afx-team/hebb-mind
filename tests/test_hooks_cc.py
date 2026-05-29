@@ -7,8 +7,15 @@ from pathlib import Path
 
 import pytest
 
-from hebb.ingest.noise import strip_noise
-from hebb.integrations.claude_code import dedup, install, recall, stop, write
+from hebb.ingest.noise import (
+    clean_user_input,
+    is_greeting_only,
+    strip_base64_blobs,
+    strip_code_fences,
+    strip_html_tags,
+    strip_noise,
+)
+from hebb.integrations.claude_code import _client, install, recall, stop
 from hebb.integrations.claude_code.transcript import (
     TurnSummary,
     extract_last_turn,
@@ -55,15 +62,93 @@ class TestStripNoise:
         assert strip_noise(raw) == "Tell me about memory"
 
 
-class TestDedup:
-    def test_content_hash_is_stable(self):
-        assert dedup.content_hash(" I like Salmon ") == dedup.content_hash("i like salmon")
+class TestStripCodeFences:
+    def test_removes_multiline_fenced_block(self):
+        raw = "Here is the bug:\n```python\nfor i in range(10):\n    print(i)\n```\nWhat went wrong?"
+        assert strip_code_fences(raw) == "Here is the bug:\n\nWhat went wrong?"
 
-    def test_is_duplicate_scoped_per_session(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-        monkeypatch.setattr(dedup, "STATE_DIR", tmp_path)
-        monkeypatch.setattr(dedup, "STATE_FILE", tmp_path / "hook_state.json")
+    def test_removes_fence_without_language_hint(self):
+        raw = "trace:\n```\nTraceback (most recent call last):\n  File ...\n```\nplease help"
+        assert strip_code_fences(raw) == "trace:\n\nplease help"
 
-        assert dedup.is_duplicate("s1", "I like salmon") is False
+    def test_removes_inline_triple_backtick_span(self):
+        raw = "set ```DEBUG=true``` and retry"
+        assert strip_code_fences(raw) == "set  and retry"
+
+    def test_passthrough_when_no_fence(self):
+        assert strip_code_fences("just plain prose, no fences.") == "just plain prose, no fences."
+
+    def test_passthrough_empty(self):
+        assert strip_code_fences("") == ""
+
+
+class TestStripHtmlTags:
+    def test_removes_paired_block_and_body(self):
+        raw = "Before <div class='x'>inner <b>bold</b> text</div> after"
+        assert strip_html_tags(raw) == "Before  after"
+
+    def test_removes_standalone_tag(self):
+        raw = "line one<br/>line two"
+        assert strip_html_tags(raw) == "line oneline two"
+
+    def test_leaves_chevron_prose_alone(self):
+        raw = "if 3 < x < 5 then proceed"
+        assert strip_html_tags(raw) == "if 3 < x < 5 then proceed"
+
+
+class TestStripBase64Blobs:
+    def test_removes_long_bare_base64(self):
+        blob = "A" * 100
+        raw = f"prefix {blob} suffix"
+        assert strip_base64_blobs(raw) == "prefix  suffix"
+
+    def test_removes_data_uri(self):
+        raw = "see attached data:image/png;base64,iVBORw0KGgoAAAANSUhEUg== please"
+        assert "iVBORw0KGgo" not in strip_base64_blobs(raw)
+
+    def test_preserves_short_alphanumeric_tokens(self):
+        raw = "token abc123XYZdef ok"
+        assert strip_base64_blobs(raw) == "token abc123XYZdef ok"
+
+
+class TestCleanUserInput:
+    def test_composed_pipeline_strips_everything(self):
+        raw = (
+            "<system-reminder>secret</system-reminder>"
+            "Please debug this:\n```python\nfor i in range(3): print(i)\n```\n"
+            "Also rendered as <span>span text</span> and binary "
+            + ("A" * 90)
+            + " thanks!"
+        )
+        cleaned = clean_user_input(raw)
+        assert "<system-reminder" not in cleaned
+        assert "for i in range" not in cleaned
+        assert "<span>" not in cleaned
+        assert "A" * 90 not in cleaned
+        assert "Please debug this" in cleaned
+
+
+class TestIsGreetingOnly:
+    @pytest.mark.parametrize(
+        "msg",
+        ["hi", "Hello", "thanks!", "thank you.", "你好", "好的", "嗯嗯", "晚安", "ok", "Got it"],
+    )
+    def test_recognises_pure_greeting(self, msg: str):
+        assert is_greeting_only(msg) is True
+
+    @pytest.mark.parametrize(
+        "msg",
+        [
+            "hi, can you help with X?",       # greeting + substantive ask
+            "thanks for the explanation now do Y",
+            "你好，我想问一下记忆系统怎么用",
+            "ok let's move on to the next step",
+            "",                                # empty
+            "fix this bug",                    # plain ask
+        ],
+    )
+    def test_rejects_non_pure_greeting(self, msg: str):
+        assert is_greeting_only(msg) is False
 
 
 class TestInstallHook:
@@ -198,68 +283,6 @@ class TestInstallHook:
         assert "hooks" in data
         # When claude CLI is missing the absolute MCP path lands in settings.json.
         assert data["mcpServers"]["hebb"]["command"] == "/bin/hebb-mcp"
-        dedup.record_written("s1", "I like salmon")
-        assert dedup.is_duplicate("s1", "I like salmon") is True
-        assert dedup.is_duplicate("s2", "I like salmon") is False
-
-    def test_cleanup_session_removes_state(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-        monkeypatch.setattr(dedup, "STATE_DIR", tmp_path)
-        monkeypatch.setattr(dedup, "STATE_FILE", tmp_path / "hook_state.json")
-
-        dedup.record_written("s1", "I like salmon")
-        assert dedup.is_duplicate("s1", "I like salmon") is True
-        dedup.cleanup_session("s1")
-        assert dedup.is_duplicate("s1", "I like salmon") is False
-
-
-class TestWriteHook:
-    def test_skips_trivial_prompt(self, monkeypatch: pytest.MonkeyPatch):
-        calls: list[str] = []
-        monkeypatch.setattr(write, "read_hook_input", lambda: {"session_id": "s1", "prompt": "ok"})
-        monkeypatch.setattr(write, "get_client", lambda timeout=8: calls.append("client"))
-        write.handle()
-        assert calls == []
-
-    def test_skips_duplicate_prompt(self, monkeypatch: pytest.MonkeyPatch):
-        calls: list[str] = []
-        monkeypatch.setattr(
-            write, "read_hook_input", lambda: {"session_id": "s1", "prompt": "Remember I like salmon a lot"}
-        )
-        monkeypatch.setattr(write, "is_duplicate", lambda session_id, text: True)
-        monkeypatch.setattr(write, "get_client", lambda timeout=8: calls.append("client"))
-        write.handle()
-        assert calls == []
-
-    def test_writes_cleaned_prompt(self, monkeypatch: pytest.MonkeyPatch):
-        client = _FakeClient()
-        recorded: list[tuple[str, str]] = []
-        monkeypatch.setattr(
-            write,
-            "read_hook_input",
-            lambda: {
-                "session_id": "s1",
-                "prompt": "<system-reminder>hidden</system-reminder>Remember that I like salmon for dinner",
-            },
-        )
-        monkeypatch.setattr(write, "get_client", lambda timeout=8: client)
-        monkeypatch.setattr(write, "is_duplicate", lambda session_id, text: False)
-        monkeypatch.setattr(write, "record_written", lambda session_id, text: recorded.append((session_id, text)))
-        write.handle()
-        assert client.calls == [
-            (
-                "/api/v1/memories",
-                {
-                    "content": "Remember that I like salmon for dinner",
-                    "partition_id": "mem_hippocampus",
-                    "importance_score": 5.0,
-                    "tags": ["user-prompt", "hook"],
-                    "metadata": {"session_id": "s1"},
-                    "source": "hook",
-                },
-            )
-        ]
-        assert recorded == [("s1", "Remember that I like salmon for dinner")]
-        assert client.closed is True
 
 
 class TestRecallHook:
@@ -315,6 +338,103 @@ class TestRecallHook:
         monkeypatch.setattr(recall, "get_client", lambda timeout=20: client)
         recall.handle()
         assert capsys.readouterr().out == ""
+
+
+class TestResolveSessionId:
+    def test_prefers_explicit_session_id(self):
+        assert _client.resolve_session_id({"session_id": "abc", "transcript_path": "/x"}) == "abc"
+
+    def test_derives_stable_hash_from_transcript_path(self):
+        first = _client.resolve_session_id({"transcript_path": "/tmp/foo.jsonl"})
+        second = _client.resolve_session_id({"transcript_path": "/tmp/foo.jsonl"})
+        assert first == second
+        assert len(first) == 16
+        # Different transcript → different id.
+        assert _client.resolve_session_id({"transcript_path": "/tmp/bar.jsonl"}) != first
+
+    def test_returns_empty_when_neither_present(self):
+        assert _client.resolve_session_id({}) == ""
+
+
+class TestPromptRecallHook:
+    def test_uses_user_prompt_as_query(self, monkeypatch: pytest.MonkeyPatch):
+        client = _FakeClient({"results": []})
+        monkeypatch.setattr(
+            recall,
+            "read_hook_input",
+            lambda: {"session_id": "s1", "prompt": "How do I reset my password?"},
+        )
+        monkeypatch.setattr(recall, "get_client", lambda timeout=5: client)
+        recall.handle_prompt()
+        assert client.calls == [
+            (
+                "/api/v1/search",
+                {"query": "How do I reset my password?", "top_k": 20, "strict_recall": True},
+            ),
+        ]
+        assert client.closed is True
+
+    def test_strips_noise_from_prompt_before_querying(self, monkeypatch: pytest.MonkeyPatch):
+        client = _FakeClient({"results": []})
+        monkeypatch.setattr(
+            recall,
+            "read_hook_input",
+            lambda: {
+                "session_id": "s1",
+                "prompt": "<system-reminder>x</system-reminder>What's the deploy flag?",
+            },
+        )
+        monkeypatch.setattr(recall, "get_client", lambda timeout=5: client)
+        recall.handle_prompt()
+        assert client.calls[0][1]["query"] == "What's the deploy flag?"
+
+    def test_skips_too_short_prompt(self, monkeypatch: pytest.MonkeyPatch):
+        opened: list[str] = []
+        monkeypatch.setattr(recall, "read_hook_input", lambda: {"session_id": "s1", "prompt": "hi"})
+        monkeypatch.setattr(recall, "get_client", lambda timeout=5: opened.append("client"))
+        recall.handle_prompt()
+        assert opened == []
+
+    def test_filters_current_session_via_transcript_hash(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        # session_id is missing — handler must hash transcript_path and use
+        # that derived id to filter current-session memories.
+        derived = _client.resolve_session_id({"transcript_path": "/tmp/s.jsonl"})
+        client = _FakeClient(
+            {
+                "results": [
+                    {
+                        "score": 0.9,
+                        "memory": {
+                            "partition_id": "mem_hippocampus",
+                            "content": "From this very session",
+                            "tags": [],
+                            "metadata": {"session_id": derived},
+                        },
+                    },
+                    {
+                        "score": 0.8,
+                        "memory": {
+                            "partition_id": "mem_hippocampus",
+                            "content": "From a previous session",
+                            "tags": [],
+                            "metadata": {"session_id": "other"},
+                        },
+                    },
+                ]
+            }
+        )
+        monkeypatch.setattr(
+            recall,
+            "read_hook_input",
+            lambda: {"transcript_path": "/tmp/s.jsonl", "prompt": "ping me with context"},
+        )
+        monkeypatch.setattr(recall, "get_client", lambda timeout=5: client)
+        recall.handle_prompt()
+        out = capsys.readouterr().out
+        assert "From this very session" not in out
+        assert "From a previous session" in out
 
 
 class TestTranscript:
@@ -452,6 +572,55 @@ class TestTranscript:
         assert summary.user_input == "Second question"
         assert summary.assistant_output == "Second answer"
 
+    def test_extract_user_text_from_string_content(self, tmp_path: Path):
+        """Claude Code stores a plain prompt as a bare string, not a block list."""
+        path = self._write_jsonl(
+            tmp_path,
+            [
+                {"type": "user", "message": {"role": "user", "content": "What is the capital of France?"}},
+                {
+                    "type": "assistant",
+                    "message": {"role": "assistant", "content": [{"type": "text", "text": "Paris."}]},
+                },
+            ],
+        )
+        summary = extract_last_turn(path)
+        assert summary is not None
+        assert summary.user_input == "What is the capital of France?"
+        assert summary.assistant_output == "Paris."
+
+    def test_skips_tool_result_carrier_to_find_prompt(self, tmp_path: Path):
+        """When a turn ends with tool_result user messages, anchor on the human prompt."""
+        path = self._write_jsonl(
+            tmp_path,
+            [
+                {"type": "user", "message": {"role": "user", "content": "Create a config file for me please"}},
+                {
+                    "type": "assistant",
+                    "message": {
+                        "role": "assistant",
+                        "content": [{"type": "tool_use", "name": "Write", "id": "t1", "input": {}}],
+                    },
+                },
+                {
+                    "type": "user",
+                    "message": {
+                        "role": "user",
+                        "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "File created"}],
+                    },
+                },
+                {
+                    "type": "assistant",
+                    "message": {"role": "assistant", "content": [{"type": "text", "text": "Done — config written."}]},
+                },
+            ],
+        )
+        summary = extract_last_turn(path)
+        assert summary is not None
+        assert summary.user_input == "Create a config file for me please"
+        assert summary.assistant_output == "Done — config written."
+        assert summary.tools == ["Write"]
+
     def test_returns_none_for_missing_file(self):
         summary = extract_last_turn("/nonexistent/path.jsonl")
         assert summary is None
@@ -517,15 +686,15 @@ class TestFormatTurnMemory:
 
 
 class TestStopHook:
-    def test_cleanup_without_transcript(self, monkeypatch: pytest.MonkeyPatch):
-        """No transcript_path → only dedup cleanup, no client needed."""
-        cleaned: list[str] = []
+    def test_noop_without_transcript(self, monkeypatch: pytest.MonkeyPatch):
+        """No transcript_path → no client opened, no memory written."""
+        opened: list[str] = []
         monkeypatch.setattr(stop, "read_hook_input", lambda: {"session_id": "s1"})
-        monkeypatch.setattr(stop, "cleanup_session", lambda session_id: cleaned.append(session_id))
+        monkeypatch.setattr(stop, "get_client", lambda timeout=30: opened.append("client"))
         stop.handle()
-        assert cleaned == ["s1"]
+        assert opened == []
 
-    def test_records_turn_summary_from_transcript(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    def test_records_turn_with_project_tag(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         transcript = tmp_path / "session.jsonl"
         transcript.write_text(
             json.dumps(
@@ -550,27 +719,209 @@ class TestStopHook:
             + "\n"
         )
 
+        # Simulate Claude Code running inside a checked-out git project.
+        project_dir = tmp_path / "myproj"
+        (project_dir / ".git").mkdir(parents=True)
+
         client = _FakeClient()
-        cleaned: list[str] = []
         monkeypatch.setattr(
             stop,
             "read_hook_input",
-            lambda: {"session_id": "s1", "transcript_path": str(transcript)},
+            lambda: {
+                "session_id": "s1",
+                "transcript_path": str(transcript),
+                "cwd": str(project_dir),
+            },
         )
         monkeypatch.setattr(stop, "get_client", lambda timeout=30: client)
-        monkeypatch.setattr(stop, "cleanup_session", lambda session_id: cleaned.append(session_id))
 
         stop.handle()
 
-        # Only turn summary write, no consolidation
         assert len(client.calls) == 1
         path, payload = client.calls[0]
         assert path == "/api/v1/memories"
         assert "[User] Explain this code" in payload["content"]
         assert "[Assistant] This function does X." in payload["content"]
         assert "[Tools] Read" in payload["content"]
-        assert payload["tags"] == ["turn-summary", "hook"]
+        # Project name is the only tag when running inside a git repo.
+        assert payload["tags"] == ["myproj"]
         assert payload["metadata"]["tools"] == ["Read"]
         assert payload["source"] == "hook:stop"
         assert client.closed is True
-        assert cleaned == ["s1"]
+
+    def test_records_turn_without_project_tag(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        transcript = tmp_path / "session.jsonl"
+        transcript.write_text(
+            json.dumps(
+                {
+                    "type": "user",
+                    "message": {"role": "user", "content": [{"type": "text", "text": "What is 1+1?"}]},
+                }
+            )
+            + "\n"
+            + json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {"role": "assistant", "content": [{"type": "text", "text": "Two."}]},
+                }
+            )
+            + "\n"
+        )
+
+        # cwd lives outside any git repo → no project tag, tags=[].
+        non_repo = tmp_path / "scratch"
+        non_repo.mkdir()
+
+        client = _FakeClient()
+        monkeypatch.setattr(
+            stop,
+            "read_hook_input",
+            lambda: {
+                "session_id": "s1",
+                "transcript_path": str(transcript),
+                "cwd": str(non_repo),
+            },
+        )
+        monkeypatch.setattr(stop, "get_client", lambda timeout=30: client)
+
+        stop.handle()
+
+        assert len(client.calls) == 1
+        _, payload = client.calls[0]
+        assert payload["tags"] == []
+
+    def test_stores_turn_when_user_prompt_is_greeting(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Pure-greeting user message → still stored: greetings are kept as feedback."""
+        transcript = tmp_path / "session.jsonl"
+        transcript.write_text(
+            json.dumps(
+                {
+                    "type": "user",
+                    "message": {"role": "user", "content": [{"type": "text", "text": "Hi!"}]},
+                }
+            )
+            + "\n"
+            + json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "role": "assistant",
+                        "content": [{"type": "text", "text": "Hi! How can I help today?"}],
+                    },
+                }
+            )
+            + "\n"
+        )
+
+        client = _FakeClient()
+        monkeypatch.setattr(
+            stop,
+            "read_hook_input",
+            lambda: {
+                "session_id": "s1",
+                "transcript_path": str(transcript),
+                "cwd": str(tmp_path),
+            },
+        )
+        monkeypatch.setattr(stop, "get_client", lambda timeout=30: client)
+        stop.handle()
+        assert len(client.calls) == 1
+        _, payload = client.calls[0]
+        assert "[User] Hi!" in payload["content"]
+        assert "[Assistant] Hi! How can I help today?" in payload["content"]
+
+    def test_skips_turn_when_user_prompt_is_only_a_code_paste(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        """Code-only user message → filters to empty → no memory written."""
+        transcript = tmp_path / "session.jsonl"
+        user_text = "```python\nfor i in range(3):\n    print(i)\n```"
+        transcript.write_text(
+            json.dumps(
+                {
+                    "type": "user",
+                    "message": {"role": "user", "content": [{"type": "text", "text": user_text}]},
+                }
+            )
+            + "\n"
+            + json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {"role": "assistant", "content": [{"type": "text", "text": "The loop is fine."}]},
+                }
+            )
+            + "\n"
+        )
+
+        client = _FakeClient()
+        monkeypatch.setattr(
+            stop,
+            "read_hook_input",
+            lambda: {
+                "session_id": "s1",
+                "transcript_path": str(transcript),
+                "cwd": str(tmp_path),
+            },
+        )
+        monkeypatch.setattr(stop, "get_client", lambda timeout=30: client)
+        stop.handle()
+        assert client.calls == []
+
+    def test_records_turn_with_long_noisy_user_prompt_cleaned(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        """Substantive prose mixed with code/HTML/base64 → strip noise, keep prose."""
+        transcript = tmp_path / "session.jsonl"
+        user_text = (
+            "I'm debugging why the migration is failing on prod. "
+            "Here's the schema I tried:\n"
+            "```sql\nALTER TABLE users ADD COLUMN x TEXT NOT NULL;\n```\n"
+            "And the render snippet was <div class='err'>boom</div> "
+            "plus a screenshot data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAA= "
+            "Any ideas?"
+        )
+        transcript.write_text(
+            json.dumps(
+                {
+                    "type": "user",
+                    "message": {"role": "user", "content": [{"type": "text", "text": user_text}]},
+                }
+            )
+            + "\n"
+            + json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "role": "assistant",
+                        "content": [{"type": "text", "text": "Likely the column lacks a default."}],
+                    },
+                }
+            )
+            + "\n"
+        )
+
+        client = _FakeClient()
+        monkeypatch.setattr(
+            stop,
+            "read_hook_input",
+            lambda: {
+                "session_id": "s1",
+                "transcript_path": str(transcript),
+                "cwd": str(tmp_path),
+            },
+        )
+        monkeypatch.setattr(stop, "get_client", lambda timeout=30: client)
+        stop.handle()
+
+        assert len(client.calls) == 1
+        _, payload = client.calls[0]
+        # Prose around the noise survived.
+        assert "debugging why the migration is failing" in payload["content"]
+        assert "Any ideas?" in payload["content"]
+        # All four kinds of noise are stripped from the stored memory.
+        assert "ALTER TABLE" not in payload["content"]
+        assert "<div" not in payload["content"]
+        assert "iVBORw0KGgo" not in payload["content"]
+        assert "```" not in payload["content"]
+        # Assistant text always kept verbatim.
+        assert "[Assistant] Likely the column lacks a default." in payload["content"]

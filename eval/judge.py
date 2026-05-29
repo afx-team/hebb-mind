@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import random
 
 from litellm import acompletion
 
@@ -100,55 +101,96 @@ class LLMJudge:
         thinking: bool = False,
         temperature: float = 0.3,
         top_p: float = 1.0,
+        api_keys: list[str] | None = None,
+        max_retries: int = 3,
     ):
         self.model = model
         self.api_base = api_base
-        self.api_key = api_key
         self.thinking = thinking
         self.temperature = temperature
         self.top_p = top_p
+        self.max_retries = max_retries
+        # Build the key pool: prefer the explicit list, fall back to the
+        # single key, then to "no key" (litellm picks up env). Each
+        # request draws one at random so concurrent load spreads across
+        # keys rather than rate-limiting a single one.
+        pool = [k for k in (api_keys or []) if k]
+        if not pool and api_key:
+            pool = [api_key]
+        self.api_keys: list[str] = pool
+        self.api_key = api_key  # kept for back-compat / single-key paths
+        # Failure ledger: requests that exhausted all retries. Recorded
+        # (not raised) so one flaky question doesn't abort a 2000-question
+        # run; the bench reports the count and a sample at the end.
+        self.failures: list[dict[str, str]] = []
+
+    @property
+    def failure_count(self) -> int:
+        return len(self.failures)
+
+    def _pick_key(self) -> str | None:
+        if not self.api_keys:
+            return None
+        return random.choice(self.api_keys)
 
     async def _complete(
         self,
         messages: list[dict[str, str]],
-        max_retries: int = 5,
         *,
         temperature: float | None = None,
+        record_label: str = "",
     ) -> str:
-        kwargs: dict = {
+        """Complete with random-key rotation + bounded retries.
+
+        Each attempt draws a fresh random key from the pool, so a key that
+        just got rate-limited is likely swapped out on retry. After
+        ``max_retries`` failed attempts the request is recorded in
+        ``self.failures`` and an empty string is returned — the caller
+        treats that as a no-answer rather than crashing the whole run.
+        """
+        base_kwargs: dict = {
             "model": self.model,
             "messages": messages,
             "temperature": self.temperature if temperature is None else temperature,
             "top_p": self.top_p,
         }
         if self.api_base:
-            kwargs["api_base"] = self.api_base
-        if self.api_key:
-            kwargs["api_key"] = self.api_key
+            base_kwargs["api_base"] = self.api_base
         if not self.thinking:
-            kwargs["extra_body"] = {
+            base_kwargs["extra_body"] = {
                 "chat_template_kwargs": {"thinking": False},
                 "enable_thinking": False,
             }
 
-        for attempt in range(max_retries):
+        last_err = ""
+        for attempt in range(self.max_retries):
+            kwargs = dict(base_kwargs)
+            key = self._pick_key()
+            if key:
+                kwargs["api_key"] = key
             try:
                 response = await acompletion(**kwargs)
                 return response.choices[0].message.content or ""
             except Exception as e:
-                err_str = str(e)
-                if "429" in err_str or "rate" in err_str.lower():
-                    wait = 2 ** attempt + 1
-                    logger.warning(
-                        "Rate limited (attempt %d/%d), retrying in %ds",
-                        attempt + 1, max_retries, wait,
-                    )
-                    await asyncio.sleep(wait)
-                else:
-                    raise
-        # Final attempt — let it raise
-        response = await acompletion(**kwargs)
-        return response.choices[0].message.content or ""
+                last_err = str(e)
+                # Backoff a little between attempts; rate-limit errors get
+                # a longer wait. Cheap exponential, capped.
+                is_rate = "429" in last_err or "rate" in last_err.lower()
+                wait = min(2 ** attempt + 1, 10) if is_rate else 1
+                logger.warning(
+                    "LLM call failed (attempt %d/%d, key=…%s): %s — retrying in %ds",
+                    attempt + 1, self.max_retries,
+                    key[-4:] if key else "none", last_err[:120], wait,
+                )
+                await asyncio.sleep(wait)
+
+        # Exhausted all retries — record and give up on this request.
+        self.failures.append({"label": record_label, "error": last_err[:300]})
+        logger.error(
+            "LLM call FAILED after %d attempts (%s) — recorded, returning empty. err=%s",
+            self.max_retries, record_label or "unlabeled", last_err[:200],
+        )
+        return ""
 
     async def generate_answer(
         self, question: str, retrieved_memories: list[str]
@@ -165,6 +207,7 @@ class LLMJudge:
         return await self._complete(
             [{"role": "user", "content": prompt}],
             temperature=0.2,
+            record_label=f"generate: {question[:80]}",
         )
 
     async def judge_correctness(
@@ -208,6 +251,7 @@ class LLMJudge:
         )
         raw = await self._complete(
             [{"role": "user", "content": prompt}],
+            record_label=f"judge: {question[:80]}",
         )
         try:
             # Strip markdown fences if present

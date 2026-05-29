@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -40,6 +41,40 @@ class Settings(BaseModel):
         default=None, description="HuggingFace mirror endpoint (e.g. https://hf-mirror.com)"
     )
 
+    # Retrieval pipeline toggles — each path/boost is independently
+    # switchable so users can A/B individual contributions and so the
+    # eval harness can run ablations without rebuilding the searcher.
+    keyword_search_enabled: bool = Field(default=True, description="FTS5/tsvector keyword path in 3-way RRF recall")
+    graph_search_enabled: bool = Field(default=True, description="Knowledge-graph tag-match path in 3-way RRF recall")
+    lexical_boost_enabled: bool = Field(
+        default=True, description="Predicate/quoted-phrase/person-name boost over composite score"
+    )
+    temporal_boost_enabled: bool = Field(
+        default=True, description="Date-proximity boost when query mentions a time anchor"
+    )
+    graph_expansion_enabled: bool = Field(default=True, description="Post-search graph expansion of top-k tags")
+
+    # Rerank (optional cross-encoder pass after hybrid retrieval)
+    rerank_enabled: bool = Field(default=False, description="Enable rerank pass after hybrid retrieval")
+    rerank_provider: str = Field(default="local", description="'local' (sentence-transformers CrossEncoder)")
+    rerank_model: str = Field(default="BAAI/bge-reranker-base", description="Model name or HF repo id")
+    rerank_top_n: int = Field(
+        default=30,
+        ge=5,
+        le=200,
+        description="Candidates to rerank before final top_k; auto-bumps searcher overfetch",
+    )
+
+    # Relevance floor for strict recall surfaces (Claude Code hook, MCP). Those
+    # callers send strict_recall=True and the server drops any result scoring
+    # below this. Does not affect the console Search page, which is unfiltered.
+    recall_min_score: float = Field(
+        default=0.8,
+        ge=0.0,
+        le=1.0,
+        description="Min relevance score (0-1) for hook/MCP recall; results below are dropped (console Search unaffected)",
+    )
+
     # LLM
     llm_model: str | None = Field(default=None, description="LLM model identifier (e.g. openai/gpt-4o-mini)")
     llm_base_url: str | None = Field(default=None, description="Custom LLM API base URL")
@@ -68,6 +103,16 @@ class Settings(BaseModel):
     weight_recency: float = Field(default=1.0)
     weight_importance: float = Field(default=1.0)
     weight_relevance: float = Field(default=1.0)
+
+    # Auto-upgrade
+    auto_upgrade_mode: Literal["auto", "notify", "off"] = Field(
+        default="notify",
+        description="'auto' = upgrade without prompting; 'notify' = banner + OS notification only; 'off' = no check",
+    )
+    upgrade_grace_seconds: int = Field(
+        default=30,
+        description="Seconds to wait for in-flight requests before forcing the daemon down during upgrade",
+    )
 
     # Computed (not persisted to JSON) — set by loader after workspace resolution
     home_dir: Path | None = Field(default=None, exclude=True, description="Resolved workspace root directory")

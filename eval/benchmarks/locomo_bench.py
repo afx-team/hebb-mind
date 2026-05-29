@@ -155,7 +155,7 @@ class LoComoBenchmark(BaseBenchmark):
                     "content": summary[:10000],
                     "partition_id": PARTITION_ID,
                     "importance_score": 4.0,
-                    "tags": ["turn-summary", "hook"],
+                    "tags": ["locomo"],
                     "metadata": metadata,
                     "source": "hook:stop",
                 })
@@ -238,19 +238,22 @@ class LoComoBenchmark(BaseBenchmark):
                 # End-to-end QA: generate answer from retrieved context,
                 # then judge against ground truth. Both calls share the
                 # search semaphore so judge concurrency stays bounded by
-                # ``settings.concurrency``.
+                # ``settings.concurrency``. Skipped when ``skip_qa`` is set
+                # — the R@k-matrix phase only needs retrieval recall, and
+                # the LLM judge is what makes a full run take ~35 min.
                 generated = ""
                 qa_correct = False
-                try:
-                    generated = await judge.generate_answer(q.question, memory_contents)
-                    qa_correct, _qa_conf = await judge.judge_correctness(
-                        q.question, q.ground_truth, generated
-                    )
-                except Exception as e:
-                    logger.warning(
-                        "QA judge failed for %s: %s — treating as incorrect",
-                        q.question_id, e,
-                    )
+                if not getattr(self.settings, "skip_qa", False):
+                    try:
+                        generated = await judge.generate_answer(q.question, memory_contents)
+                        qa_correct, _qa_conf = await judge.judge_correctness(
+                            q.question, q.ground_truth, generated
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            "QA judge failed for %s: %s — treating as incorrect",
+                            q.question_id, e,
+                        )
 
                 total_latency_ms = (time.monotonic() - t0) * 1000
 

@@ -20,13 +20,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from hebb.ingest.noise import strip_noise
+from hebb.ingest.noise import clean_user_input, is_greeting_only
 
 logger = logging.getLogger(__name__)
 
 # Truncation limits (characters) for the stored summary.
 _MAX_USER_LEN = 500
 _MAX_ASSISTANT_LEN = 800
+# Anything shorter than this *after* noise/code/html/base64 stripping is
+# treated as low-signal — too short to be worth a memory slot, even if
+# the assistant produced a long reply. Tuned to drop "fix it" / "thanks
+# more" while keeping "Why does X fail?" (15 chars) and similar.
+_MIN_USER_LEN = 10
 
 
 @dataclass
@@ -82,6 +87,12 @@ def extract_last_turn(transcript_path: str | Path) -> TurnSummary | None:
         if msg_type == "assistant" and last_assistant is None:
             last_assistant = msg
         elif msg_type == "user" and last_assistant is not None:
+            # In a tool-using turn the trailing ``user`` messages are
+            # tool_result carriers (role=user, no human text); the actual
+            # prompt sits several messages back. Skip carriers so we anchor
+            # the turn on the human utterance.
+            if not _raw_user_text(msg):
+                continue
             last_user = msg
             break
 
@@ -160,15 +171,51 @@ def format_turn_memory(
 # ---------------------------------------------------------------------------
 
 
+def _is_storable_user_text(cleaned: str) -> bool:
+    """Write judgment for the Stop hook's turn recorder.
+
+    Deliberately distinct from the recall hook's ``_is_recall_worthy``:
+    storage and recall ask different questions of the same utterance. A
+    cleaned user message earns a memory slot when it is either substantive
+    prose (>= ``_MIN_USER_LEN``) or a recognized greeting / acknowledgement.
+    The latter are short but are collected as feedback, so — unlike the
+    recall hook, which skips them — storage keeps them. Everything else
+    (empty after noise/code/HTML stripping, or a terse non-social fragment
+    like a bare "fix it") is dropped.
+    """
+    if not cleaned:
+        return False
+    if is_greeting_only(cleaned):
+        return True
+    return len(cleaned) >= _MIN_USER_LEN
+
+
+def _raw_user_text(msg: dict[str, Any]) -> str:
+    """Concatenate the human-authored text of a user message.
+
+    Claude Code stores a plain prompt as a bare ``content`` string and a
+    richer prompt (attachments, images, slash-command output) as a list of
+    typed blocks. Tool output arrives as ``user`` messages whose blocks are
+    all ``tool_result`` — those carry no human text and yield ``""``.
+    """
+    content = msg.get("message", {}).get("content", "")
+    if isinstance(content, str):
+        return content.strip()
+    texts = [b.get("text", "") for b in _iter_blocks(content) if b.get("type") == "text"]
+    return "\n".join(texts).strip()
+
+
 def _extract_user_text(msg: dict[str, Any]) -> str:
-    """Pull plain-text from a user message, stripping system noise."""
-    content = msg.get("message", {}).get("content", [])
-    texts: list[str] = []
-    for block in _iter_blocks(content):
-        if block.get("type") == "text":
-            texts.append(block.get("text", ""))
-    raw = "\n".join(texts).strip()
-    cleaned = strip_noise(raw)
+    """Pull plain-text from a user message, then run the user-input filter.
+
+    Returns ``""`` when the prompt is not storable per
+    ``_is_storable_user_text`` — the Stop hook reads that as "skip this
+    turn entirely". Storable prose is cleaned (system tags, code fences,
+    HTML, base64 blobs all removed) and truncated to ``_MAX_USER_LEN``.
+    """
+    cleaned = clean_user_input(_raw_user_text(msg))
+    if not _is_storable_user_text(cleaned):
+        return ""
     if len(cleaned) > _MAX_USER_LEN:
         cleaned = cleaned[:_MAX_USER_LEN] + "…"
     return cleaned

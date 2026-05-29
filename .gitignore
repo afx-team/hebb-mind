@@ -39,6 +39,7 @@ Thumbs.db
 *.log
 
 .claude/memory-bank.json
+.claude/scheduled_tasks.lock
 knowledge_graph.json
 
 # VitePress docs
@@ -48,6 +49,8 @@ repo_pages/.vitepress/cache/
 
 # eval/data/ tracked via Git LFS (see .gitattributes)
 # eval/reports/ tracked normally for open-source visibility
+# eval/workdirs/ is per-run scratch (hebb.db, hebb.json, …) — never commit
+eval/workdirs/
 
 # Model weights tracked via Git LFS (see .gitattributes)
 # models/ is NOT ignored — it's committed with LFS
@@ -55,3 +58,4 @@ repo_pages/.vitepress/cache/
 models/BAAI/bge-m3
 models/BAAI/bge-large-en-v1.5
 .research/
+.playwright-mcp/

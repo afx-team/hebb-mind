@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import sys
@@ -26,6 +27,27 @@ def read_hook_input() -> dict[str, Any]:
         return cast("dict[str, Any]", json.loads(data))
     except (json.JSONDecodeError, OSError):
         return {}
+
+
+def resolve_session_id(hook_input: dict[str, Any]) -> str:
+    """Return a stable session identifier for write/recall correlation.
+
+    Prefers ``hook_input.session_id`` (Claude Code provides this for every
+    hook event). When absent — e.g. a custom invocation that only carries
+    ``transcript_path`` — derives a deterministic ID from the transcript
+    path so the same session always hashes to the same value, which keeps
+    the recall-time "filter out my own session" check working.
+
+    Returns ``""`` when neither field is available; callers should treat
+    that as "do not filter".
+    """
+    sid = hook_input.get("session_id", "") or ""
+    if sid:
+        return sid
+    transcript_path = hook_input.get("transcript_path", "") or ""
+    if transcript_path:
+        return hashlib.sha256(transcript_path.encode()).hexdigest()[:16]
+    return ""
 
 
 def get_client(timeout: float = 10) -> httpx.Client:

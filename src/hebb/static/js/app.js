@@ -9,7 +9,9 @@ import { renderMemories } from './components/memories.js';
 import { renderSearch } from './components/search.js';
 import { renderPartitions } from './components/partitions.js';
 import { renderGraph } from './components/graph.js';
+import { renderCCMemory } from './components/cc-memory.js';
 import { renderSettings } from './components/settings.js';
+import { mountUpgradeBanner } from './components/upgrade-banner.js';
 
 const content = document.getElementById('page-content');
 const navItems = document.querySelectorAll('.nav-item');
@@ -24,6 +26,7 @@ const pages = {
   search: renderSearch,
   partitions: renderPartitions,
   graph: renderGraph,
+  'cc-memory': renderCCMemory,
   settings: renderSettings,
 };
 
@@ -120,4 +123,5 @@ async function checkHealth() {
 /* ---- Init ---- */
 checkHealth();
 setInterval(checkHealth, 30000);
+mountUpgradeBanner();
 onHash();

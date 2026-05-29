@@ -304,6 +304,43 @@ features:
   display: flex; flex-direction: column; justify-content: center;
   padding: 60px 0; box-sizing: border-box;
 }
+
+/* ── Hero background video ── */
+.VPHero { position: relative; overflow: hidden; isolation: isolate; }
+.VPHero > .container { position: relative; z-index: 3; }
+/* Fade the video's lower edge to transparent so it dissolves into the overlay/page */
+.hippo-hero-bg {
+  position: absolute; inset: 0; z-index: 0;
+  width: 100%; height: 100%; object-fit: cover; object-position: center;
+  pointer-events: none;
+  filter: saturate(1.05) contrast(1.02);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, rgba(0,0,0,0.6) 80%, transparent 100%);
+          mask-image: linear-gradient(180deg, #000 0%, #000 55%, rgba(0,0,0,0.6) 80%, transparent 100%);
+}
+/* Overlay sits above the video and resolves to the exact page bg at the seam */
+.hippo-hero-bg-overlay {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    radial-gradient(ellipse at 30% 35%, rgba(13,17,23,0.20) 0%, rgba(13,17,23,0.55) 70%),
+    linear-gradient(180deg, rgba(13,17,23,0.25) 0%, rgba(13,17,23,0.55) 55%, var(--vp-c-bg) 100%);
+}
+/* Extra-soft bridge: a final wash glued to the bottom of the hero that matches page bg */
+.VPHero::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 38%;
+  z-index: 2; pointer-events: none;
+  background: linear-gradient(180deg, transparent 0%, var(--vp-c-bg) 92%);
+}
+/* Lift hero text contrast against the moving background */
+.VPHero .name, .VPHero .text { color: #fff !important; text-shadow: 0 2px 14px rgba(0,0,0,0.45); }
+.VPHero .name .clip {
+  background: linear-gradient(135deg, #c9b8ff 0%, #8ec1ff 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.VPHero .tagline { color: rgba(255,255,255,0.86) !important; text-shadow: 0 1px 8px rgba(0,0,0,0.4); }
+@media (prefers-reduced-motion: reduce) {
+  .hippo-hero-bg { display: none; }
+}
 .hippo-section h2 { text-align: center; margin-bottom: 8px; border-top: none; padding-top: 0; }
 .hippo-section-sub { text-align: center; color: var(--vp-c-text-2); margin-bottom: 36px; font-size: 15px; }
 
@@ -435,7 +472,28 @@ features:
 
 <script setup>
 import { onMounted } from 'vue'
+import { withBase } from 'vitepress'
 onMounted(() => {
+  // Inject background video into the VitePress hero
+  const hero = document.querySelector('.VPHero')
+  if (hero && !hero.querySelector('.hippo-hero-bg')) {
+    const video = document.createElement('video')
+    video.className = 'hippo-hero-bg'
+    video.src = withBase('/home_video.mp4')
+    video.autoplay = true
+    video.muted = true
+    video.loop = true
+    video.playsInline = true
+    video.setAttribute('aria-hidden', 'true')
+    const overlay = document.createElement('div')
+    overlay.className = 'hippo-hero-bg-overlay'
+    hero.prepend(overlay)
+    hero.prepend(video)
+    // Some browsers need an explicit play() after the element is in the DOM
+    const tryPlay = () => video.play().catch(() => {})
+    tryPlay()
+  }
+
   const sections = document.querySelectorAll('.hippo-section')
   if (!sections.length) return
   // Fade-in on scroll

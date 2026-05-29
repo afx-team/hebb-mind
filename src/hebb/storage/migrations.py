@@ -47,33 +47,83 @@ async def get_connection(db_path: str, *, load_vec: bool = True) -> aiosqlite.Co
     return db
 
 
+_VEC_CREATE_SQL = (
+    "CREATE VIRTUAL TABLE memory_embeddings USING vec0("
+    "memory_id TEXT PRIMARY KEY, partition_id TEXT, embedding float[{dim}])"
+)
+
+_FTS_CREATE_SQL = (
+    "CREATE VIRTUAL TABLE memory_fts USING fts5("
+    "memory_id UNINDEXED, partition_id UNINDEXED, content, "
+    "tokenize='porter unicode61')"
+)
+
+
+async def _ensure_fts_table(db: aiosqlite.Connection) -> None:
+    """Create FTS5 with partition_id, force-rebuild if old schema present."""
+    try:
+        await db.execute(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5("
+            "memory_id UNINDEXED, partition_id UNINDEXED, content, "
+            "tokenize='porter unicode61')"
+        )
+    except Exception as e:
+        logger.warning("Could not create FTS5 table: %s", e)
+        return
+
+    # Schema probe: insert a sentinel row using the new 3-column form. If
+    # the existing FTS5 table lacks partition_id, this raises and we
+    # rebuild. Otherwise we delete the probe and move on.
+    try:
+        await db.execute(
+            "INSERT INTO memory_fts(memory_id, partition_id, content) "
+            "VALUES ('__schema_probe__', '__probe__', '__probe__')"
+        )
+        await db.execute("DELETE FROM memory_fts WHERE memory_id = '__schema_probe__'")
+    except Exception:
+        logger.warning("Recreating FTS5 table (partition_id column missing) — any existing FTS index will be lost")
+        await db.execute("DROP TABLE IF EXISTS memory_fts")
+        await db.execute(_FTS_CREATE_SQL)
+
+
 async def _ensure_vec_table(db: aiosqlite.Connection, embedding_dim: int) -> None:
-    """Create or recreate vec0 table if dimension changed."""
+    """Create or recreate vec0 table if dimension or schema changed.
+
+    Schema invariant: ``(memory_id, partition_id, embedding)``. The
+    ``partition_id`` metadata column lets retrieval push the partition
+    filter into the MATCH WHERE clause — without it, vec0 KNN is global
+    and small partitions get starved by docs from larger ones.
+    """
     import numpy as np
 
     dim = int(embedding_dim)
-    # Try creating the table first (fast path for fresh DB)
+    # Fast path for fresh DB
     try:
         await db.execute(
             f"CREATE VIRTUAL TABLE IF NOT EXISTS memory_embeddings USING vec0("
-            f"memory_id TEXT PRIMARY KEY, embedding float[{dim}])"
+            f"memory_id TEXT PRIMARY KEY, partition_id TEXT, embedding float[{dim}])"
         )
     except Exception:
         pass
 
-    # Always probe to verify the dimension matches — CREATE IF NOT EXISTS
-    # succeeds silently even when the existing table has a different dimension.
+    # Probe both the dimension AND the partition_id column. A pre-refactor
+    # table (no partition_id) succeeds at CREATE IF NOT EXISTS silently;
+    # this insert raises iff the column is missing or the dim mismatches.
+    probe = np.zeros(dim, dtype=np.float32).tobytes()
     try:
-        probe = np.zeros(dim, dtype=np.float32).tobytes()
-        await db.execute("INSERT INTO memory_embeddings(memory_id, embedding) VALUES ('__dim_probe__', ?)", (probe,))
-        await db.execute("DELETE FROM memory_embeddings WHERE memory_id = '__dim_probe__'")
-    except Exception:
-        # Dimension mismatch — recreate table (loses existing embeddings)
-        logger.warning("Embedding dimension changed to %d, recreating vec0 table (existing vectors will be lost)", dim)
-        await db.execute("DROP TABLE IF EXISTS memory_embeddings")
         await db.execute(
-            f"CREATE VIRTUAL TABLE memory_embeddings USING vec0(memory_id TEXT PRIMARY KEY, embedding float[{dim}])"
+            "INSERT INTO memory_embeddings(memory_id, partition_id, embedding) "
+            "VALUES ('__schema_probe__', '__probe__', ?)",
+            (probe,),
         )
+        await db.execute("DELETE FROM memory_embeddings WHERE memory_id = '__schema_probe__'")
+    except Exception:
+        logger.warning(
+            "Recreating vec0 table (dim=%d, partition_id column) — any existing embeddings will be lost",
+            dim,
+        )
+        await db.execute("DROP TABLE IF EXISTS memory_embeddings")
+        await db.execute(_VEC_CREATE_SQL.format(dim=dim))
 
 
 async def initialize_schema(
@@ -127,12 +177,12 @@ async def initialize_schema(
     # `porter unicode61` chains Porter stemming on top of unicode61 so that
     # plural/inflected forms match the query stem ("researched" matches
     # "research"). Without stemming, BM25 misses on conjugated verbs.
-    try:
-        await db.execute(
-            "CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5("
-            "memory_id UNINDEXED, content, tokenize='porter unicode61')"
-        )
-    except Exception as e:
-        logger.warning("Could not create FTS5 table: %s", e)
+    #
+    # Schema invariant: ``(memory_id, partition_id, content)``. The
+    # ``partition_id`` column is UNINDEXED — FTS5 stores it but doesn't
+    # tokenize it; it stays usable in the WHERE clause alongside MATCH,
+    # so partition filtering pushes into the BM25 ranking step instead
+    # of being a post-filter that starves small partitions globally.
+    await _ensure_fts_table(db)
 
     await db.commit()

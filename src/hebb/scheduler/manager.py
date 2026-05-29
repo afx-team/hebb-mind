@@ -1,13 +1,14 @@
-"""Scheduler manager — APScheduler integration for consolidation and forgetting."""
+"""Scheduler manager — APScheduler integration for consolidation, forgetting, and upgrade check."""
 
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from hebb.config.settings import Settings
@@ -17,6 +18,7 @@ from hebb.graph.knowledge_graph import KnowledgeGraph
 from hebb.scheduler.consolidation_job import run_consolidation
 from hebb.scheduler.forgetting_job import compute_expires_at
 from hebb.storage.base import MemoryStore, PartitionStore
+from hebb.upgrade.checker import run_check as run_upgrade_check
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +57,24 @@ class SchedulerManager:
             replace_existing=True,
             max_instances=1,
         )
+        # Daily PyPI upgrade check (fixed 12:00 local in v1) + one-shot 30s after boot
+        self.scheduler.add_job(
+            func=self._run_upgrade_check,
+            trigger=CronTrigger(hour=12, minute=0),
+            id="upgrade_check_job",
+            replace_existing=True,
+            max_instances=1,
+        )
+        self.scheduler.add_job(
+            func=self._run_upgrade_check,
+            trigger=DateTrigger(run_date=datetime.now() + timedelta(seconds=30)),
+            id="upgrade_check_initial",
+            replace_existing=True,
+            max_instances=1,
+        )
         self.scheduler.start()
         logger.info(
-            "Scheduler started: consolidation daily at %s, forgetting every %ds",
+            "Scheduler started: consolidation daily at %s, forgetting every %ds, upgrade check daily at 12:00",
             self.settings.consolidation_time,
             self.settings.forget_interval_seconds,
         )
@@ -111,6 +128,19 @@ class SchedulerManager:
             logger.info("Forgetting job complete: %d memories deleted", total_deleted)
         except Exception:
             logger.error("Forgetting job failed", exc_info=True)
+
+    async def _run_upgrade_check(self) -> None:
+        """Check PyPI for a newer release. No-op when ``auto_upgrade_mode == 'off'``."""
+        if self.settings.auto_upgrade_mode == "off":
+            logger.debug("Skipping upgrade check (auto_upgrade_mode=off)")
+            return
+        if self.settings.home_dir is None:
+            logger.warning("Skipping upgrade check: home_dir not resolved")
+            return
+        try:
+            await run_upgrade_check(self.settings.home_dir)
+        except Exception:
+            logger.error("Upgrade check job failed", exc_info=True)
 
     def get_status(self) -> dict[str, Any]:
         """Return scheduler status info."""

@@ -111,6 +111,17 @@ export default defineConfig({
 
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/hebb-mind/logo.svg' }],
+    // Cloudflare Web Analytics: privacy-first, no cookies. The beacon tracks
+    // SPA navigations on its own via the History API, so no theme hook is
+    // needed. The token is public (shipped in every page), not a secret.
+    [
+      'script',
+      {
+        defer: '',
+        src: 'https://static.cloudflareinsights.com/beacon.min.js',
+        'data-cf-beacon': '{"token": "d435c0d92eb64c608a59987e2e5512bb"}',
+      },
+    ],
   ],
 
   /* i18n */

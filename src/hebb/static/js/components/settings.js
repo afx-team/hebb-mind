@@ -105,13 +105,89 @@ const EMB_PRESETS = [
   { label: 'Custom / Self-hosted', provider: 'api', model: '', url: '', dim: '' },
 ];
 
-/* --- Other config groups (non-LLM, non-Embedding) --- */
-const OTHER_GROUPS = [
-  { title: 'Server', icon: '&#128421;', keys: ['host', 'port'] },
-  { title: 'Storage', icon: '&#128451;', keys: ['storage_type', 'pg_url', 'pg_pool_min', 'pg_pool_max'] },
-  { title: 'Workspace', icon: '&#128193;', keys: ['home'] },
-  { title: 'Memory Lifecycle', icon: '&#128260;', keys: ['consolidation_time', 'consolidation_concurrency', 'consolidation_max_tokens', 'forget_interval_seconds', 'base_ttl_hours', 'decay_factor'] },
-  { title: 'Retrieval Weights', icon: '&#9878;', keys: ['weight_recency', 'weight_importance', 'weight_relevance'] },
+/* --- Config groups, organised into top-level tabs --- */
+const GROUP_RECALL = {
+  title: 'Recall Pipeline',
+  icon: '&#128269;',
+  keys: ['keyword_search_enabled', 'graph_search_enabled', 'lexical_boost_enabled', 'temporal_boost_enabled', 'graph_expansion_enabled', 'recall_min_score'],
+  hints: {
+    keyword_search_enabled: 'FTS5 / keyword path in the 3-way RRF recall',
+    graph_search_enabled: 'Knowledge-graph tag-match recall path',
+    lexical_boost_enabled: 'Predicate / quoted-phrase / person-name surface boost',
+    temporal_boost_enabled: 'Date-proximity boost when the query names a time',
+    graph_expansion_enabled: 'Expand top-k tags through the graph for related memories',
+    recall_min_score: 'Score floor (0–1) for strict recall (Claude Code hook + MCP). Results below are dropped; the console Search page is unaffected. Applies immediately, no restart.',
+  },
+};
+const GROUP_RERANK = {
+  title: 'Rerank',
+  icon: '&#127919;',
+  keys: ['rerank_enabled', 'rerank_provider', 'rerank_model', 'rerank_top_n'],
+  hints: {
+    rerank_enabled: 'Cross-encoder pass over the top candidates after hybrid retrieval. Scores are sigmoid-normalised to [0,1].',
+    rerank_provider: "'local' = sentence-transformers CrossEncoder",
+    rerank_model: 'Model name or HuggingFace repo id',
+    rerank_top_n: 'Candidates to rerank before the final top_k (5–200)',
+  },
+};
+const GROUP_WEIGHTS = {
+  title: 'Scoring Weights',
+  icon: '&#9878;',
+  note:
+    'When rerank is off, results are ranked by a weighted blend of three normalised [0–1] signals — ' +
+    '<strong>relevance</strong> (how well a memory matches the query), <strong>importance</strong>, and ' +
+    '<strong>recency</strong>. The weights are normalised before use, so only their <em>ratio</em> matters ' +
+    '(1 / 1 / 1 = equal footing; raise one to let it dominate). These are the <strong>global defaults</strong> ' +
+    'applied to automatic recall; the Search page sliders override them for a single query. Takes effect ' +
+    'immediately — no restart needed.',
+  keys: ['weight_recency', 'weight_importance', 'weight_relevance'],
+  hints: {
+    weight_recency: 'How strongly recent memories are favoured',
+    weight_importance: 'How strongly high-importance memories are favoured',
+    weight_relevance: 'How strongly query relevance dominates the composite score',
+  },
+};
+const GROUP_LIFECYCLE = {
+  title: 'Memory Lifecycle',
+  icon: '&#128260;',
+  keys: ['consolidation_time', 'consolidation_concurrency', 'consolidation_max_tokens', 'forget_interval_seconds', 'base_ttl_hours', 'decay_factor'],
+};
+const GROUP_STORAGE = {
+  title: 'Storage',
+  icon: '&#128451;',
+  keys: ['storage_type', 'pg_url', 'pg_pool_min', 'pg_pool_max'],
+};
+const GROUP_WORKSPACE = {
+  title: 'Workspace',
+  icon: '&#128193;',
+  keys: ['home'],
+};
+const GROUP_SERVER = {
+  title: 'Server',
+  icon: '&#128421;',
+  keys: ['host', 'port'],
+};
+
+/* Top-level settings tabs. Each `build` returns the section cards to mount. */
+const TABS = [
+  { id: 'llm', labelKey: 'settings.tab.llm', build: (config) => [buildLLMSection(config)] },
+  { id: 'embedding', labelKey: 'settings.tab.embedding', build: (config) => [buildEmbeddingSection(config)] },
+  {
+    id: 'retrieval',
+    labelKey: 'settings.tab.retrieval',
+    build: (config) => [
+      buildGenericSection(GROUP_RECALL, config),
+      buildGenericSection(GROUP_RERANK, config),
+      buildGenericSection(GROUP_WEIGHTS, config),
+    ],
+  },
+  { id: 'lifecycle', labelKey: 'settings.tab.lifecycle', build: (config) => [buildGenericSection(GROUP_LIFECYCLE, config)] },
+  {
+    id: 'storage',
+    labelKey: 'settings.tab.storage',
+    build: (config) => [buildGenericSection(GROUP_STORAGE, config), buildGenericSection(GROUP_WORKSPACE, config)],
+  },
+  { id: 'server', labelKey: 'settings.tab.server', build: (config) => [buildGenericSection(GROUP_SERVER, config)] },
 ];
 
 const RESTART_KEYS = new Set([
@@ -120,6 +196,9 @@ const RESTART_KEYS = new Set([
   'embedding_api_key', 'embedding_base_url', 'hf_endpoint',
   'consolidation_time', 'consolidation_concurrency', 'consolidation_max_tokens',
   'forget_interval_seconds',
+  'keyword_search_enabled', 'graph_search_enabled', 'lexical_boost_enabled',
+  'temporal_boost_enabled', 'graph_expansion_enabled',
+  'rerank_enabled', 'rerank_provider', 'rerank_model', 'rerank_top_n',
   'host', 'port', 'home',
 ]);
 
@@ -131,30 +210,43 @@ export async function renderSettings(root) {
       <h1 class="page-title">${t('settings.title')}</h1>
       <p class="page-subtitle">${t('settings.subtitle')}</p>
     </div>
-    <div id="settings-groups">Loading...</div>
+    <div class="settings-tabs" id="settings-tabs"></div>
+    <div id="settings-panel">${t('common.loading')}</div>
   `;
 
   let config;
   try {
     config = await api.getConfig();
   } catch (e) {
-    root.querySelector('#settings-groups').innerHTML = `<div class="empty-state">${e.message}</div>`;
+    root.querySelector('#settings-panel').innerHTML = `<div class="empty-state">${e.message}</div>`;
     return;
   }
 
-  const container = root.querySelector('#settings-groups');
-  container.innerHTML = '';
+  const tabBar = root.querySelector('#settings-tabs');
+  const panel = root.querySelector('#settings-panel');
 
-  /* === LLM Setup Section (special) === */
-  container.appendChild(buildLLMSection(config));
+  // Remember the last-open tab so a restart-triggered reload returns here.
+  let active = localStorage.getItem('hebb-settings-tab');
+  if (!TABS.some((tab) => tab.id === active)) active = TABS[0].id;
 
-  /* === Embedding Setup Section (special) === */
-  container.appendChild(buildEmbeddingSection(config));
+  tabBar.innerHTML = TABS.map(
+    (tab) => `<button class="settings-tab" data-tab="${tab.id}">${t(tab.labelKey)}</button>`
+  ).join('');
 
-  /* === Other groups (generic) === */
-  for (const group of OTHER_GROUPS) {
-    container.appendChild(buildGenericSection(group, config));
+  function showTab(id) {
+    active = id;
+    localStorage.setItem('hebb-settings-tab', id);
+    tabBar.querySelectorAll('.settings-tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === id));
+    panel.innerHTML = '';
+    const tab = TABS.find((x) => x.id === id) || TABS[0];
+    for (const section of tab.build(config)) panel.appendChild(section);
   }
+
+  tabBar.querySelectorAll('.settings-tab').forEach((btn) => {
+    btn.addEventListener('click', () => showTab(btn.dataset.tab));
+  });
+
+  showTab(active);
 }
 
 /* ====================================================================
@@ -718,6 +810,7 @@ function buildGenericSection(group, config) {
         <span style="margin-right:6px">${group.icon}</span>${group.title}
       </h3>
     </div>
+    ${group.note ? `<div style="background:var(--bg-tertiary);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--text-secondary);line-height:1.6;">${group.note}</div>` : ''}
     <div class="settings-fields"></div>
   `;
 
@@ -725,12 +818,16 @@ function buildGenericSection(group, config) {
   for (const key of group.keys) {
     const value = config[key];
     const restart = RESTART_KEYS.has(key);
+    const hint = group.hints && group.hints[key];
     const row = document.createElement('div');
     row.className = 'setting-row';
     row.innerHTML = `
       <div class="setting-label">
-        <span class="setting-key">${key}</span>
-        ${restart ? '<span class="tag tag-yellow" style="font-size:10px">restart required</span>' : ''}
+        <div class="setting-key-row">
+          <span class="setting-key">${key}</span>
+          ${restart ? `<span class="tag tag-yellow" style="font-size:10px">${t('settings.restart_required')}</span>` : ''}
+        </div>
+        ${hint ? `<span class="text-muted text-sm" style="display:block;font-family:var(--font);margin-top:2px">${hint}</span>` : ''}
       </div>
       <div class="setting-input-wrap">
         ${renderInput(key, value)}
@@ -757,6 +854,9 @@ function buildGenericSection(group, config) {
           const res = await api.updateConfig(key, newValue);
           saveBtn.classList.add('hidden');
           success(`${key} updated${res.restart_required ? ' (restart to apply)' : ''}`);
+          if (res && res.restart_required) {
+            offerRestart({ onRestarted: () => window.location.reload() });
+          }
         } catch (e) { error(e.message); }
       });
     }
@@ -775,7 +875,7 @@ function renderInput(key, value) {
     </div>`;
   }
   const type = SENSITIVE_KEYS.has(key) ? 'password' : 'text';
-  const displayValue = value === null ? '' : String(value);
+  const displayValue = value == null ? '' : String(value);
   if (key === 'consolidation_time') {
     return `<input class="form-input setting-input" type="time" step="60" value="${esc(displayValue)}" data-key="${key}">`;
   }

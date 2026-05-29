@@ -1,4 +1,4 @@
-"""Stop hook — record turn summary and cleanup."""
+"""Stop hook — record last turn as a single memory."""
 
 from __future__ import annotations
 
@@ -6,8 +6,12 @@ import logging
 
 import httpx
 
-from hebb.integrations.claude_code._client import get_client, read_hook_input
-from hebb.integrations.claude_code.dedup import cleanup_session
+from hebb.integrations._project import detect_project_name
+from hebb.integrations.claude_code._client import (
+    get_client,
+    read_hook_input,
+    resolve_session_id,
+)
 from hebb.integrations.claude_code.transcript import (
     extract_last_turn,
     format_turn_memory,
@@ -17,36 +21,32 @@ logger = logging.getLogger(__name__)
 
 
 def handle() -> None:
-    """Record the last turn and clean up session state.
+    """Record the last completed turn (user prompt + assistant response).
 
-    Consolidation is NOT triggered here — it runs on its own schedule
-    via ``consolidation_time`` in the server lifecycle.
+    Consolidation runs on its own schedule via ``consolidation_time`` in the
+    server lifecycle and is not triggered here.
     """
     hook_input = read_hook_input()
-    session_id = hook_input.get("session_id", "")
     transcript_path = hook_input.get("transcript_path", "")
+    if not transcript_path:
+        return
 
-    # 1. Record last turn summary as a memory.
-    if transcript_path:
-        try:
-            client = get_client(timeout=30)
-        except Exception:
-            logger.debug("Could not connect to hebb service", exc_info=True)
-            if session_id:
-                cleanup_session(session_id)
-            return
+    session_id = resolve_session_id(hook_input)
+    project = detect_project_name(hook_input.get("cwd"))
 
-        try:
-            _record_turn(client, transcript_path, session_id)
-        finally:
-            client.close()
+    try:
+        client = get_client(timeout=30)
+    except Exception:
+        logger.debug("Could not connect to hebb service", exc_info=True)
+        return
 
-    # 2. Clean up dedup state for this session.
-    if session_id:
-        cleanup_session(session_id)
+    try:
+        _record_turn(client, transcript_path, session_id, project)
+    finally:
+        client.close()
 
 
-def _record_turn(client: httpx.Client, transcript_path: str, session_id: str) -> None:
+def _record_turn(client: httpx.Client, transcript_path: str, session_id: str, project: str | None) -> None:
     """Extract last turn from transcript and write it as a memory."""
     try:
         summary = extract_last_turn(transcript_path)
@@ -57,13 +57,22 @@ def _record_turn(client: httpx.Client, transcript_path: str, session_id: str) ->
     if summary is None:
         return
 
-    # Skip trivial turns (no meaningful user input or assistant output).
-    if not summary.user_input and not summary.assistant_output:
+    # Skip turns where the user contributed nothing storable. The user
+    # text has already passed through ``_extract_user_text`` /
+    # ``_is_storable_user_text``; an empty result here means the prompt
+    # filtered down to only pasted code or system noise (greetings and
+    # acknowledgements are kept as feedback and do NOT empty out). We
+    # intentionally drop the assistant output too in that case: a
+    # stand-alone assistant reply with no user context is hard to
+    # retrieve usefully.
+    if not summary.user_input:
         return
 
     content = format_turn_memory(summary, session_id=session_id)
     if not content:
         return
+
+    tags = [project] if project else []
 
     try:
         resp = client.post(
@@ -72,7 +81,7 @@ def _record_turn(client: httpx.Client, transcript_path: str, session_id: str) ->
                 "content": content,
                 "partition_id": "mem_hippocampus",
                 "importance_score": 4.0,
-                "tags": ["turn-summary", "hook"],
+                "tags": tags,
                 "metadata": {
                     "session_id": session_id,
                     "tools": summary.tools,

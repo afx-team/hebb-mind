@@ -62,6 +62,18 @@ async def update_config(
         "embedding_base_url",
         "consolidation_time",
         "forget_interval_seconds",
+        # Retrieval pipeline + rerank: the searcher and reranker are built
+        # once at lifespan startup, so toggling these only takes effect after
+        # a restart.
+        "keyword_search_enabled",
+        "graph_search_enabled",
+        "lexical_boost_enabled",
+        "temporal_boost_enabled",
+        "graph_expansion_enabled",
+        "rerank_enabled",
+        "rerank_provider",
+        "rerank_model",
+        "rerank_top_n",
         "host",
         "port",
         "home",

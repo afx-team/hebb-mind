@@ -20,6 +20,7 @@ capture_stdout()
 import httpx  # noqa: E402
 from mcp.server.fastmcp import FastMCP  # noqa: E402
 
+from hebb.integrations._project import detect_project_name  # noqa: E402
 from hebb.utils.service import ensure_service_running, resolve_base_url  # noqa: E402
 
 mcp = FastMCP(
@@ -67,12 +68,16 @@ async def write_memory(
         importance: Importance score from 0.0 to 10.0 (default 5.0).
                     Higher importance = longer retention.
     """
+    merged_tags = list(tags or [])
+    project = detect_project_name()
+    if project and project not in merged_tags:
+        merged_tags.append(project)
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"{_base_url()}/api/v1/memories",
             json={
                 "content": content,
-                "tags": tags or [],
+                "tags": merged_tags,
                 "importance_score": importance,
                 "partition_id": "mem_hippocampus",
             },
@@ -103,7 +108,7 @@ async def search_memory(
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"{_base_url()}/api/v1/search",
-            json={"query": query, "top_k": top_k},
+            json={"query": query, "top_k": top_k, "strict_recall": True},
         )
         resp.raise_for_status()
         data = resp.json()

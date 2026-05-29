@@ -25,6 +25,11 @@ class EvalSettings(BaseModel):
     llm_model: str = Field(default="openai/gpt-4o-mini")
     llm_base_url: str | None = Field(default=None)
     llm_api_key: str | None = Field(default=None)
+    # Pool of API keys for the LLM judge. When set, each request picks one
+    # at random so concurrent QA load spreads across keys instead of
+    # hammering (and getting rate-limited on) a single key. Falls back to
+    # the single ``llm_api_key`` when empty.
+    llm_api_key_list: list[str] | None = Field(default=None)
     llm_thinking: bool = Field(default=False)
     llm_temperature: float = Field(default=0.3, ge=0.0, le=2.0)
     llm_top_p: float = Field(default=1.0, ge=0.0, le=1.0)
@@ -36,7 +41,11 @@ class EvalSettings(BaseModel):
     workdir_root: Path = Field(default_factory=lambda: _ROOT / "workdirs")
     batch_size: int = Field(default=50, ge=1)
     search_top_k: int = Field(default=10, ge=1, le=100)
-    concurrency: int = Field(default=5, ge=1)
+    concurrency: int = Field(default=3, ge=1)
+    # When True, retrieval benches skip the end-to-end LLM-judge QA pass
+    # and report retrieval metrics only. Lets the R@k-matrix phase run in
+    # seconds instead of the ~35 min a full LLM-judged run costs.
+    skip_qa: bool = Field(default=False)
     weight_recency: float = Field(default=1.0, ge=0.0)
     weight_importance: float = Field(default=1.0, ge=0.0)
     weight_relevance: float = Field(default=2.0, ge=0.0)

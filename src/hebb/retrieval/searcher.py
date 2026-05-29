@@ -8,7 +8,9 @@ from datetime import datetime, timezone
 from hebb.embedding.base import EmbeddingProvider
 from hebb.graph.knowledge_graph import KnowledgeGraph
 from hebb.models.memory import Memory, MemoryQuery, MemorySearchResult, SearchResponse
+from hebb.retrieval.lexical_signals import extract_query_signals, lexical_boost
 from hebb.retrieval.query_sanitizer import sanitize_query
+from hebb.retrieval.rerank import Reranker
 from hebb.retrieval.scorer import (
     compute_composite_score,
     compute_importance_score,
@@ -36,10 +38,25 @@ class MemorySearcher:
         store: MemoryStore,
         embedder: EmbeddingProvider,
         graph: KnowledgeGraph | None = None,
+        reranker: Reranker | None = None,
+        *,
+        keyword_search_enabled: bool = True,
+        graph_search_enabled: bool = True,
+        lexical_boost_enabled: bool = True,
+        temporal_boost_enabled: bool = True,
+        graph_expansion_enabled: bool = True,
     ) -> None:
         self.store = store
         self.embedder = embedder
         self.graph = graph
+        self.reranker = reranker
+        # Pipeline toggles — each defaults True so callers that don't
+        # opt-in to ablation get the current behaviour bit-for-bit.
+        self.keyword_search_enabled = keyword_search_enabled
+        self.graph_search_enabled = graph_search_enabled
+        self.lexical_boost_enabled = lexical_boost_enabled
+        self.temporal_boost_enabled = temporal_boost_enabled
+        self.graph_expansion_enabled = graph_expansion_enabled
 
     async def search(self, query: MemoryQuery) -> SearchResponse:
         # Sanitize LLM-generated queries (XML tags, tool artifacts, etc.)
@@ -49,14 +66,27 @@ class MemorySearcher:
 
         now = datetime.now(timezone.utc)
         # Overfetch generously so RRF has long ranked lists to merge across.
-        overfetch = max(query.top_k * 6, 30)
+        # When rerank is enabled, ensure the candidate pool is at least as
+        # deep as what rerank scores — otherwise rerank can't recover an
+        # answer that never made it past the recall phase.
+        rerank_top_n = self.reranker.top_n if self.reranker is not None else 0
+        overfetch = max(query.top_k * 6, rerank_top_n, 30)
 
         # === Phase 1: Three-path parallel recall ===
-        vec_results, kw_results, graph_results = await asyncio.gather(
-            self._vector_search(query.query, overfetch, query.partition_ids),
-            self._keyword_search(query.query, overfetch, query.partition_ids),
-            self._graph_search(query.query, overfetch),
+        # Each path is independently toggleable. Disabled paths return
+        # an empty ranked list so RRF merges over only the enabled
+        # channels. All three paths return list[tuple[Memory, float]].
+        async def _empty_ranked() -> list[tuple[Memory, float]]:
+            return []
+
+        vec_task = self._vector_search(query.query, overfetch, query.partition_ids)
+        kw_task = (
+            self._keyword_search(query.query, overfetch, query.partition_ids)
+            if self.keyword_search_enabled
+            else _empty_ranked()
         )
+        graph_task = self._graph_search(query.query, overfetch) if self.graph_search_enabled else _empty_ranked()
+        vec_results, kw_results, graph_results = await asyncio.gather(vec_task, kw_task, graph_task)
 
         # Reciprocal Rank Fusion across the three retrieval channels.
         # Each channel contributes 1/(k+rank) to a memory's relevance, so a
@@ -70,6 +100,13 @@ class MemorySearcher:
         # historical replay we trust the absolute anchors only.
         query_dates = parse_query_dates(query.query, reference=now.date())
 
+        # Extract lexical re-ranking signals once per search — predicate
+        # keywords, quoted phrases, person names. Used to multiplicatively
+        # lift candidates that share these surface tokens with the query.
+        # Cheap (regex only) but skipped when the query has no extractable
+        # signals to keep the fast path tight.
+        query_signals = extract_query_signals(query.query)
+
         # Tag filter + composite scoring
         results: list[MemorySearchResult] = []
         for memory, relevance in merged.values():
@@ -79,10 +116,22 @@ class MemorySearcher:
             recency = compute_recency_score(memory.last_accessed_at, now)
             importance_norm = compute_importance_score(memory.importance_score)
 
+            # Lexical surface boost: predicate-keyword / quoted-phrase /
+            # person-name overlap. The multiplier sits in [1.0, ~2.3] and is
+            # applied to the *relevance* signal (then capped at 1.0), not to
+            # the whole composite. Folding it into a single [0, 1] component
+            # keeps the composite a genuine weighted average of three [0, 1]
+            # signals, so the final score never exceeds 1.0 by construction —
+            # no post-hoc clamp needed, and one [0, 1] scale serves both the
+            # caller-visible score and the min_score floor.
+            rel = relevance
+            if self.lexical_boost_enabled and not query_signals.is_empty:
+                rel = min(1.0, rel * lexical_boost(query_signals, memory.content))
+
             score = compute_composite_score(
                 recency=recency,
                 importance=importance_norm,
-                relevance=relevance,
+                relevance=rel,
                 weight_recency=query.weight_recency,
                 weight_importance=query.weight_importance,
                 weight_relevance=query.weight_relevance,
@@ -91,8 +140,8 @@ class MemorySearcher:
             # Date proximity boost: when the query names "August 2023" or
             # "last week", up-weight candidates whose metadata.timestamp
             # falls in that window. Decays linearly past tolerance, capped
-            # at 1.0 so the boosted score still fits the composite scale.
-            if query_dates:
+            # at 1.0 so the boosted score stays within the [0, 1] scale.
+            if self.temporal_boost_enabled and query_dates:
                 ts = memory.metadata.model_dump().get("timestamp")
                 boost = temporal_boost(str(ts) if ts else None, query_dates)
                 if boost > 0:
@@ -104,11 +153,37 @@ class MemorySearcher:
                     score=score,
                     recency_score=recency,
                     importance_score_normalized=importance_norm,
-                    relevance_score=relevance,
+                    relevance_score=rel,
                 )
             )
 
         results.sort(key=lambda r: r.score, reverse=True)
+
+        # === Phase 1.6: cross-encoder rerank (optional) ===
+        # Re-score the top-N composite candidates with a cross-encoder
+        # that reads (query, content) jointly. Cross-attention catches
+        # semantic matches that vector + lexical can't (e.g. "upgrade
+        # camera flash" ↔ "suggest accessories"). Skipped entirely when
+        # self.reranker is None — that branch is indistinguishable from
+        # the pre-rerank code path.
+        if self.reranker is not None and results:
+            pool = results[: self.reranker.top_n]
+            tail = results[self.reranker.top_n :]
+            rerank_scores = await self.reranker.score(query.query, [r.memory.content for r in pool])
+            for r, s in zip(pool, rerank_scores, strict=False):
+                r.score = float(s)
+                r.relevance_score = float(s)
+            pool.sort(key=lambda r: r.score, reverse=True)
+            results = pool + tail
+
+        # Relevance floor: drop anything below min_score. The composite is
+        # bounded to [0, 1] by construction (each signal is in [0, 1] and the
+        # weights are normalised) and rerank scores are sigmoid-normalised, so
+        # the floor lives on a [0, 1] scale in both modes. Used by strict recall
+        # surfaces (hook, MCP); 0.0 (console default) is a no-op.
+        if query.min_score > 0.0:
+            results = [r for r in results if r.score >= query.min_score]
+
         top_results = results[: query.top_k]
         top_ids = {r.memory.id for r in top_results}
 
@@ -127,8 +202,11 @@ class MemorySearcher:
             )
 
         # === Phase 2b: Post-expansion via graph ===
-        exclude_for_graph = top_ids | {m.id for m in turn_neighbours}
-        graph_related = await self._graph_expand_from_results(top_results, exclude_ids=exclude_for_graph, limit=5)
+        if self.graph_expansion_enabled:
+            exclude_for_graph = top_ids | {m.id for m in turn_neighbours}
+            graph_related = await self._graph_expand_from_results(top_results, exclude_ids=exclude_for_graph, limit=5)
+        else:
+            graph_related = []
 
         related: list[Memory] = [*turn_neighbours, *graph_related]
         return SearchResponse(results=top_results, related=related)

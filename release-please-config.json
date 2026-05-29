@@ -10,7 +10,7 @@
       "package-name": "hebb-mind",
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
-        "src/hebb/__init__.py"
+        { "type": "generic", "path": "src/hebb/__init__.py" }
       ],
       "changelog-sections": [
         { "type": "feat",     "section": "Added" },

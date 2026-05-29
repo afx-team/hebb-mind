@@ -1,22 +1,39 @@
 """ConvoMem benchmark runner.
 
-Standalone bench (intentionally does not reuse ``BaseBenchmark.setup``
-or ``BaseBenchmark.run``) because ConvoMem's metric is substring
-containment of evidence messages, not QA accuracy.
+Standalone bench (intentionally does not reuse
+``BaseBenchmark.run``) because ConvoMem warrants a dedicated scoring
+mode — see below.
 
-Ingestion granularity is **per-message**, not per-turn-pair. ConvoMem's
-metric checks whether the verbatim evidence message text appears in any
-top-k retrieved memory; turn-pair summaries would concatenate two
-messages and pad with role markers, blunting the substring match.
-Per-message ingestion is also what MemPalace's
-``convomem_bench.py`` does, which keeps the head-to-head fair.
+Ingestion granularity is **per-message**, matching MemPalace's setup
+so head-to-head ingest is symmetric.
 
-Metric (matches ``docs/analysis/mempalace-benchmark-deep-dive.md §2.3``):
-    For each question with evidence E and top-k retrieved memories M,
-        found = |{e ∈ E : ∃ m ∈ M, e.lower() ⊆ m.lower() or m.lower() ⊆ e.lower()}|
-        recall = found / |E|
-    A question is "correct" iff ``recall == 1.0``. Per-category mean
-    recall is the headline number.
+Why end-to-end QA, not substring containment
+--------------------------------------------
+ConvoMem's published metric is verbatim substring match between the
+``message_evidences`` text and the retrieved memory contents. That
+metric is unreliable for our system in two ways:
+
+1. Hebb's production ingest is allowed to clean / normalise content
+   (the ``strip_noise`` step in ``hebb.ingest.noise``); a memory whose
+   stored text differs from the evidence by even one character would
+   score 0 even if the system clearly "remembers" the fact.
+2. The benchmark question is what a user would actually ask; the
+   ground-truth ``answer`` field is what a user would accept as a
+   correct response. End-to-end QA accuracy directly measures whether
+   the system answers the user — which is the only thing that
+   matters in production.
+
+We therefore use an LLM judge (configured via
+``eval/eval.json``). Retrieval brings top-k memories → the same LLM
+generates an answer using only those memories → the same LLM judges
+the answer against the ground truth. A question is "correct" iff the
+judge returns ``correct == true``.
+
+The MemPalace substring number is NOT a reference for this dataset on
+Hebb's side — see ``repo_pages/benchmarks/convomem/index.md`` for the
+public framing. The ``_evidence_substring_recall`` helper is retained
+in this module only because the existing unit tests pin its formula;
+it is not part of the public bench surface.
 """
 
 from __future__ import annotations
@@ -35,6 +52,10 @@ from eval.client import HebbClient
 from eval.datasets.base import EvalQuestion, EvalScenario
 from eval.judge import LLMJudge
 from eval.metrics.accuracy import compute_accuracy_by_category
+from hebb.retrieval.preference_extractor import (
+    extract_preferences,
+    synthesize_preference_memory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,9 +73,11 @@ class ConvoMemBenchmark(BaseBenchmark):
 
     benchmark_name = "convomem"
     dataset_name = "ConvoMem"
-    # v1: generic ingest + QA accuracy (wrong metric for this dataset).
+    # v1: generic ingest + QA accuracy.
     # v2: per-message verbatim ingest, substring evidence recall.
-    eval_version = "v2"
+    # v3: per-message ingest, end-to-end LLM QA judge (see module
+    #     docstring for the rationale switch).
+    eval_version = "v3"
 
     async def setup(
         self, client: HebbClient, scenarios: list[EvalScenario]
@@ -88,6 +111,22 @@ class ConvoMemBenchmark(BaseBenchmark):
                     "metadata": metadata,
                     "source": "convomem",
                 })
+
+                # Preference / state phrases — only for user-side
+                # messages; assistant utterances are responses, not
+                # self-descriptions, so the patterns shouldn't apply.
+                if turn.role == "user":
+                    for phrase in extract_preferences(text):
+                        pref_meta = dict(metadata)
+                        pref_meta["synthetic"] = True
+                        batch.append({
+                            "content": synthesize_preference_memory(phrase)[:10000],
+                            "partition_id": scenario.scenario_id,
+                            "importance_score": 4.0,
+                            "tags": ["convomem-msg", "preference"],
+                            "metadata": pref_meta,
+                            "source": "convomem:preference",
+                        })
 
                 if len(batch) >= self.settings.batch_size:
                     await client.create_memories_batch(batch)
@@ -142,6 +181,185 @@ class ConvoMemBenchmark(BaseBenchmark):
                         memory_contents.append(content)
 
                 relevance_scores = [r.get("relevance_score", 0.0) for r in results_list]
+
+                # End-to-end QA: generate then judge. Latency above
+                # measures only retrieval; LLM time is not in the
+                # benchmark's headline avg_latency_ms (it's reported
+                # under config.judge_used).
+                generated = await judge.generate_answer(q.question, memory_contents)
+                is_correct, confidence = await judge.judge_correctness(
+                    q.question, q.ground_truth, generated
+                )
+
+                return RetrievalResult(
+                    question_id=q.question_id,
+                    question=q.question,
+                    ground_truth=q.ground_truth,
+                    category=q.category,
+                    retrieved_memories=memory_contents,
+                    generated_answer=generated,
+                    is_correct=is_correct,
+                    confidence=confidence,
+                    relevance_scores=relevance_scores,
+                    latency_ms=latency_ms,
+                )
+
+        tasks = [
+            evaluate(q)
+            for scenario in scenarios
+            for q in scenario.questions
+        ]
+        logger.info(
+            "Evaluating %d ConvoMem questions by substring evidence recall...",
+            len(tasks),
+        )
+        results = await asyncio.gather(*tasks)
+
+        correct = sum(1 for r in results if r.is_correct)
+        accuracy = (correct / len(results)) if results else 0.0
+        by_category = compute_accuracy_by_category(results)
+        avg_latency = (
+            sum(r.latency_ms for r in results) / len(results) if results else 0.0
+        )
+
+        return BenchmarkResult(
+            benchmark_name=self.benchmark_name,
+            dataset_name=self.dataset_name,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            total_questions=len(results),
+            correct=correct,
+            accuracy=accuracy,
+            accuracy_by_category={
+                cat: info["accuracy"] for cat, info in by_category.items()
+            },
+            avg_latency_ms=avg_latency,
+            retrieval_metrics={
+                "avg_top1_relevance": (
+                    sum(r.relevance_scores[0] for r in results if r.relevance_scores)
+                    / len(results) if results else 0.0
+                ),
+                "avg_judge_confidence": (
+                    sum(r.confidence for r in results) / len(results)
+                    if results else 0.0
+                ),
+            },
+            individual_results=results,
+            config={
+                "eval_version": self.eval_version,
+                "mode": "raw_per_message",
+                "metric": "end_to_end_qa_llm_judge",
+                "judge_used": True,
+                "search_top_k": top_k,
+                "concurrency": self.settings.concurrency,
+                "weight_recency": self.settings.weight_recency,
+                "weight_importance": self.settings.weight_importance,
+                "weight_relevance": self.settings.weight_relevance,
+                "num_scenarios": len(scenarios),
+            },
+        )
+
+
+class ConvoMemSubstringBenchmark(ConvoMemBenchmark):
+    """MemPalace-aligned 5×50 substring-recall variant of ConvoMem.
+
+    Same per-message ingestion as ``ConvoMemBenchmark``; the deltas are
+    the scoring metric and the question slice:
+
+    * **Slice**: 5 categories × 50 items from ``1_evidence/`` only. We
+      drop ``changing_evidence`` (HF tree has no ``1_evidence/`` slice
+      for it — MemPalace skips this category too). This makes a 250-q
+      head-to-head directly comparable to MemPalace's published
+      ``convomem_bench.py`` numbers.
+
+    * **Metric**: bidirectional substring recall on retrieved memory
+      contents (``ev in mem`` or ``mem in ev``) — the same rule
+      MemPalace uses at ``.research/mempalace/benchmarks/convomem_bench.py:208``.
+      No LLM judge.
+
+    Point of this bench is *attribution*: our QA-mode v3 lands at 73.5%,
+    MemPalace lands at 92.9% substring recall. Those don't share a
+    metric *or* a slice, so the gap is uninterpretable. This bench
+    closes both gaps simultaneously so the residual delta isolates
+    retrieval-pipeline differences.
+    """
+
+    benchmark_name = "convomem-substring"
+    dataset_name = "ConvoMem (5×50 1_evidence substring slice)"
+    eval_version = "v1"
+
+    items_per_category = 50
+    # The 5 categories with a 1_evidence/ slice on HF — order mirrors
+    # MemPalace's own bench so per-category tables line up directly.
+    included_categories = (
+        "assistant_facts_evidence",
+        "user_evidence",
+        "abstention_evidence",
+        "implicit_connection_evidence",
+        "preference_evidence",
+    )
+
+    def _slice_scenarios(self, scenarios: list[EvalScenario]) -> list[EvalScenario]:
+        """Keep first ``items_per_category`` scenarios per included category."""
+        kept: dict[str, list[EvalScenario]] = {c: [] for c in self.included_categories}
+        for s in scenarios:
+            cat = s.questions[0].category if s.questions else ""
+            bucket = kept.get(cat)
+            if bucket is None or len(bucket) >= self.items_per_category:
+                continue
+            bucket.append(s)
+        return [s for c in self.included_categories for s in kept[c]]
+
+    async def setup(
+        self, client: HebbClient, scenarios: list[EvalScenario]
+    ) -> None:
+        sliced = self._slice_scenarios(scenarios)
+        logger.info(
+            "ConvoMem substring slice: kept %d/%d scenarios (%d per cat × %d cats)",
+            len(sliced), len(scenarios), self.items_per_category,
+            len(self.included_categories),
+        )
+        await super().setup(client, sliced)
+
+    async def run(
+        self,
+        client: HebbClient,
+        scenarios: list[EvalScenario],
+        judge: LLMJudge,
+    ) -> BenchmarkResult:
+        """Retrieve top-k and score by substring evidence recall (no judge)."""
+        scenarios = self._slice_scenarios(scenarios)
+        sem = asyncio.Semaphore(self.settings.concurrency)
+        top_k = self.settings.search_top_k
+
+        async def evaluate(q: EvalQuestion) -> RetrievalResult:
+            scenario_id = q.question_id.rsplit("_q", 1)[0]
+            async with sem:
+                t0 = time.monotonic()
+                raw = await client.search(
+                    query=q.question,
+                    partition_ids=[scenario_id],
+                    top_k=top_k,
+                    weight_recency=self.settings.weight_recency,
+                    weight_importance=self.settings.weight_importance,
+                    weight_relevance=self.settings.weight_relevance,
+                )
+                results_list = raw.get("results", raw) if isinstance(raw, dict) else raw
+                related_list: list[dict] = (
+                    raw.get("related", []) if isinstance(raw, dict) else []
+                )
+                latency_ms = (time.monotonic() - t0) * 1000
+
+                memory_contents: list[str] = []
+                for r in results_list:
+                    content = (r.get("memory") or {}).get("content")
+                    if content:
+                        memory_contents.append(content)
+                for r in related_list:
+                    content = r.get("content")
+                    if content:
+                        memory_contents.append(content)
+
+                relevance_scores = [r.get("relevance_score", 0.0) for r in results_list]
                 recall = _evidence_substring_recall(q.evidence, memory_contents)
 
                 return RetrievalResult(
@@ -163,7 +381,7 @@ class ConvoMemBenchmark(BaseBenchmark):
             for q in scenario.questions
         ]
         logger.info(
-            "Evaluating %d ConvoMem questions by substring evidence recall...",
+            "Evaluating %d ConvoMem questions by substring recall (MemPalace 5×50 slice)...",
             len(tasks),
         )
         results = await asyncio.gather(*tasks)
@@ -178,6 +396,14 @@ class ConvoMemBenchmark(BaseBenchmark):
             sum(r.latency_ms for r in results) / len(results) if results else 0.0
         )
 
+        per_cat_recall: dict[str, float] = {}
+        for cat in self.included_categories:
+            cat_results = [r for r in results if r.category == cat]
+            per_cat_recall[cat] = (
+                sum(r.confidence for r in cat_results) / len(cat_results)
+                if cat_results else 0.0
+            )
+
         return BenchmarkResult(
             benchmark_name=self.benchmark_name,
             dataset_name=self.dataset_name,
@@ -191,21 +417,25 @@ class ConvoMemBenchmark(BaseBenchmark):
             avg_latency_ms=avg_latency,
             retrieval_metrics={
                 "avg_evidence_recall": avg_recall,
-                "avg_top1_relevance": (
-                    sum(r.relevance_scores[0] for r in results if r.relevance_scores)
-                    / len(results) if results else 0.0
-                ),
                 "perfect_recall_rate": correct / len(results) if results else 0.0,
                 "zero_recall_rate": (
                     sum(1 for r in results if r.confidence == 0.0) / len(results)
                     if results else 0.0
                 ),
+                "avg_top1_relevance": (
+                    sum(r.relevance_scores[0] for r in results if r.relevance_scores)
+                    / len(results) if results else 0.0
+                ),
+                **{f"recall_{c}": v for c, v in per_cat_recall.items()},
             },
             individual_results=results,
             config={
                 "eval_version": self.eval_version,
-                "mode": "raw_per_message",
+                "mode": "raw_per_message_substring",
                 "metric": "substring_evidence_recall",
+                "slice": "1_evidence_x_5_categories",
+                "items_per_category": self.items_per_category,
+                "included_categories": list(self.included_categories),
                 "search_top_k": top_k,
                 "concurrency": self.settings.concurrency,
                 "weight_recency": self.settings.weight_recency,
