@@ -165,18 +165,32 @@ def format_turn_memory(
 # ---------------------------------------------------------------------------
 
 
+def _is_storable_user_text(cleaned: str) -> bool:
+    """Write judgment for the Stop hook's turn recorder.
+
+    Deliberately distinct from the recall hook's ``_is_recall_worthy``:
+    storage and recall ask different questions of the same utterance. A
+    cleaned user message earns a memory slot when it is either substantive
+    prose (>= ``_MIN_USER_LEN``) or a recognized greeting / acknowledgement.
+    The latter are short but are collected as feedback, so — unlike the
+    recall hook, which skips them — storage keeps them. Everything else
+    (empty after noise/code/HTML stripping, or a terse non-social fragment
+    like a bare "fix it") is dropped.
+    """
+    if not cleaned:
+        return False
+    if is_greeting_only(cleaned):
+        return True
+    return len(cleaned) >= _MIN_USER_LEN
+
+
 def _extract_user_text(msg: dict[str, Any]) -> str:
     """Pull plain-text from a user message, then run the user-input filter.
 
-    Returns ``""`` when the prompt is low-signal — Stop hook reads that as
-    "skip this turn entirely". Two trivial cases trigger the skip:
-
-        - Pure greeting / acknowledgement ("hi", "thanks", "你好").
-        - Anything that filters down to fewer than ``_MIN_USER_LEN`` chars
-          (e.g. an utterance that was just a code block or HTML dump).
-
-    Substantive prose is cleaned (system tags, code fences, HTML, base64
-    blobs all removed) and truncated to ``_MAX_USER_LEN``.
+    Returns ``""`` when the prompt is not storable per
+    ``_is_storable_user_text`` — the Stop hook reads that as "skip this
+    turn entirely". Storable prose is cleaned (system tags, code fences,
+    HTML, base64 blobs all removed) and truncated to ``_MAX_USER_LEN``.
     """
     content = msg.get("message", {}).get("content", [])
     texts: list[str] = []
@@ -185,9 +199,7 @@ def _extract_user_text(msg: dict[str, Any]) -> str:
             texts.append(block.get("text", ""))
     raw = "\n".join(texts).strip()
     cleaned = clean_user_input(raw)
-    if is_greeting_only(cleaned):
-        return ""
-    if len(cleaned) < _MIN_USER_LEN:
+    if not _is_storable_user_text(cleaned):
         return ""
     if len(cleaned) > _MAX_USER_LEN:
         cleaned = cleaned[:_MAX_USER_LEN] + "…"

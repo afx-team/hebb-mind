@@ -220,7 +220,7 @@ class SQLiteMemoryStore:
             # vec0 unavailable or fallback table doesn't support MATCH
             return []
 
-        rows = await cursor.fetchall()
+        rows = list(await cursor.fetchall())
         if not rows:
             return []
 
@@ -281,7 +281,7 @@ class SQLiteMemoryStore:
         except Exception:
             return []
 
-        rows = await cursor.fetchall()
+        rows = list(await cursor.fetchall())
         if not rows:
             return []
         ids = [row["memory_id"] for row in rows[:top_k]]

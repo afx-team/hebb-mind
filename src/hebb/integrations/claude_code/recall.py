@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import sys
 
-from hebb.ingest.noise import strip_noise
+from hebb.ingest.noise import is_greeting_only, strip_noise
 from hebb.integrations.claude_code._client import (
     get_client,
     read_hook_input,
@@ -18,6 +18,22 @@ _TOP_K_FETCH = 20
 _TOP_K_RETURN = 10
 _PROMPT_MIN_LEN = 4
 _SESSION_START_QUERY = "recent context and user preferences"
+
+
+def _is_recall_worthy(prompt: str) -> bool:
+    """Activation judgment for the UserPromptSubmit recall hook.
+
+    This is deliberately distinct from the storage judgment in
+    ``transcript._is_storable_user_text``: the two hooks ask different
+    questions of the same utterance. Recall only fires for a prompt that
+    carries a genuine information need — long enough to be a question and
+    not a pure greeting / acknowledgement. Those greetings are still kept
+    by the storage path as collected feedback; here they simply earn no
+    recall.
+    """
+    if len(prompt) < _PROMPT_MIN_LEN:
+        return False
+    return not is_greeting_only(prompt)
 
 
 def handle() -> None:
@@ -33,11 +49,16 @@ def handle_prompt() -> None:
     The user's prompt — stripped of system-reminder noise — is the search
     query. Memories from the current session are excluded so the model
     doesn't re-read what's already in its context.
+
+    A pure greeting / acknowledgement ("hi", "thanks", "好的") carries no
+    query intent, so it does not trigger a recall. This is independent of
+    the storage judgment in ``transcript._is_storable_user_text`` — those
+    same utterances are still *stored* there as collected feedback.
     """
     hook_input = read_hook_input()
     session_id = resolve_session_id(hook_input)
     prompt = strip_noise(hook_input.get("prompt", ""))
-    if len(prompt) < _PROMPT_MIN_LEN:
+    if not _is_recall_worthy(prompt):
         return
     _recall_and_print(query=prompt, current_session_id=session_id, timeout=5)
 

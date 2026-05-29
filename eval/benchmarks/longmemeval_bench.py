@@ -193,7 +193,7 @@ class LongMemEvalBenchmark(BaseBenchmark):
                     "content": summary[:10000],
                     "partition_id": scenario.scenario_id,
                     "importance_score": 4.0,
-                    "tags": ["turn-summary", "hook"],
+                    "tags": ["longmem"],
                     "metadata": metadata,
                     "source": "hook:stop",
                 })

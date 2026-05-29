@@ -79,6 +79,21 @@ _GREETINGS: frozenset[str] = frozenset(
         "拜拜",
         "拜",
         "回见",
+        # English acknowledgements
+        "thanks",
+        "thank you",
+        "thx",
+        "ty",
+        "ok",
+        "okay",
+        "got it",
+        # Chinese acknowledgements
+        "好",
+        "好的",
+        "嗯",
+        "嗯嗯",
+        "谢谢",
+        "收到",
     }
 )
 
@@ -181,6 +196,12 @@ def clean_user_input(text: str) -> str:
 
 def is_greeting_only(text: str) -> bool:
     """True when the message is *purely* a greeting / acknowledgement.
+
+    This is a policy-free classifier, not a gate. Each hook decides what
+    to *do* with the verdict: the recall hook treats a greeting as having
+    no query intent and skips it (``recall._is_recall_worthy``), while the
+    storage hook keeps it as collected feedback
+    (``transcript._is_storable_user_text``).
 
     Comparison is on the normalized form (lowercased, edge punctuation
     stripped) against a curated set. Substantive messages that merely

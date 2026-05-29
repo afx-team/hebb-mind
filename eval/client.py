@@ -31,16 +31,22 @@ logger = logging.getLogger(__name__)
 # benchmarks must be assigned a port here — auto-allocation would make
 # it impossible to clean up an orphan from a prior run since the
 # stop-by-port logic needs a deterministic value.
+#
+# These MUST stay clear of 8321 (the hebb server default, which the
+# user's daily launchd service binds). Reusing 8321 makes the eval's
+# stop_server/start_server race the always-respawning daily service for
+# the port; when the daily service wins, ingest silently lands in
+# ~/.hebb/hebb.db instead of the isolated workdir. Hence the 84xx range.
 BENCHMARK_PORTS: dict[str, int] = {
-    "locomo": 8321,
-    "locomo-qa": 8327,
-    "longmemeval": 8322,
-    "longmemeval-session": 8328,
-    "convomem": 8323,
-    "convomem-substring": 8329,
-    "membench": 8324,
-    "personamem": 8325,
-    "memoryarena": 8326,
+    "locomo": 8401,
+    "locomo-qa": 8407,
+    "longmemeval": 8402,
+    "longmemeval-session": 8408,
+    "convomem": 8403,
+    "convomem-substring": 8409,
+    "membench": 8404,
+    "personamem": 8405,
+    "memoryarena": 8406,
 }
 
 # Fields copied from the project-root hebb.json into each per-benchmark
@@ -216,7 +222,13 @@ def start_server(project_root: Path | None = None) -> subprocess.Popen:
     root = project_root or Path.cwd()
     cfg = _read_hebb_config(root)
     host = cfg.get("host", "0.0.0.0")
-    port = cfg.get("port", 8321)
+    port = cfg.get("port")
+    if port is None:
+        raise ValueError(
+            f"No 'port' in {root / 'hebb.json'}. prepare_workdir must set it; "
+            f"refusing to fall back to 8321 and risk colliding with the daily "
+            f"hebb service."
+        )
     python = _find_python(root)
 
     env = os.environ.copy()
@@ -268,7 +280,7 @@ async def wait_for_server(base_url: str, timeout: float = 120.0) -> None:
 class HebbClient:
     """Async HTTP client wrapping every hebb API endpoint."""
 
-    def __init__(self, base_url: str = "http://localhost:8321", timeout: float = 120.0):
+    def __init__(self, base_url: str, timeout: float = 120.0):
         self.base_url = base_url.rstrip("/")
         # trust_env=False bypasses system proxy — server is always local.
         # 120s default: bge-large encoding under concurrent eval load

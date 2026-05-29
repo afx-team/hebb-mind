@@ -57,13 +57,14 @@ def _record_turn(client: httpx.Client, transcript_path: str, session_id: str, pr
     if summary is None:
         return
 
-    # Skip turns where the user contributed nothing memorable. The user
-    # text has already been run through noise/code-fence/greeting filters
-    # in ``_extract_user_text``; an empty result here means the prompt was
-    # pure greeting, only pasted code, or only system noise — none of
-    # which are worth a memory slot. We intentionally drop the assistant
-    # output too in that case: a stand-alone assistant reply with no user
-    # context is hard to retrieve usefully.
+    # Skip turns where the user contributed nothing storable. The user
+    # text has already passed through ``_extract_user_text`` /
+    # ``_is_storable_user_text``; an empty result here means the prompt
+    # filtered down to only pasted code or system noise (greetings and
+    # acknowledgements are kept as feedback and do NOT empty out). We
+    # intentionally drop the assistant output too in that case: a
+    # stand-alone assistant reply with no user context is hard to
+    # retrieve usefully.
     if not summary.user_input:
         return
 

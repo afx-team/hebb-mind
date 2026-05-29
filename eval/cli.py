@@ -184,6 +184,8 @@ async def _fresh_server(
               help="Disable post-search graph expansion of top-k tags")
 @click.option("--embedding-model", default=None,
               help="Override embedding_model in workdir hebb.json (e.g. sentence-transformers/all-MiniLM-L6-v2)")
+@click.option("--skip-qa", is_flag=True, default=False,
+              help="Skip the end-to-end LLM-judge QA pass (retrieval R@k only) — fast matrix mode")
 @click.option(
     "--rebuild",
     is_flag=True,
@@ -208,6 +210,7 @@ def run(
     disable_temporal_boost: bool,
     disable_graph_expand: bool,
     embedding_model: str | None,
+    skip_qa: bool,
     rebuild: bool,
 ) -> None:
     """Run evaluation benchmark(s) against an isolated hebb instance per dataset.
@@ -231,6 +234,8 @@ def run(
         settings.llm_model = llm_model
     if mode:
         settings.mode = EvalMode(mode)
+    if skip_qa:
+        settings.skip_qa = True
 
     names = _RUNNABLE if dataset == "all" else [dataset]
 
@@ -239,10 +244,13 @@ def run(
             model=settings.llm_model,
             api_base=settings.llm_base_url,
             api_key=settings.llm_api_key,
+            api_keys=settings.llm_api_key_list,
             thinking=settings.llm_thinking,
             temperature=settings.llm_temperature,
             top_p=settings.llm_top_p,
         )
+        if settings.llm_api_key_list:
+            click.echo(f"LLM judge: {len(settings.llm_api_key_list)} API keys in rotation, concurrency={settings.concurrency}")
 
         click.echo(f"Mode: {settings.mode.value}")
         click.echo(f"Reports root: {settings.reports_dir}")
@@ -301,11 +309,9 @@ def run(
                     searcher_overrides["graph_expansion_enabled"] = False
                 if embedding_model:
                     searcher_overrides["embedding_model"] = embedding_model
-                    # embedding_dim is auto-detected at server startup
-                    # (server/app.py overwrites it via embedder.dimension),
-                    # so drop the inherited 1024 so settings.py picks up
-                    # the per-model default until the embedder reports.
-                    searcher_overrides["embedding_dim"] = 384  # safe default; corrected on startup
+                    # Don't pin embedding_dim — server/app.py builds the
+                    # embedder before storage and sizes the vec0 table from
+                    # embedder.dimension, so any model swaps in correctly.
                 if searcher_overrides:
                     import json as _json
                     cfg_path = workdir / "hebb.json"
@@ -399,6 +405,16 @@ def run(
                         for cat, acc in sorted(result.accuracy_by_category.items()):
                             click.echo(f"  {cat}: {acc:.1%}")
                     click.echo(f"  Reports: {json_path}, {md_path}")
+                    if judge.failure_count:
+                        click.echo(
+                            f"  ⚠️  LLM judge failures (exhausted retries): "
+                            f"{judge.failure_count} — these questions scored 0 "
+                            f"due to API errors, not retrieval/answer quality"
+                        )
+                        fail_path = run_dir / "judge_failures.json"
+                        import json as _json
+                        fail_path.write_text(_json.dumps(judge.failures, indent=2))
+                        click.echo(f"  Failure ledger: {fail_path}")
 
             # Summary — when running multiple benchmarks, write a single
             # "latest cross-dataset summary" file. It always overwrites so

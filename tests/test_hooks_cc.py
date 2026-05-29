@@ -738,8 +738,8 @@ class TestStopHook:
         _, payload = client.calls[0]
         assert payload["tags"] == []
 
-    def test_skips_turn_when_user_prompt_is_greeting(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-        """Pure-greeting user message → NO memory written, not even assistant."""
+    def test_stores_turn_when_user_prompt_is_greeting(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Pure-greeting user message → still stored: greetings are kept as feedback."""
         transcript = tmp_path / "session.jsonl"
         transcript.write_text(
             json.dumps(
@@ -773,7 +773,10 @@ class TestStopHook:
         )
         monkeypatch.setattr(stop, "get_client", lambda timeout=30: client)
         stop.handle()
-        assert client.calls == []
+        assert len(client.calls) == 1
+        _, payload = client.calls[0]
+        assert "[User] Hi!" in payload["content"]
+        assert "[Assistant] Hi! How can I help today?" in payload["content"]
 
     def test_skips_turn_when_user_prompt_is_only_a_code_paste(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path

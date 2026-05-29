@@ -48,7 +48,7 @@ def test_prepare_workdir_creates_dir_and_writes_hebb_json(
     # workdir can persist independently.
     assert workdir == workdir_root / "convomem-raw"
     assert workdir.is_dir()
-    assert port == BENCHMARK_PORTS["convomem"] == 8323
+    assert port == BENCHMARK_PORTS["convomem"] == 8403
 
     cfg = json.loads((workdir / "hebb.json").read_text())
     # Inherited from project root
@@ -58,7 +58,7 @@ def test_prepare_workdir_creates_dir_and_writes_hebb_json(
     assert cfg["storage_type"] == "sqlite"
     # Overridden
     assert cfg["host"] == "0.0.0.0"
-    assert cfg["port"] == 8323
+    assert cfg["port"] == 8403
     # Reset so HEBB_HOME env wins
     assert cfg["home"] is None
 

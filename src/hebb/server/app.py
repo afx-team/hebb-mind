@@ -29,18 +29,24 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = load_settings()
     app.state.settings = settings
 
-    # Storage (backend selected by settings.storage_type)
+    # Embedder FIRST — the vec0 virtual table is created with a fixed
+    # ``float[N]`` width, so the storage layer must know the real
+    # embedding dimension before it builds the schema. Constructing the
+    # embedder reports its true dimension (which can differ from the
+    # configured ``embedding_dim``, e.g. when the model is overridden at
+    # runtime); we pin settings to it before create_stores runs.
+    embedder = await create_embedder(settings)
+    settings.embedding_dim = embedder.dimension
+    app.state.embedder = embedder
+
+    # Storage (backend selected by settings.storage_type) — vec0 table
+    # now sized to the embedder's actual dimension.
     ctx = await create_stores(settings)
     app.state.memory_store = ctx.memory_store
     app.state.partition_store = ctx.partition_store
 
     # Ensure default partitions
     await ctx.partition_store.ensure_defaults()
-
-    # Embedder (local or API, selected by config)
-    embedder = await create_embedder(settings)
-    settings.embedding_dim = embedder.dimension
-    app.state.embedder = embedder
 
     # Knowledge graph
     kg = KnowledgeGraph(Path(settings.kg_path))  # kg_path already resolved to absolute
