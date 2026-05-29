@@ -87,6 +87,12 @@ def extract_last_turn(transcript_path: str | Path) -> TurnSummary | None:
         if msg_type == "assistant" and last_assistant is None:
             last_assistant = msg
         elif msg_type == "user" and last_assistant is not None:
+            # In a tool-using turn the trailing ``user`` messages are
+            # tool_result carriers (role=user, no human text); the actual
+            # prompt sits several messages back. Skip carriers so we anchor
+            # the turn on the human utterance.
+            if not _raw_user_text(msg):
+                continue
             last_user = msg
             break
 
@@ -184,6 +190,21 @@ def _is_storable_user_text(cleaned: str) -> bool:
     return len(cleaned) >= _MIN_USER_LEN
 
 
+def _raw_user_text(msg: dict[str, Any]) -> str:
+    """Concatenate the human-authored text of a user message.
+
+    Claude Code stores a plain prompt as a bare ``content`` string and a
+    richer prompt (attachments, images, slash-command output) as a list of
+    typed blocks. Tool output arrives as ``user`` messages whose blocks are
+    all ``tool_result`` — those carry no human text and yield ``""``.
+    """
+    content = msg.get("message", {}).get("content", "")
+    if isinstance(content, str):
+        return content.strip()
+    texts = [b.get("text", "") for b in _iter_blocks(content) if b.get("type") == "text"]
+    return "\n".join(texts).strip()
+
+
 def _extract_user_text(msg: dict[str, Any]) -> str:
     """Pull plain-text from a user message, then run the user-input filter.
 
@@ -192,13 +213,7 @@ def _extract_user_text(msg: dict[str, Any]) -> str:
     turn entirely". Storable prose is cleaned (system tags, code fences,
     HTML, base64 blobs all removed) and truncated to ``_MAX_USER_LEN``.
     """
-    content = msg.get("message", {}).get("content", [])
-    texts: list[str] = []
-    for block in _iter_blocks(content):
-        if block.get("type") == "text":
-            texts.append(block.get("text", ""))
-    raw = "\n".join(texts).strip()
-    cleaned = clean_user_input(raw)
+    cleaned = clean_user_input(_raw_user_text(msg))
     if not _is_storable_user_text(cleaned):
         return ""
     if len(cleaned) > _MAX_USER_LEN:

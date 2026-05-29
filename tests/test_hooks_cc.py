@@ -569,6 +569,55 @@ class TestTranscript:
         assert summary.user_input == "Second question"
         assert summary.assistant_output == "Second answer"
 
+    def test_extract_user_text_from_string_content(self, tmp_path: Path):
+        """Claude Code stores a plain prompt as a bare string, not a block list."""
+        path = self._write_jsonl(
+            tmp_path,
+            [
+                {"type": "user", "message": {"role": "user", "content": "What is the capital of France?"}},
+                {
+                    "type": "assistant",
+                    "message": {"role": "assistant", "content": [{"type": "text", "text": "Paris."}]},
+                },
+            ],
+        )
+        summary = extract_last_turn(path)
+        assert summary is not None
+        assert summary.user_input == "What is the capital of France?"
+        assert summary.assistant_output == "Paris."
+
+    def test_skips_tool_result_carrier_to_find_prompt(self, tmp_path: Path):
+        """When a turn ends with tool_result user messages, anchor on the human prompt."""
+        path = self._write_jsonl(
+            tmp_path,
+            [
+                {"type": "user", "message": {"role": "user", "content": "Create a config file for me please"}},
+                {
+                    "type": "assistant",
+                    "message": {
+                        "role": "assistant",
+                        "content": [{"type": "tool_use", "name": "Write", "id": "t1", "input": {}}],
+                    },
+                },
+                {
+                    "type": "user",
+                    "message": {
+                        "role": "user",
+                        "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "File created"}],
+                    },
+                },
+                {
+                    "type": "assistant",
+                    "message": {"role": "assistant", "content": [{"type": "text", "text": "Done — config written."}]},
+                },
+            ],
+        )
+        summary = extract_last_turn(path)
+        assert summary is not None
+        assert summary.user_input == "Create a config file for me please"
+        assert summary.assistant_output == "Done — config written."
+        assert summary.tools == ["Write"]
+
     def test_returns_none_for_missing_file(self):
         summary = extract_last_turn("/nonexistent/path.jsonl")
         assert summary is None
