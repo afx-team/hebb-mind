@@ -2,7 +2,7 @@
 
 | System | Score | Source |
 |---|---|---|
-| **Hebb Mind v0.1.2** | 93.3% R@10 bge-large / 89.7% R@10 MiniLM-384 / 76.0% end-to-end QA (full 1,978q each) | [LoCoMo](./) |
+| **Hebb Mind** | 95.75% R@10 (bge-large + rerank) / 94.14% (bge-large default) / 91.41% (MiniLM-384), full 1,978q each | [LoCoMo](./) |
 | Letta | TBD | No first-party LoCoMo result we could find in their public repo |
 
 ## Why this row is TBD

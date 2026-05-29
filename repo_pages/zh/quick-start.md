@@ -167,5 +167,5 @@ codex mcp list                           # 验证
 
 - [配置](./guide/configuration.md) — 完整字段说明
 - [记忆生命周期](./concepts/memory-lifecycle.md) — 系统核心机制
-- [Benchmarks](./benchmarks.md) — LoCoMo / LongMemEval 结果
+- [Benchmarks](./benchmarks/) — LoCoMo / LongMemEval 结果
 - [API 文档](./api/memories.md) — 完整 API 参考

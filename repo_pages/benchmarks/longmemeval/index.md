@@ -10,7 +10,7 @@
 
 **Why this metric** — LongMemEval ships a clean ground-truth field (`answer_session_ids`, the set of haystack sessions that contain evidence). That is the exact signal session-level R@k measures: did retrieval surface a memory from the right session? It is what the dataset's authors intended, and it makes the comparison vs. MemPalace's published R@5 numbers literally apples-to-apples — same metric, same question set, same k.
 
-We **do not** run an LLM judge on this dataset because the dataset provides an unambiguous retrieval-level ground truth; adding a generator-then-judge stage would add LLM-induced noise that masks what the retrieval pipeline is actually doing. The point of LongMemEval, for us, is to isolate retrieval quality. End-to-end QA is what LoCoMo measures (see [LoCoMo (b)](../locomo/#b-end-to-end-qa-accuracy)).
+We **do not** run an LLM judge on this dataset because the dataset provides an unambiguous retrieval-level ground truth; adding a generator-then-judge stage would add LLM-induced noise that masks what the retrieval pipeline is actually doing. The point of LongMemEval, for us, is to isolate retrieval quality.
 
 ## Hebb Mind on LongMemEval
 

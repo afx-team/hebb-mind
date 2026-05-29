@@ -63,7 +63,7 @@ curl -X POST http://localhost:8321/api/v1/search \
 
 ### Conversational Search with Turn Context
 
-When memories are written by the Claude Code Stop hook (per-turn summaries with `metadata.session_id` and `metadata.turn`), expand each hit with adjacent turns from the same session. This is the production setup that drives the LoCoMo R@10 = 93.3% benchmark number — the 2-on-each-side window recovers facts spread across consecutive utterances.
+When memories are written by the Claude Code Stop hook (per-turn summaries with `metadata.session_id` and `metadata.turn`), expand each hit with adjacent turns from the same session. This is the production setup that drives the LoCoMo R@10 = 94.14% benchmark number (bge-large default) — the 2-on-each-side window recovers facts spread across consecutive utterances.
 
 ```bash
 curl -X POST http://localhost:8321/api/v1/search \

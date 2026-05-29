@@ -47,7 +47,7 @@ Picking the right metric per dataset matters more than picking one metric for ev
 
 | Dataset | Metric | Why this metric |
 |---|---|---|
-| [LoCoMo](./locomo/) | (a) **Session R@k** + (b) **End-to-end QA** | Evidence is session-tagged (`evidence: ["D1:3", ...]`) → R@k is the dataset's native signal. QA mode answers "did the system convert that retrieval into a usable answer?". |
+| [LoCoMo](./locomo/) | **Session R@k** | Evidence is session-tagged (`evidence: ["D1:3", ...]`) → R@k is the dataset's native signal: did retrieval surface a memory from an evidence session? |
 | [LongMemEval](./longmemeval/) | **Session R@k** | Ground truth is `answer_session_ids` — a clean set of session ids. R@k is exactly what the dataset's authors intended; an LLM judge would add noise without measuring anything different about retrieval. |
 | [ConvoMem](./convomem/) | **End-to-end QA judge** | Ground truth is a free-text answer. The dataset's published substring-match-on-evidence metric is a noisy proxy that punishes any normalisation; we deliberately do NOT report it. See [the ConvoMem page](./convomem/#how-we-evaluate) for the full rationale. |
 | [MemBench](./membench/) | **Turn-level Hit@k** | Ground truth is a turn-index pointer (`target_step_id`). The questions are 4-choice multiple choice → an LLM judge would score 25 % from random guessing alone, conflating retrieval failure with generation luck. |

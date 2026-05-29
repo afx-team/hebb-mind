@@ -17,7 +17,7 @@ Source: [mempalace benchmark deep-dive §4](https://github.com/afx-team/hebb-min
 
 The 3-question slice (`eval/reports/longmemeval/v1/run-1/longmemeval.md`) is far below the statistical threshold to compare against MemPalace's 500. Until we have at least a 100-question run, this page intentionally leaves the Hebb Mind row blank rather than report a misleadingly precise number.
 
-What we know structurally: every retrieval improvement that produced LoCoMo R@10 = 93.3% under bge-large and 89.7% under MiniLM-384 — both ~+0.9 pp over MemPalace at the same embedding tier — applies unchanged to LongMemEval ingestion. The hook ingestion path and search API are dataset-agnostic.
+What we know structurally: every retrieval improvement that produced LoCoMo R@10 = 94.14% under bge-large (95.75% with the local cross-encoder rerank) and 91.41% under MiniLM-384 applies unchanged to LongMemEval ingestion. The hook ingestion path and search API are dataset-agnostic.
 
 ## Next step
 

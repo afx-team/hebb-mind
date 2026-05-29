@@ -320,6 +320,31 @@ def run(
                     cfg_path.write_text(_json.dumps(cfg, indent=2))
                     click.echo(f"Searcher overrides: {searcher_overrides}")
 
+                # Consolidated mode needs the SERVER to have an LLM
+                # configured: api.py skips consolidation entirely when
+                # settings.llm_model is unset. The project hebb.json has no
+                # LLM creds (and prepare_workdir doesn't inherit them), so
+                # inject them from eval.json's judge config (same endpoint)
+                # into the workdir hebb.json — keys never leave eval.json.
+                if settings.mode == EvalMode.CONSOLIDATED and settings.llm_model:
+                    import json as _json
+                    server_key = settings.llm_api_key or (
+                        settings.llm_api_key_list[0]
+                        if settings.llm_api_key_list else None
+                    )
+                    cfg_path = workdir / "hebb.json"
+                    cfg = _json.loads(cfg_path.read_text())
+                    cfg["llm_model"] = settings.llm_model
+                    if settings.llm_base_url:
+                        cfg["llm_base_url"] = settings.llm_base_url
+                    if server_key:
+                        cfg["llm_api_key"] = server_key
+                    cfg_path.write_text(_json.dumps(cfg, indent=2))
+                    click.echo(
+                        f"Server LLM for consolidation: {settings.llm_model} "
+                        f"@ {settings.llm_base_url}"
+                    )
+
                 # Reuse policy. raw mode always wipes (ingest is cheap);
                 # consolidated mode reuses when a db is present, since
                 # re-running consolidation burns LLM calls. --rebuild

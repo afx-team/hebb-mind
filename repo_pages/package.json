@@ -7,5 +7,6 @@
   },
   "devDependencies": {
     "vitepress": "^1.6.3"
-  }
+  },
+  "repository": "https://github.com/afx-team/hebb-mind.git"
 }
