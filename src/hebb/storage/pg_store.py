@@ -198,10 +198,15 @@ class PGMemoryStore:
             return []
         pgvec = _to_pgvector(query_embedding)
 
-        # Cosine distance: <=> returns distance in [0, 2]; similarity = 1 - distance/2
+        # pgvector ``<=>`` is cosine *distance* in [0, 2]: 0 identical,
+        # 1 orthogonal, 2 opposite. We return true cosine *similarity*
+        # ``1 - distance`` (clamped to [0, 1] below) rather than the old
+        # ``1 - distance/2`` — the searcher now treats this as a calibrated
+        # semantic relevance, so an unrelated (orthogonal) doc must score ~0,
+        # not 0.5. Ordering is unchanged (ORDER BY distance ascending).
         if partition_ids:
             query = """
-                SELECT m.*, (1 - (me.embedding <=> $1) / 2) AS similarity
+                SELECT m.*, (1 - (me.embedding <=> $1)) AS similarity
                 FROM memory_embeddings me
                 JOIN memories m ON m.id = me.memory_id
                 WHERE m.partition_id = ANY($2)
@@ -211,7 +216,7 @@ class PGMemoryStore:
             params = [pgvec, partition_ids, top_k]
         else:
             query = """
-                SELECT m.*, (1 - (me.embedding <=> $1) / 2) AS similarity
+                SELECT m.*, (1 - (me.embedding <=> $1)) AS similarity
                 FROM memory_embeddings me
                 JOIN memories m ON m.id = me.memory_id
                 ORDER BY me.embedding <=> $1
@@ -226,8 +231,51 @@ class PGMemoryStore:
         for row in rows:
             memory = _record_to_memory(row)
             similarity = float(row["similarity"])
-            results.append((memory, max(similarity, 0.0)))
+            results.append((memory, max(0.0, min(1.0, similarity))))
         return results
+
+    async def corpus_size(self, partition_ids: _List[str] | None = None) -> int:
+        """Number of documents in scope — the ``N`` for keyword IDF."""
+        async with self.pool.acquire() as conn:
+            if partition_ids:
+                row = await conn.fetchrow(
+                    "SELECT count(*) AS n FROM memories WHERE partition_id = ANY($1)",
+                    partition_ids,
+                )
+            else:
+                row = await conn.fetchrow("SELECT count(*) AS n FROM memories")
+        return int(row["n"]) if row else 0
+
+    async def keyword_doc_freqs(self, terms: _List[str], partition_ids: _List[str] | None = None) -> dict[str, int]:
+        """Document frequency of each term via the tsvector index.
+
+        Mirrors :meth:`search_by_keyword`'s ``plainto_tsquery('simple', …)`` so
+        the DF lines up with how terms match at query time. Best-effort per
+        term; failures map to df 0.
+        """
+        freqs: dict[str, int] = {}
+        async with self.pool.acquire() as conn:
+            for term in terms:
+                if term in freqs:
+                    continue
+                try:
+                    if partition_ids:
+                        row = await conn.fetchrow(
+                            "SELECT count(*) AS n FROM memories "
+                            "WHERE content_tsv @@ plainto_tsquery('simple', $1) "
+                            "AND partition_id = ANY($2)",
+                            term,
+                            partition_ids,
+                        )
+                    else:
+                        row = await conn.fetchrow(
+                            "SELECT count(*) AS n FROM memories WHERE content_tsv @@ plainto_tsquery('simple', $1)",
+                            term,
+                        )
+                    freqs[term] = int(row["n"]) if row else 0
+                except Exception:
+                    freqs[term] = 0
+        return freqs
 
     async def search_by_keyword(
         self,
