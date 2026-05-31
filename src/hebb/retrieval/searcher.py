@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from hebb.embedding.base import EmbeddingProvider
 from hebb.graph.knowledge_graph import KnowledgeGraph
 from hebb.models.memory import Memory, MemoryQuery, MemorySearchResult, SearchResponse
+from hebb.retrieval.keyword_rank import blend_keyword_rank
+from hebb.retrieval.lexical_relevance import build_lexical_query, lexical_relevance
 from hebb.retrieval.lexical_signals import extract_query_signals, lexical_boost
 from hebb.retrieval.query_sanitizer import sanitize_query
 from hebb.retrieval.rerank import Reranker
@@ -40,11 +42,13 @@ class MemorySearcher:
         graph: KnowledgeGraph | None = None,
         reranker: Reranker | None = None,
         *,
+        vector_search_enabled: bool = True,
         keyword_search_enabled: bool = True,
         graph_search_enabled: bool = True,
         lexical_boost_enabled: bool = True,
         temporal_boost_enabled: bool = True,
         graph_expansion_enabled: bool = True,
+        keyword_blend_enabled: bool = True,
     ) -> None:
         self.store = store
         self.embedder = embedder
@@ -52,11 +56,16 @@ class MemorySearcher:
         self.reranker = reranker
         # Pipeline toggles — each defaults True so callers that don't
         # opt-in to ablation get the current behaviour bit-for-bit.
+        self.vector_search_enabled = vector_search_enabled
         self.keyword_search_enabled = keyword_search_enabled
         self.graph_search_enabled = graph_search_enabled
         self.lexical_boost_enabled = lexical_boost_enabled
         self.temporal_boost_enabled = temporal_boost_enabled
         self.graph_expansion_enabled = graph_expansion_enabled
+        # Blend re-rank the keyword channel (BM25 × coverage/proximity) — lifts
+        # its intrinsic top-1/top-k so it stands on its own (and feeds RRF a
+        # better rank) without depending on the cross-encoder reranker.
+        self.keyword_blend_enabled = keyword_blend_enabled
 
     async def search(self, query: MemoryQuery) -> SearchResponse:
         # Sanitize LLM-generated queries (XML tags, tool artifacts, etc.)
@@ -79,7 +88,11 @@ class MemorySearcher:
         async def _empty_ranked() -> list[tuple[Memory, float]]:
             return []
 
-        vec_task = self._vector_search(query.query, overfetch, query.partition_ids)
+        vec_task = (
+            self._vector_search(query.query, overfetch, query.partition_ids)
+            if self.vector_search_enabled
+            else _empty_ranked()
+        )
         kw_task = (
             self._keyword_search(query.query, overfetch, query.partition_ids)
             if self.keyword_search_enabled
@@ -100,38 +113,71 @@ class MemorySearcher:
         # historical replay we trust the absolute anchors only.
         query_dates = parse_query_dates(query.query, reference=now.date())
 
-        # Extract lexical re-ranking signals once per search — predicate
-        # keywords, quoted phrases, person names. Used to multiplicatively
-        # lift candidates that share these surface tokens with the query.
-        # Cheap (regex only) but skipped when the query has no extractable
-        # signals to keep the fast path tight.
+        # Semantic similarity per candidate, keyed by id. The vector channel
+        # now returns *true* cosine in [0, 1] (unrelated docs ≈ 0), so it can
+        # serve directly as a calibrated semantic relevance.
+        sem_sims: dict[str, float] = {mem.id: sim for mem, sim in vec_results}
+
+        # Absolute keyword relevance comparator: IDF-less coverage + proximity
+        # in [0, 1], computed per (query, content) — on the same scale as the
+        # vector cosine, so the two channels are directly comparable (the
+        # "类比关系") and the min_score floor means the same thing for both.
+        # Parsed once; ``lexical_relevance`` is applied per candidate below.
+        lexical_query = build_lexical_query(query.query)
+
+        # Surface-overlap signals for the *ranking* nudge (unchanged from the
+        # tuned hybrid stack): a small multiplicative lift on the RRF relevance
+        # so lexically-matching candidates rank a touch higher. This affects
+        # ORDER only — the calibrated relevance below is what callers see and
+        # what the min_score floor reads.
         query_signals = extract_query_signals(query.query)
 
-        # Tag filter + composite scoring
-        results: list[MemorySearchResult] = []
-        for memory, relevance in merged.values():
+        # Tag filter + scoring. We keep two scores per candidate:
+        #   * rank_score — the RRF-fusion composite (recall-tuned, carries the
+        #     keyword channel's blend-improved rank), used to ORDER results and
+        #     feed rerank.
+        #   * display score / relevance_score — ``max(keyword_blend, cosine)``,
+        #     each channel on a [0, 1] scale, so the keyword score is directly
+        #     comparable to the vector score (the "类比关系" the caller and the
+        #     min_score floor need). This is the VALUE, not the order.
+        scored: list[tuple[float, MemorySearchResult]] = []
+        for memory, rrf_relevance in merged.values():
             if query.tags and not set(query.tags).intersection(memory.tags):
                 continue
 
             recency = compute_recency_score(memory.last_accessed_at, now)
             importance_norm = compute_importance_score(memory.importance_score)
 
-            # Lexical surface boost: predicate-keyword / quoted-phrase /
-            # person-name overlap. The multiplier sits in [1.0, ~2.3] and is
-            # applied to the *relevance* signal (then capped at 1.0), not to
-            # the whole composite. Folding it into a single [0, 1] component
-            # keeps the composite a genuine weighted average of three [0, 1]
-            # signals, so the final score never exceeds 1.0 by construction —
-            # no post-hoc clamp needed, and one [0, 1] scale serves both the
-            # caller-visible score and the min_score floor.
-            rel = relevance
-            if self.lexical_boost_enabled and not query_signals.is_empty:
-                rel = min(1.0, rel * lexical_boost(query_signals, memory.content))
+            # Per-channel [0, 1] relevance VALUE: absolute keyword coverage and
+            # semantic cosine. MAX — a doc strongly matched by EITHER channel
+            # reads as relevant, both on the same scale (comparable without a
+            # reranker, and the 0.8 floor means the same for each).
+            lex_rel = lexical_relevance(lexical_query, memory.content)
+            sem_rel = sem_sims.get(memory.id, 0.0)
+            calibrated = max(lex_rel, sem_rel)
 
-            score = compute_composite_score(
+            # ORDERING stays on the recall-tuned RRF rank (with the surface-
+            # overlap nudge): the keyword channel feeds RRF its blend-improved
+            # rank, so RRF already carries the keyword top-1 gain, and RRF's
+            # rank order is more robust than ordering by the calibrated value
+            # (which, ordered directly, regressed LoCoMo via the turn-window
+            # interaction). Scoring is the calibrated value; ordering is RRF.
+            rank_relevance = rrf_relevance
+            if self.lexical_boost_enabled and not query_signals.is_empty:
+                rank_relevance = min(1.0, rank_relevance * lexical_boost(query_signals, memory.content))
+
+            rank_score = compute_composite_score(
                 recency=recency,
                 importance=importance_norm,
-                relevance=rel,
+                relevance=rank_relevance,
+                weight_recency=query.weight_recency,
+                weight_importance=query.weight_importance,
+                weight_relevance=query.weight_relevance,
+            )
+            disp_score = compute_composite_score(
+                recency=recency,
+                importance=importance_norm,
+                relevance=calibrated,
                 weight_recency=query.weight_recency,
                 weight_importance=query.weight_importance,
                 weight_relevance=query.weight_relevance,
@@ -139,25 +185,32 @@ class MemorySearcher:
 
             # Date proximity boost: when the query names "August 2023" or
             # "last week", up-weight candidates whose metadata.timestamp
-            # falls in that window. Decays linearly past tolerance, capped
-            # at 1.0 so the boosted score stays within the [0, 1] scale.
+            # falls in that window. Applied to both scores so date matches
+            # rank higher *and* read as more relevant; capped at 1.0.
             if self.temporal_boost_enabled and query_dates:
                 ts = memory.metadata.model_dump().get("timestamp")
                 boost = temporal_boost(str(ts) if ts else None, query_dates)
                 if boost > 0:
-                    score = min(1.0, score * (1.0 + boost))
+                    rank_score = min(1.0, rank_score * (1.0 + boost))
+                    disp_score = min(1.0, disp_score * (1.0 + boost))
 
-            results.append(
-                MemorySearchResult(
-                    memory=memory,
-                    score=score,
-                    recency_score=recency,
-                    importance_score_normalized=importance_norm,
-                    relevance_score=rel,
+            scored.append(
+                (
+                    rank_score,
+                    MemorySearchResult(
+                        memory=memory,
+                        score=disp_score,
+                        recency_score=recency,
+                        importance_score_normalized=importance_norm,
+                        relevance_score=calibrated,
+                    ),
                 )
             )
 
-        results.sort(key=lambda r: r.score, reverse=True)
+        # Order by the recall-tuned RRF rank (carries the keyword channel's
+        # blend-improved rank); the calibrated max-channel score is the value.
+        scored.sort(key=lambda rs: rs[0], reverse=True)
+        results: list[MemorySearchResult] = [r for _, r in scored]
 
         # === Phase 1.6: cross-encoder rerank (optional) ===
         # Re-score the top-N composite candidates with a cross-encoder
@@ -184,7 +237,17 @@ class MemorySearcher:
         if query.min_score > 0.0:
             results = [r for r in results if r.score >= query.min_score]
 
+        # Final ordering. When the cross-encoder reranker ran, ``score`` is its
+        # joint (query, content) relevance — a strong ranker — so order by it.
+        # WITHOUT rerank, ``score`` is the calibrated lexical/semantic relevance,
+        # which is a good *value* (for the min_score floor) but a worse *ranker*
+        # than the recall-tuned RRF+blend rank: re-sorting by it measurably
+        # hurts top-1 (it overrides the keyword channel's blend-improved rank).
+        # So keep the RRF rank order when not reranking — basic retrieval
+        # quality first, monotonic-display-vs-score second.
         top_results = results[: query.top_k]
+        if self.reranker is not None:
+            top_results.sort(key=lambda r: r.score, reverse=True)
         top_ids = {r.memory.id for r in top_results}
 
         # === Phase 2a: Turn-window expansion ===
@@ -334,11 +397,18 @@ class MemorySearcher:
     async def _keyword_search(
         self, query: str, top_k: int, partition_ids: list[str] | None
     ) -> list[tuple[Memory, float]]:
-        return await self.store.search_by_keyword(
+        candidates = await self.store.search_by_keyword(
             query=query,
             top_k=top_k,
             partition_ids=partition_ids,
         )
+        # Blend re-rank: BM25 magnitude × query-term coverage/proximity. Lifts
+        # the keyword channel's intrinsic top-1/top-k (the channel is
+        # ranking-limited — the right doc is in-pool but BM25 ranks it low).
+        # Cheap (no DB round-trips). The improved order feeds RRF.
+        if self.keyword_blend_enabled and len(candidates) > 1:
+            candidates = blend_keyword_rank(query, candidates)
+        return candidates
 
     # ------------------------------------------------------------------
     # Path 3: Graph retrieval (query → match tags → expand → memories)

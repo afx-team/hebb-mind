@@ -130,7 +130,7 @@ class LongMemEvalBenchmark(BaseBenchmark):
                     "content": content[:10000],
                     "partition_id": scenario.scenario_id,
                     "importance_score": 5.0,
-                    "tags": ["user-prompt", "hook"],
+                    "tags": ["longmemeval"],
                     "metadata": metadata,
                     "source": "hook",
                 })
@@ -148,7 +148,7 @@ class LongMemEvalBenchmark(BaseBenchmark):
                         "content": synthesize_preference_memory(phrase)[:10000],
                         "partition_id": scenario.scenario_id,
                         "importance_score": 4.0,
-                        "tags": ["user-prompt", "preference", "hook"],
+                        "tags": ["longmemeval"],
                         "metadata": pref_metadata,
                         "source": "hook:preference",
                     })

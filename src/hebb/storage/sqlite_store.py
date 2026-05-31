@@ -233,9 +233,15 @@ class SQLiteMemoryStore:
             memory = memories_by_id.get(row["memory_id"])
             if memory is None:
                 continue
-            # sqlite-vec returns L2 distance; convert to similarity [0, 1]
-            similarity = 1.0 / (1.0 + row["distance"])
-            results.append((memory, similarity))
+            # sqlite-vec returns L2 distance over unit-normalised embeddings,
+            # so cosine = 1 - dist²/2. We return *true* cosine (not the old
+            # 1/(1+dist) squash) because the searcher now treats this as a
+            # calibrated semantic relevance: unrelated docs must score ~0, not
+            # ~0.4, or they'd pollute the [0, 1] relevance scale. Ordering is
+            # unchanged — the SQL already sorts by ascending distance.
+            dist = float(row["distance"])
+            similarity = 1.0 - (dist * dist) / 2.0
+            results.append((memory, max(0.0, min(1.0, similarity))))
         return results
 
     async def search_by_keyword(
@@ -291,9 +297,64 @@ class SQLiteMemoryStore:
             memory = memories_by_id.get(row["memory_id"])
             if memory is None:
                 continue
-            similarity = 1.0 / (1.0 + abs(row["rank"]))
-            results.append((memory, similarity))
+            # FTS5 bm25() is negative-is-better, so |bm25| is a larger-is-better
+            # relevance MAGNITUDE — consistent with PostgreSQL's ts_rank. We
+            # return the magnitude (not the old inverted ``1/(1+|bm25|)``, where
+            # the best doc got the *smallest* value); the searcher min-max
+            # normalizes it for the blend re-rank, and RRF only uses order.
+            results.append((memory, abs(float(row["rank"]))))
         return results
+
+    async def corpus_size(self, partition_ids: _List[str] | None = None) -> int:
+        """Number of indexed documents in scope — the ``N`` for IDF.
+
+        Counts FTS rows (one per memory) so it matches the denominator the
+        keyword IDF is computed against.
+        """
+        if partition_ids:
+            placeholders = ",".join("?" * len(partition_ids))
+            cursor = await self.db.execute(
+                f"SELECT count(*) FROM memory_fts WHERE partition_id IN ({placeholders})",
+                tuple(partition_ids),
+            )
+        else:
+            cursor = await self.db.execute("SELECT count(*) FROM memory_fts")
+        row = await cursor.fetchone()
+        return int(row[0]) if row else 0
+
+    async def keyword_doc_freqs(self, terms: _List[str], partition_ids: _List[str] | None = None) -> dict[str, int]:
+        """Document frequency of each surface term via the FTS index.
+
+        Each term is matched as a quoted single token so FTS5 applies the
+        same ``porter unicode61`` tokenisation it used at index time — the DF
+        therefore lines up with how the term is actually stored. Used to weight
+        query terms by specificity (rare term → high IDF). Best-effort: a term
+        whose MATCH errors (odd punctuation) simply gets df 0.
+        """
+        freqs: dict[str, int] = {}
+        part_clause = ""
+        part_params: tuple = ()
+        if partition_ids:
+            placeholders = ",".join("?" * len(partition_ids))
+            part_clause = f" AND partition_id IN ({placeholders})"
+            part_params = tuple(partition_ids)
+        for term in terms:
+            if term in freqs:
+                continue
+            safe = term.replace('"', "")
+            if not safe:
+                freqs[term] = 0
+                continue
+            try:
+                cursor = await self.db.execute(
+                    f"SELECT count(*) FROM memory_fts WHERE memory_fts MATCH ?{part_clause}",
+                    (f'"{safe}"', *part_params),
+                )
+                row = await cursor.fetchone()
+                freqs[term] = int(row[0]) if row else 0
+            except Exception:
+                freqs[term] = 0
+        return freqs
 
     async def _get_many(self, memory_ids: _List[str]) -> dict[str, Memory]:
         """Batch fetch memories by id, preserving caller-side ordering.

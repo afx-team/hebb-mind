@@ -172,6 +172,8 @@ async def _fresh_server(
     default=None,
     help="Override rerank_model (e.g. BAAI/bge-reranker-base, BAAI/bge-reranker-v2-m3)",
 )
+@click.option("--disable-vector", is_flag=True, default=False,
+              help="Disable embedding vector path in the 3-way RRF recall (keyword-only ablation)")
 @click.option("--disable-fts5", is_flag=True, default=False,
               help="Disable FTS5/tsvector keyword path in the 3-way RRF recall")
 @click.option("--disable-graph-search", is_flag=True, default=False,
@@ -204,6 +206,7 @@ def run(
     max_scenarios: int | None,
     enable_rerank: bool | None,
     rerank_model: str | None,
+    disable_vector: bool,
     disable_fts5: bool,
     disable_graph_search: bool,
     disable_lexical_boost: bool,
@@ -297,6 +300,8 @@ def run(
                     searcher_overrides["rerank_enabled"] = enable_rerank
                 if rerank_model is not None:
                     searcher_overrides["rerank_model"] = rerank_model
+                if disable_vector:
+                    searcher_overrides["vector_search_enabled"] = False
                 if disable_fts5:
                     searcher_overrides["keyword_search_enabled"] = False
                 if disable_graph_search:

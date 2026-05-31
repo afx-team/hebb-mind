@@ -44,6 +44,7 @@ class Settings(BaseModel):
     # Retrieval pipeline toggles — each path/boost is independently
     # switchable so users can A/B individual contributions and so the
     # eval harness can run ablations without rebuilding the searcher.
+    vector_search_enabled: bool = Field(default=True, description="Embedding vector path in 3-way RRF recall")
     keyword_search_enabled: bool = Field(default=True, description="FTS5/tsvector keyword path in 3-way RRF recall")
     graph_search_enabled: bool = Field(default=True, description="Knowledge-graph tag-match path in 3-way RRF recall")
     lexical_boost_enabled: bool = Field(
@@ -53,9 +54,21 @@ class Settings(BaseModel):
         default=True, description="Date-proximity boost when query mentions a time anchor"
     )
     graph_expansion_enabled: bool = Field(default=True, description="Post-search graph expansion of top-k tags")
+    keyword_blend_enabled: bool = Field(
+        default=True,
+        description="Blend re-rank keyword channel (BM25 magnitude × coverage/proximity) — lifts intrinsic top-1/top-k",
+    )
 
-    # Rerank (optional cross-encoder pass after hybrid retrieval)
-    rerank_enabled: bool = Field(default=False, description="Enable rerank pass after hybrid retrieval")
+    # Rerank — cross-encoder pass after hybrid retrieval. ON by default: a
+    # local CrossEncoder reading (query, content) jointly is the single
+    # highest-impact retrieval-quality lever measured across LoCoMo /
+    # LongMemEval / MemBench (+14–17pp Recall@1 / Hit@1, R@10 gains too).
+    # Degrades gracefully — if the model can't load, create_reranker returns
+    # None and the searcher falls back to the calibrated hybrid score with no
+    # error. Set false to skip the model download + ~per-query rerank latency.
+    rerank_enabled: bool = Field(
+        default=True, description="Cross-encoder rerank after hybrid retrieval (graceful fallback if model unavailable)"
+    )
     rerank_provider: str = Field(default="local", description="'local' (sentence-transformers CrossEncoder)")
     rerank_model: str = Field(default="BAAI/bge-reranker-base", description="Model name or HF repo id")
     rerank_top_n: int = Field(
