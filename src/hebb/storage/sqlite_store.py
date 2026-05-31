@@ -481,6 +481,21 @@ class SQLiteMemoryStore:
         )
         await self.db.commit()
 
+    async def update_access_batch(self, memory_ids: _List[str]) -> None:
+        """Bump access_count + last_accessed_at for several memories in one
+        statement — the retrieval-strengthening write-back after a search
+        touches the whole returned top-k, and per-id commits would be a
+        commit storm on the interactive recall path.
+        """
+        if not memory_ids:
+            return
+        placeholders = ",".join("?" * len(memory_ids))
+        await self.db.execute(
+            f"UPDATE memories SET access_count = access_count + 1, last_accessed_at = ? WHERE id IN ({placeholders})",
+            (_now_iso(), *memory_ids),
+        )
+        await self.db.commit()
+
     async def update_embedding(self, memory_id: str, embedding: _List[float]) -> None:
         if not embedding:
             return

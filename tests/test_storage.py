@@ -94,6 +94,23 @@ class TestMemoryStore:
         assert fetched.access_count == 2
 
     @pytest.mark.asyncio
+    async def test_access_tracking_batch(self, memory_store):
+        a = await memory_store.create(MemoryCreate(content="a"))
+        b = await memory_store.create(MemoryCreate(content="b"))
+        c = await memory_store.create(MemoryCreate(content="c"))
+
+        await memory_store.update_access_batch([a.id, b.id])
+
+        assert (await memory_store.get(a.id)).access_count == 1
+        assert (await memory_store.get(b.id)).access_count == 1
+        assert (await memory_store.get(c.id)).access_count == 0
+
+    @pytest.mark.asyncio
+    async def test_access_tracking_batch_empty_noop(self, memory_store):
+        # Empty id list must be a clean no-op (no SQL with zero placeholders).
+        await memory_store.update_access_batch([])
+
+    @pytest.mark.asyncio
     async def test_get_by_partition(self, memory_store):
         await memory_store.create(MemoryCreate(content="a", partition_id="mem_hippocampus"))
         await memory_store.create(MemoryCreate(content="b", partition_id="mem_hippocampus"))

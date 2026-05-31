@@ -88,6 +88,18 @@ class Settings(BaseModel):
         description="Min relevance score (0-1) for hook/MCP recall; results below are dropped (console Search unaffected)",
     )
 
+    # Retrieval-induced strengthening ("提取即强化" / testing effect): when a
+    # /search returns hits, bump their access_count + last_accessed_at so the
+    # forgetting TTL and recency ranking treat recalled memories as alive. The
+    # dynamic TTL already rewards access_count/recency, but nothing on the search
+    # path fed it — only GET /memories/{id} did — so frequently-recalled memories
+    # decayed as if never used. Disabled by benchmarks (they run on a fixed
+    # snapshot; write-back would make recency/ordering depend on query order).
+    recall_strengthening_enabled: bool = Field(
+        default=True,
+        description="On a search hit, strengthen returned memories (access_count + recency) so recall feeds the forgetting TTL",
+    )
+
     # LLM
     llm_model: str | None = Field(default=None, description="LLM model identifier (e.g. openai/gpt-4o-mini)")
     llm_base_url: str | None = Field(default=None, description="Custom LLM API base URL")

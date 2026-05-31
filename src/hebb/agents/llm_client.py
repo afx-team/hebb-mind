@@ -16,6 +16,14 @@ logger = logging.getLogger(__name__)
 class LLMClient:
     """Async LLM client backed by litellm (supports OpenAI, Anthropic, Qwen, GLM, Kimi)."""
 
+    # Per-request timeout + retry. Without a timeout, a single stalled
+    # provider response hangs the call indefinitely — over a long batch job
+    # (e.g. consolidation) that eventually deadlocks every worker. litellm
+    # applies the timeout per attempt and retries transient failures
+    # (timeouts, 429s, 5xx) with its own backoff.
+    _REQUEST_TIMEOUT_S = 120.0
+    _NUM_RETRIES = 3
+
     def __init__(self, settings: Settings) -> None:
         self.model = settings.llm_model
         self.api_base = settings.llm_base_url
@@ -32,6 +40,8 @@ class LLMClient:
             "model": self.model,
             "messages": messages,
             "temperature": temperature,
+            "timeout": self._REQUEST_TIMEOUT_S,
+            "num_retries": self._NUM_RETRIES,
         }
         if self.api_base:
             kwargs["api_base"] = self.api_base

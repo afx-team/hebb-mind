@@ -571,6 +571,37 @@ class TestTranscript:
         assert summary is not None
         assert summary.user_input == "Second question"
         assert summary.assistant_output == "Second answer"
+        # Second human turn → 0-based turn index 1, so successive Stop writes
+        # for one session stay ordered and can anchor turn-window expansion.
+        assert summary.turn == 1
+
+    def test_turn_index_ignores_tool_result_carriers(self, tmp_path: Path):
+        """tool_result user messages (no human text) must not inflate the turn."""
+        path = self._write_jsonl(
+            tmp_path,
+            [
+                {
+                    "type": "user",
+                    "message": {"role": "user", "content": [{"type": "text", "text": "Only human turn here"}]},
+                },
+                {
+                    "type": "assistant",
+                    "message": {"role": "assistant", "content": [{"type": "text", "text": "On it."}]},
+                },
+                {
+                    "type": "user",
+                    "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "ok"}]},
+                },
+                {
+                    "type": "assistant",
+                    "message": {"role": "assistant", "content": [{"type": "text", "text": "Done."}]},
+                },
+            ],
+        )
+        summary = extract_last_turn(path)
+        assert summary is not None
+        assert summary.user_input == "Only human turn here"
+        assert summary.turn == 0
 
     def test_extract_user_text_from_string_content(self, tmp_path: Path):
         """Claude Code stores a plain prompt as a bare string, not a block list."""

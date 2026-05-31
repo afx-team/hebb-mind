@@ -11,7 +11,7 @@ from hebb.agents.llm_client import LLMClient
 from hebb.agents.recall_agent import RecallAgent
 from hebb.embedding.local import NoopEmbedder
 from hebb.graph.knowledge_graph import KnowledgeGraph
-from hebb.models.memory import MemoryCreate
+from hebb.models.memory import MemoryCreate, MemoryMetadata
 from hebb.retrieval.searcher import MemorySearcher
 
 
@@ -136,6 +136,72 @@ class TestConsolidationAgent:
         # KG should have tags
         assert kg.get_tag("preference") is not None
         assert kg.get_tag("ui") is not None
+
+    @pytest.mark.asyncio
+    async def test_session_consolidation_preserves_turn_and_timestamp(
+        self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path
+    ):
+        """Session consolidation must carry the source turns' turn span and
+        earliest timestamp onto the consolidated memory (so turn-window
+        expansion and temporal_boost still work on consolidated output)."""
+        kg = KnowledgeGraph(tmp_path / "kg.json")
+
+        m1 = await memory_store.create(
+            MemoryCreate(
+                content="User mentions they live in Sweden",
+                partition_id="mem_hippocampus",
+                metadata=MemoryMetadata.model_validate(
+                    {"session_id": "s1", "turn": 0, "timestamp": "2023-08-01T10:00:00+00:00"}
+                ),
+            )
+        )
+        m2 = await memory_store.create(
+            MemoryCreate(
+                content="User says they read a book by Tom Oliver",
+                partition_id="mem_hippocampus",
+                metadata=MemoryMetadata.model_validate(
+                    {"session_id": "s1", "turn": 1, "timestamp": "2023-08-01T10:05:00+00:00"}
+                ),
+            )
+        )
+
+        mock_llm.complete_json.side_effect = [
+            {"queries": ["sweden book"]},  # RecallAgent
+            {
+                "memories": [
+                    {
+                        "target_partition": "mem_episodic",
+                        "consolidated_content": "User lives in Sweden and read a book by Tom Oliver.",
+                        "importance_score": 6.0,
+                        "tags": ["sweden", "book"],
+                        "conflicts": [],
+                    }
+                ]
+            },
+        ]
+
+        recall_agent = RecallAgent(
+            llm=mock_llm,
+            searcher=MemorySearcher(store=memory_store, embedder=noop_embedder),
+        )
+        agent = ConsolidationAgent(
+            llm=mock_llm,
+            recall_agent=recall_agent,
+            memory_store=memory_store,
+            partition_store=partition_store,
+            knowledge_graph=kg,
+            embedder=noop_embedder,
+        )
+
+        results = await agent.consolidate_session([m1, m2])
+        assert len(results) == 1 and results[0].success
+
+        episodic = await memory_store.get_by_partition("mem_episodic")
+        assert len(episodic) == 1
+        meta = episodic[0].metadata.model_dump()
+        assert meta["session_id"] == "s1"
+        assert meta["turn_pair"] == [0, 1]
+        assert meta["timestamp"] == "2023-08-01T10:00:00+00:00"
 
     @pytest.mark.asyncio
     async def test_consolidate_batch_empty(self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path):

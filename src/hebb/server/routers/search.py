@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends
 from hebb.config.settings import Settings
 from hebb.models.memory import MemoryQuery, SearchResponse
 from hebb.retrieval.searcher import MemorySearcher
-from hebb.server.dependencies import get_searcher, get_settings
+from hebb.server.dependencies import get_memory_store, get_searcher, get_settings
+from hebb.storage.base import MemoryStore
 
 router = APIRouter()
 
@@ -17,6 +18,7 @@ async def search_memories(
     query: MemoryQuery,
     searcher: MemorySearcher = Depends(get_searcher),
     settings: Settings = Depends(get_settings),
+    store: MemoryStore = Depends(get_memory_store),
 ) -> SearchResponse:
     """Hybrid search.
 
@@ -38,4 +40,15 @@ async def search_memories(
         updates["min_score"] = settings.recall_min_score
     if updates:
         query = query.model_copy(update=updates)
-    return await searcher.search(query)
+    response = await searcher.search(query)
+
+    # Retrieval-induced strengthening: bump access for the memories we just
+    # surfaced so the forgetting TTL / recency ranking treat them as alive
+    # (the "use it or lose it" loop the search path otherwise never closed).
+    # In-process recall during consolidation calls the searcher directly and
+    # bypasses this; only genuine retrieval surfaces (MCP/hook/console/REST)
+    # hit this endpoint. Off under benchmarks for snapshot reproducibility.
+    if settings.recall_strengthening_enabled and response.results:
+        await store.update_access_batch([r.memory.id for r in response.results])
+
+    return response

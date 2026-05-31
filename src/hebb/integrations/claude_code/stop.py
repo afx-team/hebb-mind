@@ -74,6 +74,16 @@ def _record_turn(client: httpx.Client, transcript_path: str, session_id: str, pr
 
     tags = [project] if project else []
 
+    metadata: dict[str, object] = {
+        "session_id": session_id,
+        "tools": summary.tools,
+        "mcps": summary.mcps,
+    }
+    # Stamp the turn index so successive Stop writes for one session stay
+    # ordered for session consolidation and can anchor turn-window expansion.
+    if summary.turn is not None:
+        metadata["turn"] = summary.turn
+
     try:
         resp = client.post(
             "/api/v1/memories",
@@ -82,11 +92,7 @@ def _record_turn(client: httpx.Client, transcript_path: str, session_id: str, pr
                 "partition_id": "mem_hippocampus",
                 "importance_score": 4.0,
                 "tags": tags,
-                "metadata": {
-                    "session_id": session_id,
-                    "tools": summary.tools,
-                    "mcps": summary.mcps,
-                },
+                "metadata": metadata,
                 "source": "hook:stop",
             },
         )

@@ -377,6 +377,17 @@ class PGMemoryStore:
                 memory_id,
             )
 
+    async def update_access_batch(self, memory_ids: _List[str]) -> None:
+        """Bump access for several memories in one statement (retrieval
+        strengthening write-back after a search touches the whole top-k)."""
+        if not memory_ids:
+            return
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE memories SET access_count = access_count + 1, last_accessed_at = now() WHERE id = ANY($1)",
+                memory_ids,
+            )
+
     async def update_embedding(self, memory_id: str, embedding: _List[float]) -> None:
         if not embedding:
             return

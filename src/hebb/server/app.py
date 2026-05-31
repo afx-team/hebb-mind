@@ -69,6 +69,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         lexical_boost_enabled=settings.lexical_boost_enabled,
         temporal_boost_enabled=settings.temporal_boost_enabled,
         graph_expansion_enabled=settings.graph_expansion_enabled,
+        keyword_blend_enabled=settings.keyword_blend_enabled,
     )
     app.state.searcher = searcher
 

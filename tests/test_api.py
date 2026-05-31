@@ -184,6 +184,41 @@ class TestSearchEndpoint:
         results = resp.json()
         assert len(results) > 0
 
+    def test_search_strengthens_hits(self, client: TestClient):
+        """Retrieval-induced strengthening: a search bumps access_count on the
+        returned hits so the forgetting TTL / recency treat them as alive.
+        Read counts via list (which does NOT bump) to avoid GET's own +1.
+        """
+        client.post("/api/v1/memories", json={"content": "Python is a programming language"})
+        # Baseline: nothing accessed yet.
+        items = client.get("/api/v1/memories").json()["items"]
+        assert all(m["access_count"] == 0 for m in items)
+
+        resp = client.post("/api/v1/search", json={"query": "programming language"})
+        hit_ids = {r["memory"]["id"] for r in resp.json()["results"]}
+        assert hit_ids
+
+        items = client.get("/api/v1/memories").json()["items"]
+        bumped = {m["id"] for m in items if m["access_count"] >= 1}
+        assert hit_ids <= bumped
+
+    def test_search_no_strengthen_when_disabled(self, tmp_path: Path):
+        """With recall_strengthening_enabled=False (benchmark snapshot mode),
+        a search must NOT mutate access_count."""
+        config_path = tmp_path / "hebb.json"
+        config_path.write_text(json.dumps({"port": 8321, "recall_strengthening_enabled": False}))
+        with (
+            patch("hebb.config.loader.find_config_file", return_value=config_path),
+            patch("hebb.embedding.factory.create_embedder", side_effect=_mock_create_embedder),
+        ):
+            from hebb.server.app import create_app
+
+            with TestClient(create_app()) as c:
+                c.post("/api/v1/memories", json={"content": "Python is a programming language"})
+                c.post("/api/v1/search", json={"query": "programming language"})
+                items = c.get("/api/v1/memories").json()["items"]
+                assert all(m["access_count"] == 0 for m in items)
+
 
 class TestGraphEndpoints:
     def test_empty_tags(self, client: TestClient):
