@@ -33,7 +33,7 @@ jobs:
       - name: Install and build
         run: cd repo_pages && npm ci && npm run docs:build
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: repo_pages/.vitepress/dist
 
