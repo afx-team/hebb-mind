@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from hebb.embedding import catalog
-from hebb.embedding.catalog import ProbeResult
+from hebb.embedding.catalog import ProbeResult, model_dir_complete, workspace_model_available
 
 
 def test_language_auto_english_locale() -> None:
@@ -37,6 +39,45 @@ def test_choose_default_multilingual_model() -> None:
     spec = catalog.choose_model("multi", "default")
     assert spec.model_id == "BAAI/bge-m3"
     assert spec.dimension == 1024
+
+
+class TestModelDirComplete:
+    def test_missing_dir(self, tmp_path: Path) -> None:
+        assert model_dir_complete(tmp_path / "nope") is False
+
+    def test_config_without_weights_is_incomplete(self, tmp_path: Path) -> None:
+        # The reported bug: an interrupted download leaves config + tokenizer
+        # but no weights. Must NOT count as cached, so the download is retried.
+        (tmp_path / "config.json").write_text("{}")
+        (tmp_path / "tokenizer.json").write_text("{}")
+        assert model_dir_complete(tmp_path) is False
+
+    def test_weights_without_config_is_incomplete(self, tmp_path: Path) -> None:
+        (tmp_path / "model.safetensors").write_bytes(b"x")
+        assert model_dir_complete(tmp_path) is False
+
+    def test_safetensors_complete(self, tmp_path: Path) -> None:
+        (tmp_path / "config.json").write_text("{}")
+        (tmp_path / "model.safetensors").write_bytes(b"x")
+        assert model_dir_complete(tmp_path) is True
+
+    def test_pytorch_bin_complete(self, tmp_path: Path) -> None:
+        (tmp_path / "config.json").write_text("{}")
+        (tmp_path / "pytorch_model.bin").write_bytes(b"x")
+        assert model_dir_complete(tmp_path) is True
+
+    def test_sharded_index_complete(self, tmp_path: Path) -> None:
+        (tmp_path / "config.json").write_text("{}")
+        (tmp_path / "model.safetensors.index.json").write_text("{}")
+        assert model_dir_complete(tmp_path) is True
+
+    def test_workspace_model_available_uses_completeness(self, tmp_path: Path) -> None:
+        model_dir = catalog.model_cache_dir(tmp_path, "BAAI/bge-m3")
+        model_dir.mkdir(parents=True)
+        (model_dir / "config.json").write_text("{}")
+        assert workspace_model_available(tmp_path, "BAAI/bge-m3") is False
+        (model_dir / "model.safetensors").write_bytes(b"x")
+        assert workspace_model_available(tmp_path, "BAAI/bge-m3") is True
 
 
 def test_region_auto_prefers_official_when_faster(monkeypatch) -> None:

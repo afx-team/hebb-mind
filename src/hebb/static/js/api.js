@@ -66,7 +66,7 @@ export const getConfig = () => request('GET', '/api/v1/admin/config');
 export const updateConfig = (key, value) => request('PUT', '/api/v1/admin/config', { key, value });
 export const getConfigFields = () => request('GET', '/api/v1/admin/config/fields');
 export const testLLM = (model, base_url, api_key) => request('POST', '/api/v1/admin/config/test-llm', { model, base_url, api_key });
-export const testEmbedding = (provider, model, base_url, api_key) => request('POST', '/api/v1/admin/config/test-embedding', { provider, model, base_url, api_key });
+export const testEmbedding = (params) => request('POST', '/api/v1/admin/config/test-embedding', params);
 export const getTestEmbeddingStatus = (task_id) => request('GET', `/api/v1/admin/config/test-embedding/status/${task_id}`);
 export const getEmbeddingStatus = () => request('GET', '/api/v1/admin/config/embedding-status');
 export const revealConfigValue = (key) => request('GET', `/api/v1/admin/config/reveal/${key}`);

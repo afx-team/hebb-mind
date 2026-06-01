@@ -8,7 +8,7 @@ from functools import partial
 from pathlib import Path
 from typing import cast
 
-from hebb.embedding.catalog import model_cache_dir, workspace_model_available
+from hebb.embedding.catalog import model_cache_dir, model_dir_complete, workspace_model_available
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +38,15 @@ def _workspace_models_dir(model_name: str) -> Path:
 
         workspace = resolve_workspace()
         workspace_path = model_cache_dir(workspace, model_name)
-        if workspace_path.is_dir():
+        # Prefer a fully-downloaded copy; never let a half-downloaded workspace
+        # dir shadow a complete install-relative one.
+        if model_dir_complete(workspace_path):
             return workspace_path
-        return install_relative
+        if model_dir_complete(install_relative):
+            return install_relative
+        # Neither is complete: fall back to the workspace dir if it exists (it is
+        # also the download target), otherwise the install-relative path.
+        return workspace_path if workspace_path.is_dir() else install_relative
     except Exception:
         return install_relative
 
@@ -56,15 +62,20 @@ def is_model_cached(model_name: str) -> bool:
         pass
 
     # Install-relative fallback — same as _workspace_models_dir uses.
-    install_relative = _install_relative_models_dir(model_name)
-    if install_relative.is_dir() and (install_relative / "config.json").is_file():
+    if model_dir_complete(_install_relative_models_dir(model_name)):
         return True
 
     try:
         from huggingface_hub import try_to_load_from_cache
 
-        result = try_to_load_from_cache(model_name, "config.json")
-        return result is not None and isinstance(result, (str, Path))
+        # A config alone is not enough — an interrupted download can cache the
+        # config without the weights. Require a weight file to be cached too.
+        if not isinstance(try_to_load_from_cache(model_name, "config.json"), (str, Path)):
+            return False
+        return any(
+            isinstance(try_to_load_from_cache(model_name, weight), (str, Path))
+            for weight in ("model.safetensors", "pytorch_model.bin")
+        )
     except Exception:
         return False
 
@@ -94,7 +105,12 @@ class LocalEmbedder:
         os.environ["HF_HUB_OFFLINE"] = "1"
         cached = is_model_cached(model_name)
 
-        if local_path.is_dir():
+        # Only load from the local dir when it actually has weights — an
+        # interrupted download leaves config/tokenizer without the model
+        # backbone. A partial dir must not shadow a complete copy in the HF
+        # hub cache (the `cached` branch), or SentenceTransformer fails with
+        # "no file named model.safetensors, or pytorch_model.bin …".
+        if model_dir_complete(local_path):
             logger.info("Loading local embedding model: %s", local_path)
             load_target = str(local_path)
             use_offline = True

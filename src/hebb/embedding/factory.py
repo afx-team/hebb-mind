@@ -66,7 +66,10 @@ def _create_local_embedder(settings: Settings) -> EmbeddingProvider:
 
 
 async def _create_api_embedder(settings: Settings) -> EmbeddingProvider:
-    """Create a cloud API embedder via litellm."""
+    """Create a cloud API embedder — litellm or a user-defined HTTP request."""
+    if settings.embedding_api_mode == "custom":
+        return await _create_custom_http_embedder(settings)
+
     from hebb.embedding.api import ApiEmbedder
 
     model = settings.embedding_model
@@ -81,6 +84,46 @@ async def _create_api_embedder(settings: Settings) -> EmbeddingProvider:
     dim = await _detect_api_dimension(model, api_key, base_url, settings.embedding_dim)
 
     return ApiEmbedder(model=model, api_key=api_key, base_url=base_url, dimension=dim)
+
+
+async def _create_custom_http_embedder(settings: Settings) -> EmbeddingProvider:
+    """Create an embedder driven by a fully user-defined HTTP request."""
+    from hebb.embedding.http_custom import CustomHttpEmbedder, parse_headers
+
+    url = settings.embedding_http_url
+    body = settings.embedding_http_body
+    if not url or not body:
+        logger.warning(
+            "embedding_http_url and embedding_http_body are required for custom HTTP embedding, vector search disabled"
+        )
+        return NoopEmbedder(settings.embedding_dim)
+
+    try:
+        headers = parse_headers(settings.embedding_http_headers)
+        embedder = CustomHttpEmbedder(
+            method=settings.embedding_http_method or "POST",
+            url=url,
+            headers=headers,
+            body_template=body,
+            response_path=settings.embedding_http_response_path or "data.*.embedding",
+            dimension=settings.embedding_dim,
+        )
+    except ValueError:
+        logger.warning("Invalid custom HTTP embedding configuration, vector search disabled", exc_info=True)
+        return NoopEmbedder(settings.embedding_dim)
+
+    # Probe the endpoint once to detect the embedding dimension.
+    try:
+        vec = await embedder.embed("dimension probe")
+        embedder.set_dimension(len(vec))
+        logger.info("Custom HTTP embedding dimension detected via probe: %d", len(vec))
+    except Exception:
+        logger.warning(
+            "Could not probe custom HTTP embedding dimension, using fallback=%d",
+            settings.embedding_dim,
+            exc_info=True,
+        )
+    return embedder
 
 
 async def _detect_api_dimension(model: str, api_key: str | None, base_url: str | None, fallback_dim: int) -> int:
