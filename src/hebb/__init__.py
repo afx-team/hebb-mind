@@ -42,7 +42,7 @@ from hebb.exceptions import (
 # AUTO-MANAGED by release-please — do NOT edit manually. The trailing
 # ``x-release-please-version`` marker is how release-please's "generic" updater
 # locates and bumps this line (see release-please-config.json extra-files).
-__version__ = "0.1.5"  # x-release-please-version
+__version__ = "0.1.6"  # x-release-please-version
 
 # ``HebbMind`` pulls in storage + embedding + graph + searcher, which
 # in turn import heavy third-party libs (sentence-transformers, litellm,

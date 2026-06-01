@@ -118,10 +118,16 @@ async def ingest_conversation(
     items: list[MemoryCreate] = []
     for turn in result.turns:
         formatted = f"[{turn.role}]: {turn.content}"
-        metadata = MemoryMetadata(
-            session_id=turn.session_id,
-            turn=turn.turn_index,
-        )
+        # Carry the parsed timestamp into metadata (extra field) — the
+        # searcher's temporal_boost reads metadata.timestamp, so dropping it
+        # here made date-anchored queries blind to ingested turns.
+        meta_kwargs: dict[str, object] = {
+            "session_id": turn.session_id,
+            "turn": turn.turn_index,
+        }
+        if turn.timestamp:
+            meta_kwargs["timestamp"] = turn.timestamp
+        metadata = MemoryMetadata.model_validate(meta_kwargs)
         items.append(
             MemoryCreate(
                 content=formatted[:10000],

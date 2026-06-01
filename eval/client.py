@@ -112,6 +112,10 @@ def prepare_workdir(
     bench_cfg["home"] = None  # let HEBB_HOME env decide
     bench_cfg["host"] = "0.0.0.0"
     bench_cfg["port"] = port
+    # Benchmarks run on a fixed snapshot: retrieval-induced strengthening would
+    # mutate last_accessed_at/access_count per query, making recency-weighted
+    # ordering depend on query order and breaking reproducibility. Force off.
+    bench_cfg["recall_strengthening_enabled"] = False
 
     cfg_path = workdir / "hebb.json"
     cfg_path.write_text(json.dumps(bench_cfg, indent=2))
@@ -423,15 +427,34 @@ class HebbClient:
     # Admin
     # ------------------------------------------------------------------
 
-    async def trigger_consolidation(self) -> dict:
+    async def trigger_consolidation(
+        self,
+        partition_ids: list[str] | None = None,
+        keep_partition: bool = False,
+    ) -> dict:
         """Trigger consolidation with a very long timeout.
 
         Consolidation processes all memories synchronously, which can take a long time.
         We use a 4-hour timeout to accommodate large datasets.
+
+        Args:
+            partition_ids: When given, consolidate each of these partitions in
+                turn (per-scenario benches) instead of the global HIPPOCAMPUS
+                working partition.
+            keep_partition: Write consolidated memories back into their source
+                partition so partition-scoped retrieval still finds them.
         """
+        payload: dict = {}
+        if partition_ids is not None:
+            payload["partition_ids"] = partition_ids
+        if keep_partition:
+            payload["keep_partition"] = True
+        # 24h read timeout: per-scenario consolidation over hundreds of
+        # partitions runs in a single request and can take many hours.
         r = await self._client.post(
             "/api/v1/admin/consolidate",
-            timeout=httpx.Timeout(connect=30.0, read=14400.0, write=30.0, pool=30.0),
+            json=payload or None,
+            timeout=httpx.Timeout(connect=30.0, read=86400.0, write=30.0, pool=30.0),
         )
         r.raise_for_status()
         return r.json()

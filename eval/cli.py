@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -163,6 +164,18 @@ async def _fresh_server(
 @click.option("--llm-model", default=None, help="LLM model for judge")
 @click.option("--max-scenarios", default=None, type=int, help="Limit scenarios per dataset")
 @click.option(
+    "--scenario-offset",
+    default=0,
+    type=int,
+    help=(
+        "Skip the first N scenarios before applying --max-scenarios. Lets a "
+        "large dataset be run in fixed-size batches (each batch a fresh "
+        "workdir db) so per-scenario consolidation stays on a small vec0 "
+        "table — the consolidated full-500 run otherwise slows to a crawl on "
+        "one shared 266k-vector db."
+    ),
+)
+@click.option(
     "--enable-rerank/--disable-rerank",
     default=None,
     help="Override rerank_enabled in workdir hebb.json (leaves project-root config untouched)",
@@ -204,6 +217,7 @@ def run(
     top_k: int | None,
     llm_model: str | None,
     max_scenarios: int | None,
+    scenario_offset: int,
     enable_rerank: bool | None,
     rerank_model: str | None,
     disable_vector: bool,
@@ -344,10 +358,18 @@ def run(
                         cfg["llm_base_url"] = settings.llm_base_url
                     if server_key:
                         cfg["llm_api_key"] = server_key
+                    # Per-scenario consolidation over 500 partitions is
+                    # LLM-bound; raise the within-partition concurrency well
+                    # above the default 5 so the full run finishes in hours,
+                    # not ~16h. Overridable via EVAL_CONSOLIDATION_CONCURRENCY.
+                    cfg["consolidation_concurrency"] = int(
+                        os.environ.get("EVAL_CONSOLIDATION_CONCURRENCY", "16")
+                    )
                     cfg_path.write_text(_json.dumps(cfg, indent=2))
                     click.echo(
                         f"Server LLM for consolidation: {settings.llm_model} "
-                        f"@ {settings.llm_base_url}"
+                        f"@ {settings.llm_base_url} "
+                        f"(consolidation_concurrency={cfg['consolidation_concurrency']})"
                     )
 
                 # Reuse policy. raw mode always wipes (ingest is cheap);
@@ -389,10 +411,15 @@ def run(
                 # 3. Load
                 click.echo("Loading dataset...")
                 scenarios = adapter.load(data_path)
+                if scenario_offset:
+                    scenarios = scenarios[scenario_offset:]
                 if max_scenarios:
                     scenarios = scenarios[:max_scenarios]
                 total_q = sum(len(s.questions) for s in scenarios)
-                click.echo(f"Loaded {len(scenarios)} scenarios, {total_q} questions")
+                click.echo(
+                    f"Loaded {len(scenarios)} scenarios, {total_q} questions"
+                    + (f" (offset {scenario_offset})" if scenario_offset else "")
+                )
 
                 async with HebbClient(_bench_base_url(port)) as client:
                     # 4. Ingest into mem_hippocampus (skipped when reusing
@@ -409,7 +436,30 @@ def run(
                         # 5. Consolidation (if mode == consolidated)
                         if settings.mode == EvalMode.CONSOLIDATED:
                             click.echo("Triggering memory consolidation...")
-                            consolidation_stats = await client.trigger_consolidation()
+                            # Per-scenario benches (LongMemEval/ConvoMem)
+                            # isolate each question in its own partition and
+                            # retrieve partition-scoped, so consolidation must
+                            # run per partition and keep results in-partition.
+                            # Global benches (LoCoMo) return no partitions and
+                            # use the default HIPPOCAMPUS→long-term flow.
+                            part_fn = getattr(
+                                benchmark, "consolidation_partitions", None
+                            )
+                            scenario_partitions = (
+                                part_fn(scenarios) if part_fn else None
+                            )
+                            if scenario_partitions:
+                                click.echo(
+                                    f"  Per-scenario consolidation over "
+                                    f"{len(scenario_partitions)} partitions "
+                                    f"(in-partition, keep_partition=True)"
+                                )
+                                consolidation_stats = await client.trigger_consolidation(
+                                    partition_ids=scenario_partitions,
+                                    keep_partition=True,
+                                )
+                            else:
+                                consolidation_stats = await client.trigger_consolidation()
                             click.echo(
                                 f"  Consolidation: {consolidation_stats.get('succeeded', 0)}"
                                 f"/{consolidation_stats.get('processed', 0)} succeeded"

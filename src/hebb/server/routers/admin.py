@@ -6,7 +6,7 @@ import asyncio
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 
 from hebb.config.settings import Settings
 from hebb.embedding.base import EmbeddingProvider
@@ -30,18 +30,29 @@ router = APIRouter()
 
 @router.post("/consolidate")
 async def trigger_consolidation(
+    body: dict[str, Any] | None = Body(default=None),
     memory_store: MemoryStore = Depends(get_memory_store),
     partition_store: PartitionStore = Depends(get_partition_store),
     kg: KnowledgeGraph = Depends(get_knowledge_graph),
     embedder: EmbeddingProvider = Depends(get_embedder),
     settings: Settings = Depends(get_settings),
 ) -> dict[str, Any]:
+    # Optional body: {"partition_ids": [...], "keep_partition": bool}.
+    # When ``partition_ids`` is given, each is consolidated in turn; with
+    # ``keep_partition`` the consolidated memories stay in their source
+    # partition (per-scenario benches). Empty body → default global
+    # HIPPOCAMPUS→long-term consolidation (production / LoCoMo).
+    body = body or {}
+    partition_ids = body.get("partition_ids") or None
+    keep_partition = bool(body.get("keep_partition", False))
     results = await run_consolidation(
         memory_store=memory_store,
         partition_store=partition_store,
         knowledge_graph=kg,
         embedder=embedder,
         settings=settings,
+        source_partitions=partition_ids,
+        keep_partition=keep_partition,
     )
     failures = [
         {"memory_id": r.original_memory_id, "error": r.error or "unknown error"} for r in results if not r.success

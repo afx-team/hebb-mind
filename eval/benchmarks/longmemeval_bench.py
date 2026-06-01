@@ -69,13 +69,32 @@ class LongMemEvalBenchmark(BaseBenchmark):
     dataset_name = "LongMemEval"
     # v1: BaseBenchmark generic ingest + QA accuracy (wrong metric).
     # v2: prod-hook mirror (per-utterance + per-pair), session-level R@k.
-    eval_version = "v2"
+    # v3: v2 retrieval + concurrently run LLM-judge end-to-end QA against
+    #     the gold answer (both metrics in one pass — session R@k stays the
+    #     headline accuracy, QA acc lands in retrieval_metrics["qa_accuracy"]).
+    #     The QA pass is skipped when settings.skip_qa is set (matrix mode).
+    eval_version = "v3"
 
     # Forward a symmetric turn-context window to /api/v1/search — same
     # default as LoCoMo bench, picks up neighbouring user utterances that
     # share a session without bloating the candidate pool.
     prev_turns: int = 2
     next_turns: int = 2
+
+    def consolidation_partitions(
+        self, scenarios: list[EvalScenario]
+    ) -> list[str]:
+        """Per-scenario partitions to consolidate (in-partition mode).
+
+        LongMemEval isolates each question's haystack in its own partition
+        and retrieves partition-scoped, so consolidation must run per
+        partition and write consolidated memories back into the SAME
+        partition — otherwise they move to a global long-term partition and
+        vanish from the scenario-scoped search at eval time. cli.py reads
+        this to route ``--mode consolidated`` through the per-partition
+        keep_partition path.
+        """
+        return [s.scenario_id for s in scenarios]
 
     async def setup(
         self, client: HebbClient, scenarios: list[EvalScenario]
@@ -300,21 +319,42 @@ class LongMemEvalBenchmark(BaseBenchmark):
                     if f"recall_any@{self.settings.search_top_k}" in per_q_metrics \
                     else per_q_metrics["recall_any@10"]
 
-                return (
-                    RetrievalResult(
-                        question_id=q.question_id,
-                        question=q.question,
-                        ground_truth=q.ground_truth,
-                        category=q.category,
-                        retrieved_memories=memory_contents,
-                        generated_answer="",
-                        is_correct=bool(primary),
-                        confidence=per_q_metrics.get("recall_all@10", 0.0),
-                        relevance_scores=relevance_scores,
-                        latency_ms=latency_ms,
-                    ),
-                    per_q_metrics,
+                # End-to-end QA: generate an answer from the retrieved
+                # context and judge it against the gold answer. Shares the
+                # search semaphore so judge concurrency stays bounded by
+                # ``settings.concurrency``. Skipped when ``skip_qa`` is set
+                # — the R@k-matrix phase only needs retrieval recall, and
+                # the LLM judge is what makes a full run expensive.
+                generated = ""
+                qa_correct = False
+                if not getattr(self.settings, "skip_qa", False):
+                    try:
+                        generated = await judge.generate_answer(
+                            q.question, memory_contents
+                        )
+                        qa_correct, _qa_conf = await judge.judge_correctness(
+                            q.question, q.ground_truth, generated
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            "QA judge failed for %s: %s — treating as incorrect",
+                            q.question_id, e,
+                        )
+
+                result = RetrievalResult(
+                    question_id=q.question_id,
+                    question=q.question,
+                    ground_truth=q.ground_truth,
+                    category=q.category,
+                    retrieved_memories=memory_contents,
+                    generated_answer=generated,
+                    is_correct=bool(primary),
+                    confidence=per_q_metrics.get("recall_all@10", 0.0),
+                    relevance_scores=relevance_scores,
+                    latency_ms=latency_ms,
                 )
+                result.qa_correct = qa_correct  # type: ignore[attr-defined]
+                return (result, per_q_metrics)
 
         tasks = [
             evaluate(q)
@@ -339,6 +379,34 @@ class LongMemEvalBenchmark(BaseBenchmark):
             vals = [per_q_metrics_list[i][metric] for i in scorable_idx]
             return sum(vals) / len(vals) if vals else 0.0
 
+        # End-to-end QA accuracy over EVERY question (each LongMemEval
+        # question carries a gold answer, including the no-evidence
+        # abstention set), so the QA denominator is the full question
+        # count — not the R@k scorable subset. Skipped runs leave this 0.
+        skip_qa = getattr(self.settings, "skip_qa", False)
+        qa_correct_count = sum(
+            1 for r in results if getattr(r, "qa_correct", False)
+        )
+        qa_accuracy = (
+            (qa_correct_count / len(results)) if results and not skip_qa else 0.0
+        )
+        qa_shadow = [
+            RetrievalResult(
+                question_id=r.question_id,
+                question=r.question,
+                ground_truth=r.ground_truth,
+                category=r.category,
+                retrieved_memories=[],
+                generated_answer=r.generated_answer,
+                is_correct=getattr(r, "qa_correct", False),
+                confidence=1.0 if getattr(r, "qa_correct", False) else 0.0,
+                relevance_scores=[],
+                latency_ms=r.latency_ms,
+            )
+            for r in results
+        ]
+        qa_by_category = compute_accuracy_by_category(qa_shadow)
+
         retrieval_metrics: dict[str, float] = {}
         for k in ks:
             retrieval_metrics[f"recall_any@{k}"] = _mean(f"recall_any@{k}")
@@ -349,6 +417,10 @@ class LongMemEvalBenchmark(BaseBenchmark):
             / len(results) if results else 0.0
         )
         retrieval_metrics["no_evidence_excluded"] = len(results) - len(scorable_idx)
+        retrieval_metrics["qa_accuracy"] = qa_accuracy
+        retrieval_metrics["qa_correct"] = float(qa_correct_count)
+        for cat, info in qa_by_category.items():
+            retrieval_metrics[f"qa_accuracy_{cat}"] = info["accuracy"]
 
         scorable_results = [results[i] for i in scorable_idx]
         correct = sum(1 for r in scorable_results if r.is_correct)
@@ -374,12 +446,16 @@ class LongMemEvalBenchmark(BaseBenchmark):
             config={
                 "eval_version": self.eval_version,
                 "mode": "raw_production_mirror",
-                "metric": "session_level_recall_at_k",
+                "metric": "session_level_recall_at_k+end_to_end_qa",
+                "skip_qa": skip_qa,
                 "search_top_k": self.settings.search_top_k,
                 "concurrency": self.settings.concurrency,
                 "weight_recency": self.settings.weight_recency,
                 "weight_importance": self.settings.weight_importance,
                 "weight_relevance": self.settings.weight_relevance,
+                "llm_model": self.settings.llm_model,
+                "llm_thinking": self.settings.llm_thinking,
+                "llm_temperature": self.settings.llm_temperature,
                 "num_scenarios": len(scenarios),
                 "no_evidence_excluded": len(results) - len(scorable_results),
             },

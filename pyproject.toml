@@ -3,7 +3,7 @@ name = "hebb-mind"
 # AUTO-MANAGED by release-please — do NOT edit manually.
 # Bumped automatically from Conventional Commit messages when the Release PR
 # is merged into main. See release-please-config.json.
-version = "0.1.5"
+version = "0.1.6"
 description = "Hebb Mind — neuroscience-inspired long-term memory framework for AI agents (neurons that fire together, wire together)"
 readme = "README.md"
 license = {text = "MIT"}
@@ -101,9 +101,17 @@ ignore = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# repo root on sys.path so eval/ tests (`from eval...`) resolve under importlib
+# import-mode (which, unlike prepend, does not inject rootdir into sys.path).
+pythonpath = ["."]
 asyncio_mode = "auto"
+# importlib import-mode + no __init__.py under tests/ lets the mirrored tree
+# carry duplicate basenames across layers without "import file mismatch".
+addopts = "--import-mode=importlib --strict-markers -ra"
 markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "slow: needs the local sentence-transformers model (deselect with '-m \"not slow\"')",
+    "integration: in-process multi-module test (FastAPI TestClient / CliRunner / real sqlite)",
+    "e2e: spawns the hebb / hebb-mcp entrypoints (subprocess) or touches OS services",
 ]
 
 [tool.mypy]

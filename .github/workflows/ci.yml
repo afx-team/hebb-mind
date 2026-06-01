@@ -11,6 +11,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+      - name: Lint (ruff)
+        run: ruff check src/
+      - name: Format check (ruff)
+        run: ruff format --check src/
+      - name: Type check (mypy)
+        run: mypy src/hebb/
+
+  # Fast, deterministic gate: unit + integration + eval-harness tests on every
+  # OS/Python cell. No model download — model-dependent tests are `-m slow` and
+  # run only in the `model` job below.
   test:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -18,31 +39,20 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["3.10", "3.11", "3.12", "3.13"]
       fail-fast: false
-
     steps:
       - uses: actions/checkout@v6
-
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: pyproject.toml
-
       - name: Install dependencies
         run: pip install -e ".[dev]"
-
-      - name: Lint (ruff)
-        run: ruff check src/
-
-      - name: Format check (ruff)
-        run: ruff format --check src/
-
-      - name: Type check (mypy)
-        run: mypy src/hebb/
-
-      - name: Test (pytest + coverage)
-        run: pytest tests/ -v --tb=short --cov=hebb --cov-report=xml --cov-report=term
-
+      - name: Unit + integration + eval (no model)
+        run: >-
+          pytest tests/unit tests/integration tests/eval
+          -m "not slow" --tb=short
+          --cov=hebb --cov-report=xml --cov-report=term
       - name: Upload coverage artifact
         if: always()
         uses: actions/upload-artifact@v7
@@ -51,10 +61,68 @@ jobs:
           path: coverage.xml
           if-no-files-found: ignore
 
+  # Black-box tests that spawn the installed `hebb` / `hebb-mcp` entrypoints.
+  # POSIX-only surfaces (stdio guard, service managers) — Windows is gated out;
+  # individual tests carry their own skipif as a second guard.
+  e2e:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+      - name: E2E (subprocess hebb / hebb-mcp)
+        run: pytest tests/e2e -m "not slow" --tb=short
+
+  # Exercises the REAL embedding + cross-encoder rerank + vector path that the
+  # offline matrix can't — the retrieval core that's most actively tuned.
+  # HF weights are cached across runs and keyed on the model ids.
+  model:
+    runs-on: ubuntu-latest
+    env:
+      HF_HOME: ${{ github.workspace }}/.hf
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+      - name: Cache HuggingFace models
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.HF_HOME }}
+          key: hf-${{ runner.os }}-minilm-msmarco-reranker
+          restore-keys: hf-${{ runner.os }}-
+      - name: Warm model cache
+        run: |
+          python - <<'PY'
+          from huggingface_hub import snapshot_download
+          for repo in (
+              "sentence-transformers/all-MiniLM-L6-v2",
+              "cross-encoder/ms-marco-MiniLM-L-6-v2",
+          ):
+              snapshot_download(repo)
+          PY
+      - name: Model-dependent tests (real vector path, offline read from cache)
+        env:
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+        run: pytest -m slow --tb=short
+
   docker:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-
       - name: Build Docker image
         run: docker build -f docker/Dockerfile -t hebb:test .

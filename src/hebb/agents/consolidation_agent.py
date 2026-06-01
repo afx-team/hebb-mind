@@ -60,6 +60,31 @@ class ConsolidationAgent:
         max_tokens = settings.consolidation_max_tokens if settings else 16000
         # Convert token budget to char budget: ~4 chars/token, minus overhead
         self._max_chunk_chars = (max_tokens - self._PROMPT_OVERHEAD_TOKENS) * 4
+        # In-partition consolidation mode (set per consolidate_batch call).
+        # ``_write_override``: force all consolidated writes into this
+        # partition instead of the LLM-decided long-term partition.
+        # ``_skip_recall``: skip cross-partition related-memory recall so a
+        # scenario's summary never absorbs content from other partitions.
+        # Both default off → production HIPPOCAMPUS→long-term flow unchanged.
+        self._write_override: str | None = None
+        self._skip_recall: bool = False
+
+    async def _build_partition_desc(self) -> str:
+        """Describe candidate long-term partitions for the LLM's target choice.
+
+        Returns "" in in-partition mode (``_write_override`` set): the write
+        target is forced to the source partition, so the list is unused — and
+        enumerating ALL partitions (500+ in a per-scenario benchmark) would
+        bloat every consolidation prompt and stall the LLM call.
+        """
+        if self._write_override is not None:
+            return ""
+        partitions = await self.partition_store.list()
+        return "\n".join(
+            f"- {p.id}: {p.name} — {p.description}"
+            for p in partitions
+            if p.id != PartitionType.HIPPOCAMPUS.value and p.enabled
+        )
 
     async def consolidate_memory(self, memory: Memory) -> ConsolidationResult:
         """Process a single memory from HIPPOCAMPUS to a target partition."""
@@ -67,18 +92,15 @@ class ConsolidationAgent:
 
         try:
             # Step 1: Recall related memories
-            related = await self.recall.recall(
-                memory_content=memory.content,
-                exclude_partition=PartitionType.HIPPOCAMPUS.value,
-            )
+            related: list[Memory] = []
+            if not self._skip_recall:
+                related = await self.recall.recall(
+                    memory_content=memory.content,
+                    exclude_partition=PartitionType.HIPPOCAMPUS.value,
+                )
 
             # Step 2: Build context
-            partitions = await self.partition_store.list()
-            partition_desc = "\n".join(
-                f"- {p.id}: {p.name} — {p.description}"
-                for p in partitions
-                if p.id != PartitionType.HIPPOCAMPUS.value and p.enabled
-            )
+            partition_desc = await self._build_partition_desc()
 
             related_desc = "None found."
             if related:
@@ -98,7 +120,7 @@ class ConsolidationAgent:
             ]
             decision = await self.llm.complete_json(messages, temperature=0.3)
 
-            target_partition = decision.get("target_partition", PartitionType.SEMANTIC.value)
+            target_partition = self._write_override or decision.get("target_partition", PartitionType.SEMANTIC.value)
             consolidated_content = decision.get("consolidated_content", memory.content)
             importance = decision.get("importance_score", memory.importance_score)
             tags = decision.get("tags", memory.tags)
@@ -210,26 +232,45 @@ class ConsolidationAgent:
         session_id = memories[0].metadata.session_id or "unknown"
         results: list[ConsolidationResult] = []
 
+        # Carry temporal/turn anchors from the source turns onto the
+        # consolidated output. Without this the session path emitted bare
+        # ``MemoryMetadata(session_id=...)`` and dropped every other field:
+        #   * turn_pair — the [min, max] turn span lets turn-window expansion
+        #     anchor the consolidated memory back to its conversation position.
+        #   * timestamp — the earliest source timestamp is what the searcher's
+        #     temporal_boost reads (metadata.timestamp); dropping it made date
+        #     queries blind to consolidated memories.
+        turn_anchors = [m.metadata.turn for m in memories if m.metadata.turn is not None]
+        source_ts = [str(ts) for m in memories if (ts := m.metadata.model_dump().get("timestamp"))]
+        session_meta: dict[str, object] = {"session_id": session_id}
+        if turn_anchors:
+            session_meta["turn_pair"] = [min(turn_anchors), max(turn_anchors)]
+        if source_ts:
+            session_meta["timestamp"] = min(source_ts)
+
         try:
             # Build conversation turns text
             turns_text = "\n".join(
                 f"[Turn {m.metadata.turn if m.metadata.turn is not None else '?'}] {m.content}" for m in memories
             )
 
-            # Recall related memories using the conversation as context
-            combined_content = " ".join(m.content for m in memories)
-            related = await self.recall.recall(
-                memory_content=combined_content[:2000],
-                exclude_partition=PartitionType.HIPPOCAMPUS.value,
-            )
+            # Recall related memories using the conversation as context.
+            # Skipped in in-partition mode so a scenario's summary never
+            # absorbs content recalled from other partitions.
+            related: list[Memory] = []
+            if not self._skip_recall:
+                combined_content = " ".join(m.content for m in memories)
+                related = await self.recall.recall(
+                    memory_content=combined_content[:2000],
+                    exclude_partition=PartitionType.HIPPOCAMPUS.value,
+                )
 
-            # Build partition and related descriptions
-            partitions = await self.partition_store.list()
-            partition_desc = "\n".join(
-                f"- {p.id}: {p.name} — {p.description}"
-                for p in partitions
-                if p.id != PartitionType.HIPPOCAMPUS.value and p.enabled
-            )
+            # Build partition descriptions for the LLM's target choice.
+            # Skipped in in-partition mode: the target is overridden to the
+            # source partition, so the partition list is irrelevant — and
+            # listing ALL partitions (500+ in a per-scenario benchmark)
+            # would bloat every prompt and stall the LLM call.
+            partition_desc = await self._build_partition_desc()
             related_desc = "None found."
             if related:
                 related_desc = "\n".join(f"- [{m.id}] ({m.partition_id}): {m.content[:200]}" for m in related[:5])
@@ -257,7 +298,7 @@ class ConsolidationAgent:
 
             # Create each output memory
             for item in output_memories:
-                target_partition = item.get("target_partition", PartitionType.SEMANTIC.value)
+                target_partition = self._write_override or item.get("target_partition", PartitionType.SEMANTIC.value)
                 content = item.get("consolidated_content", "")
                 importance = item.get("importance_score", 5.0)
                 tags = item.get("tags", [])
@@ -284,7 +325,7 @@ class ConsolidationAgent:
                         partition_id=target_partition,
                         importance_score=importance,
                         tags=tags,
-                        metadata=MemoryMetadata(session_id=session_id),
+                        metadata=MemoryMetadata.model_validate(session_meta),
                         source="consolidation",
                     ),
                     embedding=embedding,
@@ -324,13 +365,32 @@ class ConsolidationAgent:
 
         return results
 
-    async def consolidate_batch(self, concurrency: int = 5) -> list[ConsolidationResult]:
-        """Process all memories in HIPPOCAMPUS partition.
+    async def consolidate_batch(
+        self,
+        concurrency: int = 5,
+        source_partition: str | None = None,
+        keep_partition: bool = False,
+    ) -> list[ConsolidationResult]:
+        """Process all memories in a partition (default HIPPOCAMPUS).
 
         Groups memories by session_id (sorted by turn), consolidates each session
         in a single LLM call. Memories without session_id are processed individually.
+
+        Args:
+            concurrency: Max concurrent session/standalone consolidations.
+            source_partition: Partition to read working memories from. Defaults
+                to HIPPOCAMPUS (the production working-memory partition).
+            keep_partition: When True, consolidated memories are written back
+                into ``source_partition`` (overriding the LLM's target) and
+                cross-partition recall is skipped. Required for per-scenario
+                benches (LongMemEval/ConvoMem) whose retrieval is
+                partition-scoped — without it, consolidated memories land in a
+                global long-term partition and become invisible at eval time.
         """
-        memories = await self.memory_store.get_by_partition(PartitionType.HIPPOCAMPUS.value)
+        read_partition = source_partition or PartitionType.HIPPOCAMPUS.value
+        self._write_override = read_partition if keep_partition else None
+        self._skip_recall = keep_partition
+        memories = await self.memory_store.get_by_partition(read_partition)
 
         # Group by session_id
         sessions: dict[str, list[Memory]] = {}
@@ -394,16 +454,13 @@ class ConsolidationAgent:
         """consolidate_memory variant that uses a lock for KG writes."""
         result = ConsolidationResult(original_memory_id=memory.id)
         try:
-            related = await self.recall.recall(
-                memory_content=memory.content,
-                exclude_partition=PartitionType.HIPPOCAMPUS.value,
-            )
-            partitions = await self.partition_store.list()
-            partition_desc = "\n".join(
-                f"- {p.id}: {p.name} — {p.description}"
-                for p in partitions
-                if p.id != PartitionType.HIPPOCAMPUS.value and p.enabled
-            )
+            related: list[Memory] = []
+            if not self._skip_recall:
+                related = await self.recall.recall(
+                    memory_content=memory.content,
+                    exclude_partition=PartitionType.HIPPOCAMPUS.value,
+                )
+            partition_desc = await self._build_partition_desc()
             related_desc = "None found."
             if related:
                 related_desc = "\n".join(f"- [{m.id}] ({m.partition_id}): {m.content[:200]}" for m in related[:5])
@@ -420,7 +477,7 @@ class ConsolidationAgent:
             ]
             decision = await self.llm.complete_json(messages, temperature=0.3)
 
-            target_partition = decision.get("target_partition", PartitionType.SEMANTIC.value)
+            target_partition = self._write_override or decision.get("target_partition", PartitionType.SEMANTIC.value)
             consolidated_content = decision.get("consolidated_content", memory.content)
             importance = decision.get("importance_score", memory.importance_score)
             tags = decision.get("tags", memory.tags)

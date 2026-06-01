@@ -42,6 +42,11 @@ class TurnSummary:
     assistant_output: str = ""
     tools: list[str] = field(default_factory=list)
     mcps: list[str] = field(default_factory=list)
+    # 0-based position of this human turn within the session (count of
+    # human-authored user messages up to and including the anchor). Lets the
+    # Stop hook stamp metadata.turn so successive Stop writes for one session
+    # stay ordered and can anchor turn-window expansion. None if unknown.
+    turn: int | None = None
 
 
 def extract_last_turn(transcript_path: str | Path) -> TurnSummary | None:
@@ -100,6 +105,14 @@ def extract_last_turn(transcript_path: str | Path) -> TurnSummary | None:
         return None
 
     summary = TurnSummary()
+
+    # Turn index = 0-based position of the anchored human turn within the
+    # session (count of human-authored user messages up to and including it).
+    # tool_result carriers (role=user, no human text) are filtered by
+    # ``_raw_user_text`` so they don't inflate the count.
+    if last_user is not None:
+        anchor_idx = messages.index(last_user)
+        summary.turn = sum(1 for m in messages[: anchor_idx + 1] if m.get("type") == "user" and _raw_user_text(m)) - 1
 
     # --- User input ---
     if last_user is not None:
