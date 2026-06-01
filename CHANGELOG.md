@@ -9,6 +9,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      New entries are derived from Conventional Commit messages and prepended
      automatically when the Release PR is merged. See release-please-config.json. -->
 
+## [0.1.6] - 2026-06-01
+
+### Fixed
+
+- **Retrieval-induced strengthening ("use it or lose it").** `POST
+  /api/v1/search` now bumps `access_count` + `last_accessed_at` on the
+  memories it returns (new `update_access_batch` store method), gated by
+  the `recall_strengthening_enabled` setting (default on). The dynamic
+  forgetting TTL and recency ranking already rewarded access/recency, but
+  nothing on the search path fed them — only `GET /memories/{id}` did — so
+  frequently-recalled memories decayed as if never used. In-process recall
+  during consolidation bypasses this; benchmarks disable it for snapshot
+  reproducibility.
+- **Session / turn metadata fidelity.** The Claude Code Stop hook now
+  stamps `metadata.turn` (counting human turns, skipping tool_result
+  carriers); session consolidation preserves the source turns' `turn_pair`
+  span and earliest `timestamp` on its output instead of emitting a bare
+  `session_id`; conversation ingestion preserves each turn's `timestamp`.
+  Together these restore turn-window expansion and `temporal_boost` on
+  consolidated and ingested memories.
+
+### Added
+
+- **Per-scenario consolidation.** `consolidate_batch` /
+  `run_consolidation` gain `source_partition` and `keep_partition` so a
+  partition can be consolidated in place (writing back to itself, skipping
+  cross-partition recall) — required for partition-scoped evaluation
+  benchmarks (LongMemEval / ConvoMem).
+- **LLM client robustness.** Per-request timeout (120s) and automatic
+  retries on transient provider failures, so a single stalled response
+  can no longer deadlock a long consolidation batch.
+
+## [0.1.5] - 2026-05-31
+
+### Added
+
+- **Retrieval: calibrated keyword channel + blend re-rank.** The keyword
+  channel is blend re-ranked (BM25 magnitude × query-term coverage /
+  proximity) to lift its intrinsic top-1, and feeds Reciprocal Rank Fusion
+  a better-ordered list; its similarity is calibrated to `[0, 1]` and
+  decoupled from RRF rank (and an inverted SQLite keyword-similarity sign
+  was fixed). Improves standalone keyword retrieval without depending on
+  the cross-encoder reranker.
+- **Retrieval: vector-search toggle.** The vector retrieval channel can be
+  disabled via the `vector_search_enabled` setting (and the corresponding
+  CLI/console control), for keyword-only deployments and channel ablation.
+
 ## [0.1.4] - 2026-05-29
 
 Maintenance release. No changes to the published Python package (`src/`

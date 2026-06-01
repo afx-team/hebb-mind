@@ -3,7 +3,7 @@ name = "hebb-mind"
 # AUTO-MANAGED by release-please — do NOT edit manually.
 # Bumped automatically from Conventional Commit messages when the Release PR
 # is merged into main. See release-please-config.json.
-version = "0.1.5"
+version = "0.1.6"
 description = "Hebb Mind — neuroscience-inspired long-term memory framework for AI agents (neurons that fire together, wire together)"
 readme = "README.md"
 license = {text = "MIT"}
