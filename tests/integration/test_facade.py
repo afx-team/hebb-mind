@@ -90,7 +90,7 @@ def test_version_matches_pyproject() -> None:
     else:
         import tomli as tomllib
 
-    pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
     with pyproject.open("rb") as fh:
         data = tomllib.load(fh)
 

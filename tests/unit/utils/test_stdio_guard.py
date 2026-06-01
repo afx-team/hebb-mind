@@ -5,11 +5,16 @@ from __future__ import annotations
 import os
 import sys
 
+import pytest
+
 from hebb.utils.stdio_guard import (
     capture_stdout,
     restore_stdout,
     suppress_stdout_stderr,
 )
+
+# fd-level redirection (os.dup2 on fd 1) is POSIX-only; skip on Windows.
+pytestmark = pytest.mark.skipif(os.name != "posix", reason="POSIX fd redirection")
 
 
 class TestCaptureRestore:
