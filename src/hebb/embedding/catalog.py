@@ -146,18 +146,47 @@ def model_cache_dir(workspace: Path, model_id: str) -> Path:
     return workspace / "models" / model_id
 
 
+# Weight-file names that mark a sentence-transformers snapshot as loadable.
+# Sharded checkpoints ship an index JSON instead of a single weights blob.
+_WEIGHT_FILES = (
+    "model.safetensors",
+    "pytorch_model.bin",
+    "model.safetensors.index.json",
+    "pytorch_model.bin.index.json",
+)
+
+
+def model_dir_complete(path: Path) -> bool:
+    """Return True when a model directory is actually loadable.
+
+    A directory counts as complete only when it has both ``config.json`` **and**
+    a weight file. An interrupted ``snapshot_download`` often leaves the config
+    and tokenizer behind without the (large) weights — that directory must be
+    treated as *not* cached so the download is retried, otherwise
+    ``SentenceTransformer`` fails with "no file named model.safetensors …".
+
+    Args:
+        path: Candidate model directory.
+
+    Returns:
+        True when the directory has a config and at least one weight file.
+    """
+    if not path.is_dir() or not (path / "config.json").is_file():
+        return False
+    return any((path / name).is_file() for name in _WEIGHT_FILES)
+
+
 def workspace_model_available(workspace: Path, model_id: str) -> bool:
-    """Check whether a model is available in the Hebb Mind workspace.
+    """Check whether a fully-downloaded model is available in the workspace.
 
     Args:
         workspace: Resolved Hebb Mind workspace directory.
         model_id: HuggingFace repository ID or local model name.
 
     Returns:
-        True when the local model directory has a config file.
+        True when the local model directory has a config **and** weight files.
     """
-    path = model_cache_dir(workspace, model_id)
-    return path.is_dir() and (path / "config.json").is_file()
+    return model_dir_complete(model_cache_dir(workspace, model_id))
 
 
 def resolve_region(region: str = "auto", existing_hf_endpoint: str | None = None) -> RegionSelection:

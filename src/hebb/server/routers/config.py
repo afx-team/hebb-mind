@@ -27,8 +27,9 @@ async def get_config() -> dict[str, Any]:
     """Return all current configuration values."""
     settings = load_settings()
     data = settings.model_dump()
-    # Mask sensitive values
-    for key in ("llm_api_key", "pg_url", "embedding_api_key"):
+    # Mask sensitive values. embedding_http_headers is a JSON blob that often
+    # carries an Authorization token, so it is masked like a key.
+    for key in ("llm_api_key", "pg_url", "embedding_api_key", "embedding_http_headers"):
         if data.get(key) and isinstance(data[key], str) and len(data[key]) > 8:
             data[key] = data[key][:4] + "****" + data[key][-4:]
     return data
@@ -60,6 +61,12 @@ async def update_config(
         "embedding_dim",
         "embedding_api_key",
         "embedding_base_url",
+        "embedding_api_mode",
+        "embedding_http_method",
+        "embedding_http_url",
+        "embedding_http_headers",
+        "embedding_http_body",
+        "embedding_http_response_path",
         "consolidation_time",
         "forget_interval_seconds",
         # Retrieval pipeline + rerank: the searcher and reranker are built
@@ -103,7 +110,7 @@ async def update_config(
 @router.get("/config/reveal/{key}")
 async def reveal_config_value(key: str) -> dict[str, Any]:
     """Return the unmasked value of a sensitive config field."""
-    if key not in ("llm_api_key", "pg_url", "embedding_api_key"):
+    if key not in ("llm_api_key", "pg_url", "embedding_api_key", "embedding_http_headers"):
         raise HTTPException(status_code=400, detail="Only sensitive fields can be revealed")
     settings = load_settings()
     data = settings.model_dump()
@@ -165,9 +172,52 @@ async def test_llm_connection(req: LLMTestRequest) -> dict[str, Any]:
 
 class EmbeddingTestRequest(BaseModel):
     provider: Literal["local", "api"]
-    model: str
+    model: str = ""
     base_url: str | None = None
     api_key: str | None = None
+    # API transport — "litellm" (model + base_url) or "custom" (raw HTTP request).
+    api_mode: Literal["litellm", "custom"] = "litellm"
+    # Custom HTTP fields (only read when api_mode == "custom").
+    http_method: str = "POST"
+    http_url: str | None = None
+    http_headers: str | None = None
+    http_body: str | None = None
+    http_response_path: str = "data.*.embedding"
+
+
+async def _test_custom_http_embedding(req: EmbeddingTestRequest) -> dict[str, Any]:
+    """Test a user-defined HTTP embedding request: one probe, report dimension."""
+    from hebb.embedding.http_custom import CustomHttpEmbedder, parse_headers
+
+    if not req.http_url:
+        return {"success": False, "async": False, "error": "URL is required for custom HTTP embedding"}
+    if not req.http_body:
+        return {"success": False, "async": False, "error": "Request body is required for custom HTTP embedding"}
+
+    # Headers may be masked (from GET /config) — fall back to the stored value.
+    http_headers = req.http_headers
+    if http_headers and "****" in http_headers:
+        http_headers = load_settings().embedding_http_headers
+
+    try:
+        headers = parse_headers(http_headers)
+        embedder = CustomHttpEmbedder(
+            method=req.http_method or "POST",
+            url=req.http_url,
+            headers=headers,
+            body_template=req.http_body,
+            response_path=req.http_response_path or "data.*.embedding",
+        )
+        vec = await embedder.embed("embedding test")
+    except Exception as e:
+        return {"success": False, "async": False, "error": str(e)}
+
+    return {
+        "success": True,
+        "async": False,
+        "dimension": len(vec),
+        "message": f"Endpoint responded, dimension={len(vec)}",
+    }
 
 
 @router.post("/config/test-embedding")
@@ -178,6 +228,9 @@ async def test_embedding(req: EmbeddingTestRequest) -> dict[str, Any]:
     Local + not cached: starts a background download and returns a ``task_id``
     the client polls via ``GET /config/test-embedding/status/{task_id}``.
     """
+    if req.provider == "api" and req.api_mode == "custom":
+        return await _test_custom_http_embedding(req)
+
     api_key = req.api_key
     if api_key and "****" in api_key:
         settings = load_settings()
@@ -199,10 +252,16 @@ async def test_embedding(req: EmbeddingTestRequest) -> dict[str, Any]:
                         f"Model loaded from cache, dimension={embedder.dimension}, sample vector length={len(vec)}"
                     ),
                 }
-            except Exception as e:
-                return {"success": False, "async": False, "error": str(e)}
+            except Exception:
+                # A "cached" model that won't load usually means an interrupted
+                # or corrupt download (config present, weights missing). Fall
+                # through to re-download instead of dead-ending on the error.
+                logger.warning(
+                    "Cached local model %s failed to load; re-downloading to repair", req.model, exc_info=True
+                )
 
-        # Not cached: kick off a background download + verification.
+        # Not cached (or the cached copy failed to load): start a background
+        # download + verification.
         from hebb.config.workspace import resolve_workspace
         from hebb.embedding.catalog import prefetch_model
         from hebb.server.downloads import cleanup_old_tasks, create_task, update_task
@@ -292,7 +351,11 @@ async def embedding_status() -> dict[str, Any]:
         result["status"] = "disabled"
     elif settings.embedding_provider == "api":
         result["status"] = "api"
-        result["base_url"] = settings.embedding_base_url or None
+        result["api_mode"] = settings.embedding_api_mode
+        if settings.embedding_api_mode == "custom":
+            result["url"] = settings.embedding_http_url or None
+        else:
+            result["base_url"] = settings.embedding_base_url or None
     else:
         from hebb.embedding.local import is_model_cached
 

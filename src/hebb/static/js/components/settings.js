@@ -93,17 +93,30 @@ const LLM_PRESETS = [
   { label: 'Custom / Self-hosted', model: '', url: '', placeholder_key: '' },
 ];
 
-/* --- Embedding provider presets --- */
-const EMB_PRESETS = [
-  { label: 'Local — bge-large-en-v1.5 (English, 1024d)', provider: 'local', model: 'BAAI/bge-large-en-v1.5', url: '', dim: 1024 },
-  { label: 'Local — bge-m3 (Multilingual, 1024d, 2.2GB)', provider: 'local', model: 'BAAI/bge-m3', url: '', dim: 1024 },
-  { label: 'Local — all-MiniLM-L6-v2 (Fast, 384d, 87MB)', provider: 'local', model: 'sentence-transformers/all-MiniLM-L6-v2', url: '', dim: 384 },
-  { label: 'Local — multilingual-e5-small (Multi, 384d, 470MB)', provider: 'local', model: 'intfloat/multilingual-e5-small', url: '', dim: 384 },
-  { label: 'OpenAI — text-embedding-3-small', provider: 'api', model: 'openai/text-embedding-3-small', url: 'https://api.openai.com/v1', dim: 1536 },
-  { label: 'Cohere — embed-multilingual-v3.0', provider: 'api', model: 'cohere/embed-multilingual-v3.0', url: 'https://api.cohere.com/v1', dim: 1024 },
-  { label: 'Qwen (DashScope)', provider: 'api', model: 'openai/text-embedding-v3', url: 'https://dashscope.aliyuncs.com/compatible-mode/v1', dim: 1024 },
-  { label: 'Custom / Self-hosted', provider: 'api', model: '', url: '', dim: '' },
+/* --- Embedding provider presets, split by mode so Local and API are distinct --- */
+const EMB_LOCAL_PRESETS = [
+  { label: 'bge-large-en-v1.5 (English, 1024d)', model: 'BAAI/bge-large-en-v1.5', dim: 1024 },
+  { label: 'bge-m3 (Multilingual, 1024d, 2.2GB)', model: 'BAAI/bge-m3', dim: 1024 },
+  { label: 'all-MiniLM-L6-v2 (Fast, 384d, 87MB)', model: 'sentence-transformers/all-MiniLM-L6-v2', dim: 384 },
+  { label: 'multilingual-e5-small (Multi, 384d, 470MB)', model: 'intfloat/multilingual-e5-small', dim: 384 },
+  { label: 'Custom model…', model: '', dim: '' },
 ];
+const EMB_API_PRESETS = [
+  { label: 'OpenAI — text-embedding-3-small', model: 'openai/text-embedding-3-small', url: 'https://api.openai.com/v1', dim: 1536 },
+  { label: 'Cohere — embed-multilingual-v3.0', model: 'cohere/embed-multilingual-v3.0', url: 'https://api.cohere.com/v1', dim: 1024 },
+  { label: 'Qwen (DashScope)', model: 'openai/text-embedding-v3', url: 'https://dashscope.aliyuncs.com/compatible-mode/v1', dim: 1024 },
+  { label: 'Custom / Self-hosted', model: '', url: '', dim: '' },
+];
+
+/* Default starting template for the custom-HTTP (JSON) sub-mode. {{input}} is
+   replaced with a JSON array of all texts in the batch. */
+const EMB_HTTP_DEFAULTS = {
+  method: 'POST',
+  url: 'https://api.example.com/v1/embeddings',
+  headers: '{\n  "Authorization": "Bearer YOUR_KEY",\n  "Content-Type": "application/json"\n}',
+  body: '{\n  "model": "your-embedding-model",\n  "input": {{input}}\n}',
+  response_path: 'data.*.embedding',
+};
 
 /* --- Config groups, organised into top-level tabs --- */
 const GROUP_RECALL = {
@@ -194,6 +207,8 @@ const RESTART_KEYS = new Set([
   'storage_type', 'pg_url', 'pg_pool_min', 'pg_pool_max',
   'embedding_enabled', 'embedding_provider', 'embedding_model', 'embedding_dim',
   'embedding_api_key', 'embedding_base_url', 'hf_endpoint',
+  'embedding_api_mode', 'embedding_http_method', 'embedding_http_url',
+  'embedding_http_headers', 'embedding_http_body', 'embedding_http_response_path',
   'consolidation_time', 'consolidation_concurrency', 'consolidation_max_tokens',
   'forget_interval_seconds',
   'keyword_search_enabled', 'graph_search_enabled', 'lexical_boost_enabled',
@@ -432,14 +447,27 @@ function buildLLMSection(config) {
 }
 
 /* ====================================================================
-   Embedding Section — provider presets, local/API toggle, test button
+   Embedding Section — Local vs API, with a Custom HTTP (JSON) sub-mode
    ==================================================================== */
 function buildEmbeddingSection(config) {
   const section = document.createElement('div');
   section.className = 'card mb-4';
 
   const isEnabled = config.embedding_enabled !== false;
-  const isApi = config.embedding_provider === 'api';
+  const provider = config.embedding_provider === 'api' ? 'api' : 'local';
+  const apiMode = config.embedding_api_mode === 'custom' ? 'custom' : 'litellm';
+
+  // Model is one backend field (embedding_model) shared by both modes; show it
+  // in whichever panel is active and let the active panel write it on save.
+  const localModelInit = provider === 'local' ? (config.embedding_model || '') : '';
+  const apiModelInit = provider === 'api' && apiMode === 'litellm' ? (config.embedding_model || '') : '';
+
+  const httpMethod = config.embedding_http_method || EMB_HTTP_DEFAULTS.method;
+  const httpUrl = config.embedding_http_url || '';
+  const httpHeaders = config.embedding_http_headers || EMB_HTTP_DEFAULTS.headers;
+  const httpBody = config.embedding_http_body || EMB_HTTP_DEFAULTS.body;
+  const httpRespPath = config.embedding_http_response_path || EMB_HTTP_DEFAULTS.response_path;
+  const methods = ['POST', 'GET', 'PUT', 'PATCH'];
 
   section.innerHTML = `
     <div class="flex-between mb-4">
@@ -449,7 +477,7 @@ function buildEmbeddingSection(config) {
       </h3>
     </div>
     <div style="background:var(--bg-tertiary);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--text-secondary);line-height:1.6;">
-      Embedding models convert text into vectors for semantic search. Choose a <strong style="color:var(--text-primary)">local</strong> model (downloaded on startup) or a cloud <strong style="color:var(--text-primary)">API</strong> provider.
+      Embedding models convert text into vectors for semantic search. Run a <strong style="color:var(--text-primary)">local</strong> model (downloaded on startup) or call a cloud <strong style="color:var(--text-primary)">API</strong> service.
     </div>
     <div class="setting-row">
       <div class="setting-label">
@@ -463,70 +491,152 @@ function buildEmbeddingSection(config) {
     </div>
     <div id="emb-fields" ${!isEnabled ? 'style="opacity:0.5;pointer-events:none"' : ''}>
       <div class="form-group">
-        <label class="form-label">Preset</label>
-        <select class="form-select" id="emb-preset" style="max-width:480px">
-          ${EMB_PRESETS.map((p, i) => `<option value="${i}">${p.label}</option>`).join('')}
-        </select>
-      </div>
-      <div class="setting-row">
-        <div class="setting-label">
-          <span class="setting-key">embedding_provider</span>
-          <span class="text-muted text-sm" style="display:block;font-family:var(--font);margin-top:2px">local = sentence-transformers, api = cloud service</span>
+        <label class="form-label">Provider</label>
+        <div class="seg" id="emb-provider-seg">
+          <button type="button" class="seg-btn" data-provider="local">Local model</button>
+          <button type="button" class="seg-btn" data-provider="api">API service</button>
         </div>
-        <div class="setting-input-wrap">
-          <select class="form-select setting-input" id="emb-provider" style="max-width:160px">
-            <option value="local" ${!isApi ? 'selected' : ''}>local</option>
-            <option value="api" ${isApi ? 'selected' : ''}>api</option>
+      </div>
+
+      <!-- ── LOCAL ─────────────────────────────────────────────── -->
+      <div id="emb-local-panel">
+        <div class="form-group">
+          <label class="form-label">Preset</label>
+          <select class="form-select" id="emb-local-preset" style="max-width:480px">
+            ${EMB_LOCAL_PRESETS.map((p, i) => `<option value="${i}">${p.label}</option>`).join('')}
           </select>
         </div>
-      </div>
-      <div class="setting-row">
-        <div class="setting-label">
-          <span class="setting-key">embedding_model</span>
-          <span class="text-muted text-sm" style="display:block;font-family:var(--font);margin-top:2px">Local: HuggingFace model name &nbsp;|&nbsp; API: litellm model ID</span>
-        </div>
-        <div class="setting-input-wrap">
-          <input class="form-input setting-input" id="emb-model" type="text"
-                 value="${esc(config.embedding_model || '')}" placeholder="BAAI/bge-large-en-v1.5">
-        </div>
-      </div>
-      <div id="emb-api-fields" ${!isApi ? 'style="display:none"' : ''}>
         <div class="setting-row">
           <div class="setting-label">
-            <span class="setting-key">embedding_base_url</span>
-            <span class="text-muted text-sm" style="display:block;font-family:var(--font);margin-top:2px">Required for API provider</span>
+            <span class="setting-key">embedding_model</span>
+            <span class="text-muted text-sm" style="display:block;font-family:var(--font);margin-top:2px">HuggingFace model name (sentence-transformers)</span>
           </div>
           <div class="setting-input-wrap">
-            <input class="form-input setting-input" id="emb-base-url" type="text"
-                   value="${esc(config.embedding_base_url || '')}" placeholder="https://api.openai.com/v1">
+            <input class="form-input setting-input" id="emb-local-model" type="text"
+                   value="${esc(localModelInit)}" placeholder="BAAI/bge-large-en-v1.5">
           </div>
         </div>
         <div class="setting-row">
           <div class="setting-label">
-            <span class="setting-key">embedding_api_key</span>
-            <span class="text-muted text-sm" style="display:block;font-family:var(--font);margin-top:2px">Optional — some services don't require a key</span>
+            <span class="setting-key">hf_endpoint</span>
+            <span class="text-muted text-sm" style="display:block;font-family:var(--font);margin-top:2px">HuggingFace mirror for faster downloads in China</span>
           </div>
           <div class="setting-input-wrap">
-            <input class="form-input setting-input" id="emb-api-key" type="password"
-                   value="${esc(config.embedding_api_key || '')}" placeholder="sk-...">
-            <button class="btn btn-sm" id="emb-key-eye" title="Show / hide" style="padding:4px 8px;font-size:16px;line-height:1;">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-              </svg>
-            </button>
+            <input class="form-input setting-input" id="emb-hf-endpoint" type="text"
+                   value="${esc(config.hf_endpoint || '')}" placeholder="https://hf-mirror.com">
           </div>
         </div>
       </div>
-      <div class="setting-row">
-        <div class="setting-label">
-          <span class="setting-key">hf_endpoint</span>
-          <span class="text-muted text-sm" style="display:block;font-family:var(--font);margin-top:2px">HuggingFace mirror for faster model downloads in China</span>
+
+      <!-- ── API ───────────────────────────────────────────────── -->
+      <div id="emb-api-panel">
+        <div class="form-group">
+          <label class="form-label">API mode</label>
+          <div class="seg" id="emb-apimode-seg">
+            <button type="button" class="seg-btn" data-mode="litellm">Standard (litellm)</button>
+            <button type="button" class="seg-btn" data-mode="custom">Custom HTTP (JSON)</button>
+          </div>
         </div>
-        <div class="setting-input-wrap">
-          <input class="form-input setting-input" id="emb-hf-endpoint" type="text"
-                 value="${esc(config.hf_endpoint || '')}" placeholder="https://hf-mirror.com">
+
+        <!-- Standard / litellm -->
+        <div id="emb-api-standard">
+          <div class="form-group">
+            <label class="form-label">Preset</label>
+            <select class="form-select" id="emb-api-preset" style="max-width:480px">
+              ${EMB_API_PRESETS.map((p, i) => `<option value="${i}">${p.label}</option>`).join('')}
+            </select>
+          </div>
+          <div class="setting-row">
+            <div class="setting-label">
+              <span class="setting-key">embedding_model</span>
+              <span class="text-muted text-sm" style="display:block;font-family:var(--font);margin-top:2px">litellm model ID, e.g. openai/text-embedding-3-small</span>
+            </div>
+            <div class="setting-input-wrap">
+              <input class="form-input setting-input" id="emb-api-model" type="text"
+                     value="${esc(apiModelInit)}" placeholder="openai/text-embedding-3-small">
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-label">
+              <span class="setting-key">embedding_base_url</span>
+              <span class="text-muted text-sm" style="display:block;font-family:var(--font);margin-top:2px">API endpoint base URL</span>
+            </div>
+            <div class="setting-input-wrap">
+              <input class="form-input setting-input" id="emb-base-url" type="text"
+                     value="${esc(config.embedding_base_url || '')}" placeholder="https://api.openai.com/v1">
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-label">
+              <span class="setting-key">embedding_api_key</span>
+              <span class="text-muted text-sm" style="display:block;font-family:var(--font);margin-top:2px">Optional — some services don't require a key</span>
+            </div>
+            <div class="setting-input-wrap">
+              <input class="form-input setting-input" id="emb-api-key" type="password"
+                     value="${esc(config.embedding_api_key || '')}" placeholder="sk-...">
+              <button class="btn btn-sm" id="emb-key-eye" title="Show / hide" style="padding:4px 8px;font-size:16px;line-height:1;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom HTTP (JSON) -->
+        <div id="emb-api-custom">
+          <div style="background:var(--bg-tertiary);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:16px;font-size:12.5px;color:var(--text-secondary);line-height:1.6;">
+            Define the request yourself. In the body, <code>{{input}}</code> is replaced with a JSON array of all texts (one batched request); use <code>{{text}}</code> instead for one request per text. The vector(s) are read from the response via the JSON path below (<code>*</code> = array wildcard).
+          </div>
+          <div class="setting-row">
+            <div class="setting-label">
+              <span class="setting-key">embedding_http_method</span>
+            </div>
+            <div class="setting-input-wrap">
+              <select class="form-select setting-input" id="emb-http-method" style="max-width:140px">
+                ${methods.map((m) => `<option value="${m}" ${m === httpMethod ? 'selected' : ''}>${m}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-label">
+              <span class="setting-key">embedding_http_url</span>
+            </div>
+            <div class="setting-input-wrap">
+              <input class="form-input setting-input" id="emb-http-url" type="text"
+                     value="${esc(httpUrl)}" placeholder="${esc(EMB_HTTP_DEFAULTS.url)}">
+            </div>
+          </div>
+          <div class="form-group" style="margin-top:12px">
+            <label class="form-label" style="display:flex;align-items:center;gap:8px;">
+              <span class="setting-key">embedding_http_headers</span>
+              <button class="btn btn-sm" id="emb-http-headers-eye" title="Reveal full headers" style="padding:2px 6px;font-size:14px;line-height:1;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </label>
+            <textarea class="form-textarea" id="emb-http-headers" spellcheck="false"
+                      style="font-family:var(--font-mono);font-size:12.5px" placeholder='{"Authorization": "Bearer ..."}'>${esc(httpHeaders)}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label"><span class="setting-key">embedding_http_body</span> &nbsp;<span class="text-muted text-sm">JSON template with {{input}} or {{text}}</span></label>
+            <textarea class="form-textarea" id="emb-http-body" spellcheck="false"
+                      style="font-family:var(--font-mono);font-size:12.5px;min-height:120px">${esc(httpBody)}</textarea>
+          </div>
+          <div class="setting-row">
+            <div class="setting-label">
+              <span class="setting-key">embedding_http_response_path</span>
+              <span class="text-muted text-sm" style="display:block;font-family:var(--font);margin-top:2px">Dot path to the vector(s); OpenAI shape = data.*.embedding</span>
+            </div>
+            <div class="setting-input-wrap">
+              <input class="form-input setting-input" id="emb-http-response-path" type="text"
+                     value="${esc(httpRespPath)}" placeholder="data.*.embedding">
+            </div>
+          </div>
         </div>
       </div>
+
       <div style="display:flex;gap:8px;margin-top:16px;align-items:center;">
         <button class="btn btn-primary" id="emb-test">Test Embedding</button>
         <button class="btn" id="emb-save">Save</button>
@@ -548,13 +658,29 @@ function buildEmbeddingSection(config) {
 
   const enabledToggle = section.querySelector('#emb-enabled-toggle');
   const fieldsDiv = section.querySelector('#emb-fields');
-  const presetSelect = section.querySelector('#emb-preset');
-  const providerSelect = section.querySelector('#emb-provider');
-  const modelInput = section.querySelector('#emb-model');
-  const apiFieldsDiv = section.querySelector('#emb-api-fields');
+  const providerSeg = section.querySelector('#emb-provider-seg');
+  const apiModeSeg = section.querySelector('#emb-apimode-seg');
+  const localPanel = section.querySelector('#emb-local-panel');
+  const apiPanel = section.querySelector('#emb-api-panel');
+  const standardPanel = section.querySelector('#emb-api-standard');
+  const customPanel = section.querySelector('#emb-api-custom');
+
+  const localPresetSelect = section.querySelector('#emb-local-preset');
+  const localModelInput = section.querySelector('#emb-local-model');
+  const hfEndpointInput = section.querySelector('#emb-hf-endpoint');
+  const apiPresetSelect = section.querySelector('#emb-api-preset');
+  const apiModelInput = section.querySelector('#emb-api-model');
   const baseUrlInput = section.querySelector('#emb-base-url');
   const apiKeyInput = section.querySelector('#emb-api-key');
-  const eyeBtn = section.querySelector('#emb-key-eye');
+  const keyEyeBtn = section.querySelector('#emb-key-eye');
+
+  const methodSelect = section.querySelector('#emb-http-method');
+  const httpUrlInput = section.querySelector('#emb-http-url');
+  const httpHeadersInput = section.querySelector('#emb-http-headers');
+  const httpHeadersEye = section.querySelector('#emb-http-headers-eye');
+  const httpBodyInput = section.querySelector('#emb-http-body');
+  const responsePathInput = section.querySelector('#emb-http-response-path');
+
   const testBtn = section.querySelector('#emb-test');
   const saveBtn = section.querySelector('#emb-save');
   const statusEl = section.querySelector('#emb-status');
@@ -564,6 +690,9 @@ function buildEmbeddingSection(config) {
   const progressPctEl = section.querySelector('#emb-progress-pct');
   const progressLabelEl = section.querySelector('#emb-progress-label');
   const progressDetailEl = section.querySelector('#emb-progress-detail');
+
+  let currentProvider = provider;
+  let currentApiMode = apiMode;
 
   function fmtBytes(n) {
     if (!n) return '0 B';
@@ -612,7 +741,6 @@ function buildEmbeddingSection(config) {
   }
 
   async function pollDownload(taskId) {
-    // Returns the terminal task object.
     while (true) {
       let task;
       try {
@@ -635,35 +763,53 @@ function buildEmbeddingSection(config) {
     fieldsDiv.style.pointerEvents = cb.checked ? '' : 'none';
   });
 
-  /* Auto-select preset matching current config */
-  const curModel = config.embedding_model || '';
-  let matchIdx = EMB_PRESETS.length - 1;
-  for (let i = 0; i < EMB_PRESETS.length - 1; i++) {
-    if (curModel === EMB_PRESETS[i].model) { matchIdx = i; break; }
+  /* Provider + API-mode segmented controls */
+  function setProvider(p) {
+    currentProvider = p;
+    providerSeg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.provider === p));
+    localPanel.style.display = p === 'local' ? '' : 'none';
+    apiPanel.style.display = p === 'api' ? '' : 'none';
   }
-  presetSelect.value = matchIdx;
+  function setApiMode(m) {
+    currentApiMode = m;
+    apiModeSeg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+    standardPanel.style.display = m === 'litellm' ? '' : 'none';
+    customPanel.style.display = m === 'custom' ? '' : 'none';
+  }
+  providerSeg.querySelectorAll('.seg-btn').forEach(b => b.addEventListener('click', () => setProvider(b.dataset.provider)));
+  apiModeSeg.querySelectorAll('.seg-btn').forEach(b => b.addEventListener('click', () => setApiMode(b.dataset.mode)));
+  setProvider(currentProvider);
+  setApiMode(currentApiMode);
 
-  /* Preset change fills fields */
-  presetSelect.addEventListener('change', () => {
-    const p = EMB_PRESETS[presetSelect.value];
-    providerSelect.value = p.provider;
-    if (p.model) modelInput.value = p.model;
+  /* Preset auto-select + change handlers */
+  let localMatch = EMB_LOCAL_PRESETS.length - 1;
+  for (let i = 0; i < EMB_LOCAL_PRESETS.length - 1; i++) {
+    if (localModelInit === EMB_LOCAL_PRESETS[i].model) { localMatch = i; break; }
+  }
+  localPresetSelect.value = localMatch;
+  localPresetSelect.addEventListener('change', () => {
+    const p = EMB_LOCAL_PRESETS[localPresetSelect.value];
+    if (p.model) localModelInput.value = p.model;
+  });
+
+  let apiMatch = EMB_API_PRESETS.length - 1;
+  for (let i = 0; i < EMB_API_PRESETS.length - 1; i++) {
+    if (apiModelInit === EMB_API_PRESETS[i].model) { apiMatch = i; break; }
+  }
+  apiPresetSelect.value = apiMatch;
+  apiPresetSelect.addEventListener('change', () => {
+    const p = EMB_API_PRESETS[apiPresetSelect.value];
+    if (p.model) apiModelInput.value = p.model;
     if (p.url !== undefined) baseUrlInput.value = p.url;
-    apiFieldsDiv.style.display = p.provider === 'api' ? '' : 'none';
   });
 
-  /* Provider change shows/hides API fields */
-  providerSelect.addEventListener('change', () => {
-    apiFieldsDiv.style.display = providerSelect.value === 'api' ? '' : 'none';
-  });
-
-  /* Eye toggle for API key */
+  /* Eye toggle for the API key (password input) */
   let keyRevealed = false;
-  eyeBtn.addEventListener('click', async () => {
+  keyEyeBtn.addEventListener('click', async () => {
     if (keyRevealed) {
       apiKeyInput.type = 'password';
       keyRevealed = false;
-      eyeBtn.style.color = '';
+      keyEyeBtn.style.color = '';
     } else {
       try {
         const res = await api.revealConfigValue('embedding_api_key');
@@ -671,37 +817,35 @@ function buildEmbeddingSection(config) {
         apiKeyInput.value = res.value || '';
         apiKeyInput.placeholder = res.value ? '' : '(not set)';
         keyRevealed = true;
-        eyeBtn.style.color = 'var(--accent)';
+        keyEyeBtn.style.color = 'var(--accent)';
       } catch (e) {
         error('Failed to reveal key: ' + e.message);
       }
     }
   });
 
-  /* Test button */
-  testBtn.addEventListener('click', async () => {
-    const provider = providerSelect.value;
-    const model = modelInput.value.trim();
-    const base_url = baseUrlInput.value.trim() || null;
-    const api_key = apiKeyInput.value.trim() || null;
+  /* Reveal full headers (masked JSON blob → full text) */
+  httpHeadersEye.addEventListener('click', async () => {
+    try {
+      const res = await api.revealConfigValue('embedding_http_headers');
+      if (res.value) httpHeadersInput.value = res.value;
+      httpHeadersEye.style.color = 'var(--accent)';
+    } catch (e) {
+      error('Failed to reveal headers: ' + e.message);
+    }
+  });
 
-    if (!model) { error('Model is required'); return; }
-    if (provider === 'api' && !base_url) { error('Base URL is required for API embedding'); return; }
-
+  /* Run a test for whichever mode is active, reusing the progress/log UI. */
+  async function runTest(params, logHeader) {
     resetProgress();
     statusEl.innerHTML = '<span style="color:var(--accent)">Testing...</span>';
     logEl.classList.remove('hidden');
     logEl.style.borderColor = 'var(--border)';
-    logEl.textContent = `Testing embedding...\nProvider: ${provider}\nModel: ${model}\n`;
-    if (provider === 'api') {
-      logEl.textContent += `Base URL: ${base_url}\n`;
-    }
-
+    logEl.textContent = logHeader;
     testBtn.disabled = true;
     try {
-      const res = await api.testEmbedding(provider, model, base_url, api_key);
+      const res = await api.testEmbedding(params);
       if (res.async && res.task_id) {
-        // Background download: poll until terminal.
         renderProgress({ status: 'downloading', bytes_done: 0, bytes_total: 0, current_file: '' });
         logEl.textContent += `\n[INFO] First-time download started (task_id=${res.task_id}). Streaming progress…\n`;
         let final;
@@ -738,6 +882,42 @@ function buildEmbeddingSection(config) {
     } finally {
       testBtn.disabled = false;
     }
+  }
+
+  /* Test button — dispatches on the active provider / API mode */
+  testBtn.addEventListener('click', async () => {
+    if (currentProvider === 'local') {
+      const model = localModelInput.value.trim();
+      if (!model) { error('Model is required'); return; }
+      await runTest({ provider: 'local', model }, `Testing embedding...\nProvider: local\nModel: ${model}\n`);
+    } else if (currentApiMode === 'custom') {
+      const http_url = httpUrlInput.value.trim();
+      const http_body = httpBodyInput.value;
+      if (!http_url) { error('URL is required for custom HTTP embedding'); return; }
+      if (!http_body.trim()) { error('Request body is required for custom HTTP embedding'); return; }
+      await runTest(
+        {
+          provider: 'api',
+          api_mode: 'custom',
+          http_method: methodSelect.value,
+          http_url,
+          http_headers: httpHeadersInput.value,
+          http_body,
+          http_response_path: responsePathInput.value.trim() || 'data.*.embedding',
+        },
+        `Testing embedding...\nProvider: api (custom HTTP)\n${methodSelect.value} ${http_url}\n`
+      );
+    } else {
+      const model = apiModelInput.value.trim();
+      const base_url = baseUrlInput.value.trim() || null;
+      const api_key = apiKeyInput.value.trim() || null;
+      if (!model) { error('Model is required'); return; }
+      if (!base_url) { error('Base URL is required for API embedding'); return; }
+      await runTest(
+        { provider: 'api', api_mode: 'litellm', model, base_url, api_key },
+        `Testing embedding...\nProvider: api (litellm)\nModel: ${model}\nBase URL: ${base_url}\n`
+      );
+    }
   });
 
   /* Refresh the cached/disabled badge from the live config. */
@@ -750,7 +930,7 @@ function buildEmbeddingSection(config) {
         badge.textContent = 'disabled';
       } else if (st.provider === 'api') {
         badge.className = 'tag tag-green';
-        badge.textContent = 'API';
+        badge.textContent = st.api_mode === 'custom' ? 'API · custom HTTP' : 'API';
       } else if (st.cached) {
         badge.className = 'tag tag-green';
         badge.textContent = 'local · cached';
@@ -761,27 +941,41 @@ function buildEmbeddingSection(config) {
     } catch { /* ignore */ }
   }
 
-  /* Save button */
+  /* Save button — writes only the fields relevant to the active mode. */
   saveBtn.addEventListener('click', async () => {
     try {
       const enabled = enabledToggle.querySelector('input').checked;
-      const provider = providerSelect.value;
-      const model = modelInput.value.trim();
-      const base_url = baseUrlInput.value.trim();
-      const api_key = apiKeyInput.value.trim();
-      const hf_endpoint = section.querySelector('#emb-hf-endpoint').value.trim();
-
       let needsRestart = false;
       const collect = (res) => { if (res && res.restart_required) needsRestart = true; };
 
       collect(await api.updateConfig('embedding_enabled', String(enabled)));
-      collect(await api.updateConfig('embedding_provider', provider));
-      if (model) collect(await api.updateConfig('embedding_model', model));
-      collect(await api.updateConfig('embedding_base_url', base_url || 'null'));
-      if (api_key && !api_key.includes('****')) {
-        collect(await api.updateConfig('embedding_api_key', api_key));
+      collect(await api.updateConfig('embedding_provider', currentProvider));
+
+      if (currentProvider === 'local') {
+        const model = localModelInput.value.trim();
+        if (model) collect(await api.updateConfig('embedding_model', model));
+        collect(await api.updateConfig('hf_endpoint', hfEndpointInput.value.trim() || 'null'));
+      } else {
+        collect(await api.updateConfig('embedding_api_mode', currentApiMode));
+        if (currentApiMode === 'custom') {
+          collect(await api.updateConfig('embedding_http_method', methodSelect.value || 'POST'));
+          collect(await api.updateConfig('embedding_http_url', httpUrlInput.value.trim() || 'null'));
+          const headers = httpHeadersInput.value;
+          if (headers && !headers.includes('****')) {
+            collect(await api.updateConfig('embedding_http_headers', headers.trim() || 'null'));
+          }
+          collect(await api.updateConfig('embedding_http_body', httpBodyInput.value.trim() || 'null'));
+          collect(await api.updateConfig('embedding_http_response_path', responsePathInput.value.trim() || 'data.*.embedding'));
+        } else {
+          const model = apiModelInput.value.trim();
+          if (model) collect(await api.updateConfig('embedding_model', model));
+          collect(await api.updateConfig('embedding_base_url', baseUrlInput.value.trim() || 'null'));
+          const api_key = apiKeyInput.value.trim();
+          if (api_key && !api_key.includes('****')) {
+            collect(await api.updateConfig('embedding_api_key', api_key));
+          }
+        }
       }
-      collect(await api.updateConfig('hf_endpoint', hf_endpoint || 'null'));
 
       await refreshBadge();
       success('Embedding configuration saved');

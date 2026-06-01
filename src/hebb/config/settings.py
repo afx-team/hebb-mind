@@ -41,6 +41,30 @@ class Settings(BaseModel):
         default=None, description="HuggingFace mirror endpoint (e.g. https://hf-mirror.com)"
     )
 
+    # Embedding — custom HTTP (API provider only). When embedding_provider == "api"
+    # and embedding_api_mode == "custom", vectors come from a fully user-defined
+    # HTTP request instead of litellm. The body is a JSON template: "{{input}}" is
+    # substituted with a JSON array of all texts (one batched request); "{{text}}"
+    # is substituted with one JSON-escaped string (one request per text). The
+    # response vector(s) are read via embedding_http_response_path.
+    embedding_api_mode: Literal["litellm", "custom"] = Field(
+        default="litellm",
+        description="API embedding transport: 'litellm' (model ID + base_url) or 'custom' (raw HTTP request)",
+    )
+    embedding_http_method: str = Field(default="POST", description="HTTP method for custom embedding requests")
+    embedding_http_url: str | None = Field(default=None, description="Full endpoint URL for custom HTTP embedding")
+    embedding_http_headers: str | None = Field(
+        default=None, description="HTTP headers for custom embedding, as a JSON object string (may contain secrets)"
+    )
+    embedding_http_body: str | None = Field(
+        default=None,
+        description="Request body template (JSON) with a '{{input}}' (array) or '{{text}}' (string) placeholder",
+    )
+    embedding_http_response_path: str = Field(
+        default="data.*.embedding",
+        description="Dot path with '*' array wildcards to the embedding vector(s) in the JSON response",
+    )
+
     # Retrieval pipeline toggles — each path/boost is independently
     # switchable so users can A/B individual contributions and so the
     # eval harness can run ablations without rebuilding the searcher.

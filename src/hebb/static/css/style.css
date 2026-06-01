@@ -576,6 +576,30 @@ tr:hover td { background: var(--bg-tertiary); }
 .settings-tab:hover { color: var(--text-primary); }
 .settings-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
+/* Segmented control — used to switch embedding Provider (Local/API) and
+   API mode (Standard/Custom HTTP). */
+.seg {
+  display: inline-flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.seg-btn {
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: none;
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.seg-btn:last-child { border-right: none; }
+.seg-btn:hover { color: var(--text-primary); }
+.seg-btn.active { background: var(--accent); color: #fff; }
+
 /* ============================================================
    CC Memory (Claude Code file-based memory)
    ============================================================ */
