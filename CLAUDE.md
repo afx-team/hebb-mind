@@ -15,7 +15,7 @@ When rules conflict, follow this priority order:
 
 ## Project Context
 
-**Status**: Production (PyPI `hebb-mind` v0.1.1, alpha)
+**Status**: Production (PyPI `hebb-mind`)
 **Domain**: Long-term memory for LLM agents — write, consolidate, recall, forget
 **Surfaces**: Python package, Click CLI (`hebb`), FastAPI server, MCP server (stdio), web console, Claude Code + Codex integrations
 **Docs site**: VitePress → GitHub Pages at https://afx-team.github.io/hebb-mind/
@@ -26,6 +26,16 @@ When rules conflict, follow this priority order:
 
 - `repo_pages/` is the **public website** (VitePress → GitHub Pages). User-facing docs go here. Never commit secrets, internal analysis, or proprietary data — anything merged is published.
 - `reports/` is **internal-only** (papers, analysis, design, surveys). Research notes, audits, and design drafts go here, not in `repo_pages/`.
+
+---
+
+## Evaluation & Benchmarks
+
+The benchmark harness lives in `eval/` — datasets, metrics, CLI, and report layout are documented in **[`eval/README.md`](eval/README.md)** (read it before running or updating evals). Must-know invariants:
+
+- Each benchmark runs against an **isolated server** (own port `8401–8409`, own workdir `hebb.db`) — **never** the daily `hebb service` on 8321.
+- **Match the metric to the dataset's ground truth** — session `Recall@k` / `Hit@k` where a clean evidence id exists; end-to-end QA only otherwise. LongMemEval QA uses the **official** reader + `get_anscheck_prompt` judge verbatim (no benchmark-tuned prompts).
+- A published number in `repo_pages/benchmarks/` MUST cite an **in-tree `run-N` report**; update the EN page and its `zh/` mirror together.
 
 ---
 

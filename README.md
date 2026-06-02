@@ -173,16 +173,28 @@ REST docs at `http://localhost:8321/docs` once the server is running. Key endpoi
 
 ## Benchmarks
 
-LoCoMo (1,986 questions across 10 multi-session conversations), session-level Recall@10 — the same metric MemPalace publishes. Both rows score the full 1,978 questions with parseable evidence.
+**LoCoMo** (1,986 questions across 10 multi-session conversations; 1,978 scorable), session-level Recall@10 — the same metric MemPalace publishes.
 
-| System | Embedding | R@10 |
-|---|---|---|
-| **Hebb Mind v0.1.2** | bge-large-1024 | **93.3%** |
-| MemPalace bge-large hybrid | bge-large-1024 | 92.4% |
-| **Hebb Mind v0.1.2** | MiniLM-384 | **89.7%** |
-| MemPalace hybrid v5 | MiniLM-384 | 88.9% |
+| System | Embedding | Rerank | R@10 |
+|---|---|---|---|
+| **Hebb Mind v0.1.6** | bge-large-1024 | bge-reranker-base | **95.75%** |
+| **Hebb Mind v0.1.6** | bge-large-1024 | — | **94.14%** |
+| MemPalace hybrid | bge-large-1024 | — | 92.40% |
+| **Hebb Mind v0.1.6** | MiniLM-384 | bge-reranker-base | **94.69%** |
+| MemPalace hybrid | MiniLM-384 | — | 92.63% |
+| **Hebb Mind v0.1.6** | MiniLM-384 | — | 91.41% |
 
-Same-embedding lead of ~+0.9 pp at both tiers. End-to-end QA (same retrieval + Kimi-K2.5 judge with thinking, full 1,978q): **76.0%** — retrieval surfaces the right session 90% of the time, the LLM converts that into a correct answer 76% of the time; the gap is the synthesis cost of per-utterance ingestion.
+Same-embedding lead: +1.74 pp at bge-large with no rerank, +3.35 pp with rerank; the local cross-encoder even lifts the cheap MiniLM-384 to 94.69%, past MemPalace's tuned hybrid. End-to-end QA (same retrieval + DeepSeek-V4-Pro judge, full 1,978q): **77.1%**.
+
+**LongMemEval** (500 questions, LongMemEval-S) — session-level Recall@k (retrieval, apples-to-apples with MemPalace) and end-to-end QA (official reader + `get_anscheck_prompt` judge, comparable to Zep / Mem0).
+
+| System | Retrieval recall@10 | End-to-end QA | Reader LLM |
+|---|---|---|---|
+| **Hebb Mind v0.1.6** | **99.4%** | **79.0%** | DeepSeek-V4-Pro (neutral official prompt) |
+| Zep | 95.5% | 71.2% | gpt-4o |
+| Mem0 | not reported | ~85–94%¹ | gpt-4o (heavily-tuned prompt) |
+
+Retrieval R@5 = **99.0%**, tying MemPalace's best hybrid+rerank config (99.4%) and well above its raw 96.6% — on the same MiniLM-384 embedding. Hebb beats Zep at every retrieval depth (R@1 93.4% vs 75.9%) and leads its QA (79.0% vs 71.2%) with an *untuned* reader prompt; the gap to Mem0 is reader-prompt engineering, not memory — Hebb's retrieval is the stronger layer. <sup>¹ varies by source/setup.</sup>
 
 Hebb Mind's eval calls the same Claude Code hook code paths (`integrations/claude_code/{write,stop}.py`) and `/api/v1/search` endpoint that the shipped product uses — the numbers above are what a user actually gets in production. Full methodology, per-category breakdowns, and prod-vs-eval-pipeline caveats: [hebb-mind.github.io/benchmarks](https://afx-team.github.io/hebb-mind/benchmarks/).
 

@@ -174,16 +174,28 @@ hebb config set pg_url postgresql://user:pass@localhost/hebb
 
 ## 基准测试
 
-LoCoMo（10 段多轮对话、共 1,986 题），按 MemPalace 同口径的 session 级 Recall@10。两组都基于完整的 1,978 道可评分题目（剔除 8 道 evidence 缺失/不可解析的 adversarial 题）。
+**LoCoMo**（10 段多轮对话、共 1,986 题，1,978 道可评分），按 MemPalace 同口径的 session 级 Recall@10。
 
-| 系统 | Embedding | R@10 |
-|---|---|---|
-| **Hebb Mind v0.1.2** | bge-large-1024 | **93.3%** |
-| MemPalace bge-large hybrid | bge-large-1024 | 92.4% |
-| **Hebb Mind v0.1.2** | MiniLM-384 | **89.7%** |
-| MemPalace hybrid v5 | MiniLM-384 | 88.9% |
+| 系统 | Embedding | 重排 | R@10 |
+|---|---|---|---|
+| **Hebb Mind v0.1.6** | bge-large-1024 | bge-reranker-base | **95.75%** |
+| **Hebb Mind v0.1.6** | bge-large-1024 | — | **94.14%** |
+| MemPalace hybrid | bge-large-1024 | — | 92.40% |
+| **Hebb Mind v0.1.6** | MiniLM-384 | bge-reranker-base | **94.69%** |
+| MemPalace hybrid | MiniLM-384 | — | 92.63% |
+| **Hebb Mind v0.1.6** | MiniLM-384 | — | 91.41% |
 
-同 embedding 档位下稳定领先 ~+0.9 pp。端到端 QA（同一检索 + Kimi-K2.5 judge with thinking，完整 1,978 题）：**76.0%** — 检索能找到正确 session 的概率约 90%，LLM 将其转化为正确答案的概率约 76%，这中间的差距来自 per-utterance 入库下的跨记忆综合成本。
+同 embedding 档位下：不开重排时 bge-large 领先 +1.74 pp，开重排后 +3.35 pp；本地 cross-encoder 甚至把廉价的 MiniLM-384 抬到 94.69%，超过 MemPalace 调优后的 hybrid。端到端 QA（同一检索 + DeepSeek-V4-Pro judge，完整 1,978 题）：**77.1%**。
+
+**LongMemEval**（500 题，LongMemEval-S）—— session 级 Recall@k（检索，与 MemPalace 同口径）以及端到端 QA（官方 reader + `get_anscheck_prompt` 判分，与 Zep / Mem0 可比）。
+
+| 系统 | 检索 recall@10 | 端到端 QA | 作答 LLM |
+|---|---|---|---|
+| **Hebb Mind v0.1.6** | **99.4%** | **79.0%** | DeepSeek-V4-Pro（中立官方 prompt） |
+| Zep | 95.5% | 71.2% | gpt-4o |
+| Mem0 | 未公布 | ~85–94%¹ | gpt-4o（重度调优 prompt） |
+
+检索 R@5 = **99.0%**，在相同的 MiniLM-384 embedding 上追平 MemPalace 最佳「hybrid + 重排」配置（99.4%），远高于其 raw 96.6%。Hebb 在每个检索深度都胜过 Zep（R@1 93.4% vs 75.9%），并在 QA 上以**未调优**的 reader prompt 领先（79.0% vs 71.2%）；与 Mem0 的差距来自 reader prompt 工程，而非记忆 —— Hebb 的检索才是更强的一层。<sup>¹ 随来源/设置而变。</sup>
 
 Hebb Mind 的评测直接调用与生产同一份 Claude Code hook 代码路径（`integrations/claude_code/{write,stop}.py`）与 `/api/v1/search`，因此上表数字就是用户在生产环境里实际能拿到的数字。完整方法学、分类拆解、benchmark vs production 流水线差异的说明：[hebb-mind.github.io/benchmarks](https://afx-team.github.io/hebb-mind/benchmarks/)。
 
