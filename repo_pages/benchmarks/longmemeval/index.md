@@ -6,43 +6,71 @@
 
 ## How we evaluate
 
-**Metric: session-level Recall@k.** For each question, retrieve top-k memories, collect the set of `session_id`s they carry in metadata, and check whether that set intersects the question's `answer_session_ids`. A question is "correct" iff `recall_any@k == 1.0`. We report R@1 / R@3 / R@5 / R@10 and NDCG@k. No LLM at scoring time.
+LongMemEval admits two very different metrics, and we report **both** — kept separate, because finding the evidence is necessary but not sufficient for answering correctly.
 
-**Why this metric** — LongMemEval ships a clean ground-truth field (`answer_session_ids`, the set of haystack sessions that contain evidence). That is the exact signal session-level R@k measures: did retrieval surface a memory from the right session? It is what the dataset's authors intended, and it makes the comparison vs. MemPalace's published R@5 numbers literally apples-to-apples — same metric, same question set, same k.
+**1. Retrieval Recall@k — isolates the memory layer.** For each question, retrieve top-k memories, collect the `session_id`s they carry, and check whether that set intersects the question's `answer_session_ids`. A question is "correct" iff `recall_any@k == 1.0`; we report R@1 / R@3 / R@5 / R@10 and NDCG@k. No LLM at scoring time. This is exactly the signal LongMemEval's ground truth (`answer_session_ids`) encodes, and it is apples-to-apples with MemPalace's published R@k.
 
-We **do not** run an LLM judge on this dataset because the dataset provides an unambiguous retrieval-level ground truth; adding a generator-then-judge stage would add LLM-induced noise that masks what the retrieval pipeline is actually doing. The point of LongMemEval, for us, is to isolate retrieval quality.
+**2. End-to-end QA accuracy — the official LongMemEval metric.** Retrieve → generate an answer → an LLM judge grades it against the gold. This is what Zep and Mem0 report. To keep it comparable and untuned, we use the **official LongMemEval reader prompt** (`src/generation/run_generation.py`) and the **official per-question-type judge prompts** (`get_anscheck_prompt`) verbatim — no benchmark-specific prompt engineering — with DeepSeek-V4-Pro as both reader and judge.
+
+> Recall@k asks "did we find the evidence?"; QA asks "did we answer correctly?". Even an oracle with *perfect* retrieval tops out near 82% QA (GPT-4o), so the two are not interchangeable. We lead with retrieval because it isolates the memory layer, and report QA for head-to-head parity with QA-first systems.
 
 ## Hebb Mind on LongMemEval
 
-| Hebb Mind config | R@5 | Source |
-|---|---|---|
-| **v0.1.2 prod-mirror, bge-large-1024** | **84.4%** R@5 (500 questions, all 6 categories) | `eval/reports/longmemeval/v2/run-3/longmemeval.md` |
-
-Full k-curve (same run):
+**v0.1.6, production mirror** — `all-MiniLM-L6-v2` (384-d) embedding + `BAAI/bge-reranker-base` cross-encoder rerank (both shipped defaults), `search_top_k=10`, full 500 questions across all 6 categories.
 
 | k | R@k (any) | NDCG@k |
 |---|---|---|
-| 1 | 82.8% | 0.828 |
-| 3 | 84.4% | 0.764 |
-| 5 | 84.4% | 0.757 |
-| 10 | 84.4% | 0.757 |
+| 1 | 93.4% | 0.934 |
+| 3 | 98.0% | 0.938 |
+| 5 | **99.0%** | 0.941 |
+| 10 | **99.4%** | 0.943 |
 
-R@k is nearly flat from k=1 to k=10 — when retrieval hits, it hits at rank 1; when it misses, the right session isn't in the top-10 pool either. The bottleneck is base recall (which sessions the embedding+keyword paths can surface for a given query), not the re-ranking layer.
+Source: `eval/reports/longmemeval/v3/run-14/longmemeval.md`. R@5 (99.0%) is the comparison-grade figure, matching the k MemPalace and Zep publish.
 
-Per-category breakdown:
+### Effect of cross-encoder reranking
 
-| Category | R@5 |
+Reranking is on by default in v0.1.6. Holding the ingested corpus and the embedding model fixed and toggling only the reranker:
+
+| Config | R@1 | R@5 | R@10 |
+|---|---|---|---|
+| `all-MiniLM-L6-v2` only | 89.0% | 98.4% | 98.6% |
+| `+ bge-reranker-base` | **93.4%** | **99.0%** | **99.4%** |
+
+The lift concentrates at rank 1 (+4.4pp) and tapers as k grows — the expected signature of a reranker. Base recall already places the correct session inside the top-10 pool for ≥98% of questions, so the cross-encoder's job is mostly to promote it to the top: a precision-at-1 lever, not a recall lever.
+
+### Per-category (R@10)
+
+| Category | R@10 |
 |---|---|
+| knowledge-update | 100.0% |
 | single-session-assistant | 100.0% |
-| knowledge-update | 96.2% |
-| multi-session | 87.2% |
-| single-session-user | 82.9% |
-| temporal-reasoning | 79.7% |
-| single-session-preference | 36.7% |
+| single-session-preference | 100.0% |
+| single-session-user | 100.0% |
+| multi-session | 99.2% |
+| temporal-reasoning | 98.5% |
 
-The `single-session-preference` floor (36.7%) is where abstract questions ("Can you suggest some accessories that would complement my current photography setup?") meet concrete user statements ("upgrade my camera flash", "getting a new tripod"). Zero token-level overlap → embedding similarity has nothing to bridge. Closing it requires LLM-driven query rewriting or rerank, not more lexical tricks.
+`single-session-preference` — abstract recommendation questions ("Can you suggest some accessories that would complement my current photography setup?") against concrete user statements ("upgrade my camera flash", "getting a new tripod"), with near-zero token overlap — used to be the floor of this benchmark. Retrieval there is now at ceiling: the production ingest mirror emits a short synthetic memory per preference phrase (matching `integrations/claude_code/write.py`), restoring the query→corpus vocabulary overlap that raw embedding similarity could not bridge, and the reranker resolves the residual ordering.
+
+## End-to-end QA accuracy
+
+Same 500 questions, **official reader prompt + official per-type judge** (`get_anscheck_prompt`), DeepSeek-V4-Pro as reader and judge:
+
+| Category | QA accuracy |
+|---|---|
+| single-session-user | 98.6% |
+| single-session-assistant | 92.9% |
+| knowledge-update | 80.8% |
+| temporal-reasoning | 75.2% |
+| single-session-preference | 70.0% |
+| multi-session | 67.7% |
+| **Overall** | **79.0%** (395 / 500) |
+
+Source: `eval/reports/longmemeval/v3/run-16/longmemeval.md`. Zero judge failures (no API throttling).
+
+This uses the **neutral official reader prompt**, not a benchmark-tuned one — so 79.0% is a *floor* for what the retrieval layer enables, not a prompt-engineered ceiling. It already lands within ~3pp of the GPT-4o oracle upper bound (82.4%, which assumes *perfect* retrieval), because Hebb's retrieval recall is near-ceiling (99.4% @10). For reference, our own restrictive reader prompt scored only 66.6% overall (and 16.7% on preference) — swapping in the neutral official prompt lifted overall +12.4pp and preference +53pp, confirming the gap was prompt over-abstention, not memory.
 
 ## Per-competitor comparisons
 
-- [vs MemPalace](./vs-mempalace) — same metric, full 500 questions
-- [vs Zep / Graphiti](./vs-zep) — same metric, published R@5
+- [vs MemPalace](./vs-mempalace) — retrieval R@5 (same metric, full 500)
+- [vs Zep / Graphiti](./vs-zep) — retrieval R@k **and** end-to-end QA
+- [vs Mem0](./vs-mem0) — end-to-end QA accuracy
