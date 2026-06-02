@@ -329,11 +329,26 @@ class LongMemEvalBenchmark(BaseBenchmark):
                 qa_correct = False
                 if not getattr(self.settings, "skip_qa", False):
                     try:
-                        generated = await judge.generate_answer(
-                            q.question, memory_contents
+                        # Official LongMemEval reader prompt (neutral, no
+                        # custom rules) so the headline QA number is not tuned
+                        # to the benchmark. Our tuned _GENERATE_PROMPT remains
+                        # available via generate_answer (the LoCoMo/ConvoMem path).
+                        generated = await judge.generate_answer_official(
+                            q.question,
+                            memory_contents,
+                            question_date=q.metadata.get("question_date"),
                         )
-                        qa_correct, _qa_conf = await judge.judge_correctness(
-                            q.question, q.ground_truth, generated
+                        # Official LongMemEval grading (get_anscheck_prompt):
+                        # per-question-type, so QA accuracy is comparable to
+                        # the LongMemEval leaderboard / Zep / Mem0. Preference
+                        # is graded against its rubric, abstention against the
+                        # "_abs" question_id marker.
+                        qa_correct, _qa_conf = await judge.judge_anscheck(
+                            q.question,
+                            q.ground_truth,
+                            generated,
+                            task=q.category,
+                            abstention="_abs" in q.question_id,
                         )
                     except Exception as e:
                         logger.warning(

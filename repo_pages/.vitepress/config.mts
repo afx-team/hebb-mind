@@ -76,6 +76,16 @@ function guideSidebar(prefix = '') {
                     { text: 'vs Zep', link: `${prefix}/benchmarks/locomo/vs-zep` },
                   ],
                 },
+                {
+                  text: 'LongMemEval',
+                  link: `${prefix}/benchmarks/longmemeval/`,
+                  collapsed: true,
+                  items: [
+                    { text: 'vs MemPalace', link: `${prefix}/benchmarks/longmemeval/vs-mempalace` },
+                    { text: 'vs mem0', link: `${prefix}/benchmarks/longmemeval/vs-mem0` },
+                    { text: 'vs Zep / Graphiti', link: `${prefix}/benchmarks/longmemeval/vs-zep` },
+                  ],
+                },
               ],
             }
           : {
@@ -100,6 +110,7 @@ function guideSidebar(prefix = '') {
                   collapsed: true,
                   items: [
                     { text: 'vs MemPalace', link: '/benchmarks/longmemeval/vs-mempalace' },
+                    { text: 'vs mem0', link: '/benchmarks/longmemeval/vs-mem0' },
                     { text: 'vs Zep / Graphiti', link: '/benchmarks/longmemeval/vs-zep' },
                   ],
                 },

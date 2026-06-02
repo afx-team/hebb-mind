@@ -15,9 +15,10 @@ Hebb Mind 在 `eval/` 提供一套可复现的评测 harness，让你（和我�
   - [vs mem0](./locomo/vs-mem0) —— 待定（同 harness 复跑待进行）
   - [vs Letta](./locomo/vs-letta) —— 待定
   - [vs Zep](./locomo/vs-zep) —— 无公开 LoCoMo 数字
-- [LongMemEval](/benchmarks/longmemeval/) —— 长跨度召回（session R@k）
-  - [vs MemPalace](/benchmarks/longmemeval/vs-mempalace) —— 公布的 R@5
-  - [vs Zep / Graphiti](/benchmarks/longmemeval/vs-zep) —— 公布的 R@5
+- [LongMemEval](/zh/benchmarks/longmemeval/) —— 长跨度召回（session R@k）+ 端到端 QA
+  - [vs MemPalace](/zh/benchmarks/longmemeval/vs-mempalace) —— 检索 R@5
+  - [vs mem0](/zh/benchmarks/longmemeval/vs-mem0) —— 端到端 QA
+  - [vs Zep / Graphiti](/zh/benchmarks/longmemeval/vs-zep) —— 检索 R@k + 端到端 QA
 - [ConvoMem](/benchmarks/convomem/) —— 6 类别证据检索（端到端 QA 判分）
 - [MemBench](/benchmarks/membench/) —— 轮次级检索，noisy/movie 切片（Hit@k）
 - [PersonaMem](/benchmarks/personamem/) —— 偏好追踪；目前公开对比尚少
