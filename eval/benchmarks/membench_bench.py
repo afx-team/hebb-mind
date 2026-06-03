@@ -27,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections import defaultdict
 from datetime import datetime, timezone
 
 from eval.benchmarks.base import (
@@ -209,6 +210,27 @@ class MemBenchBenchmark(BaseBenchmark):
             vals = [m[metric] for m in per_q_metrics_list]
             return sum(vals) / len(vals) if vals else 0.0
 
+        # Per-category Hit@k for the full k-curve. accuracy_by_category
+        # already carries the primary-k headline; this adds hit@1/3/5/10
+        # per category so a multi-category sweep can table each slice
+        # against MemPalace's published per-category Recall@5.
+        cat_hits: dict[str, dict[str, list[float]]] = defaultdict(
+            lambda: defaultdict(list)
+        )
+        for res, per_q in paired:
+            for k in ks:
+                cat_hits[res.category][f"hit@{k}"].append(per_q[f"hit@{k}"])
+        per_category_hit_at_k: dict[str, dict[str, float]] = {
+            cat: {
+                **{
+                    m: (sum(vals) / len(vals) if vals else 0.0)
+                    for m, vals in sorted(metrics.items())
+                },
+                "n": float(len(metrics.get(f"hit@{ks[0]}", []))),
+            }
+            for cat, metrics in sorted(cat_hits.items())
+        }
+
         correct = sum(1 for r in results if r.is_correct)
         accuracy = (correct / len(results)) if results else 0.0
         by_category = compute_accuracy_by_category(results)
@@ -245,5 +267,6 @@ class MemBenchBenchmark(BaseBenchmark):
                 "weight_importance": self.settings.weight_importance,
                 "weight_relevance": self.settings.weight_relevance,
                 "num_scenarios": len(scenarios),
+                "per_category_hit_at_k": per_category_hit_at_k,
             },
         )

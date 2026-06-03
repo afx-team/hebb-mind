@@ -1,6 +1,6 @@
 # 基准测试
 
-> **状态：** v0.1.2，进行中。LoCoMo、LongMemEval、ConvoMem 与 MemBench（noisy/movie）已全量覆盖；PersonaMem 仍是小样本切片，并在其页面上明确标注。请把 PersonaMem 当作冒烟测试，其余四个当作我们承诺会公开持续改进的真实基线。
+> **状态：** v0.1.2，进行中。LoCoMo、LongMemEval、ConvoMem 与 MemBench（11 类全量）已全量覆盖；PersonaMem 仍是小样本切片，并在其页面上明确标注。请把 PersonaMem 当作冒烟测试，其余四个当作我们承诺会公开持续改进的真实基线。
 
 Hebb Mind 在 `eval/` 提供一套可复现的评测 harness，让你（和我们）能在自己的硬件、自己的 LLM 上复跑每一个数字。本页记录我们今天测什么、不测什么，以及如何运行。
 
@@ -20,7 +20,7 @@ Hebb Mind 在 `eval/` 提供一套可复现的评测 harness，让你（和我�
   - [vs mem0](/zh/benchmarks/longmemeval/vs-mem0) —— 端到端 QA
   - [vs Zep / Graphiti](/zh/benchmarks/longmemeval/vs-zep) —— 检索 R@k + 端到端 QA
 - [ConvoMem](/benchmarks/convomem/) —— 6 类别证据检索（端到端 QA 判分）
-- [MemBench](/benchmarks/membench/) —— 轮次级检索，noisy/movie 切片（Hit@k）
+- [MemBench](/zh/benchmarks/membench/) —— 轮次级检索，11 类全量（Hit@k）
 - [PersonaMem](/benchmarks/personamem/) —— 偏好追踪；目前公开对比尚少
 
 ## 测的是什么

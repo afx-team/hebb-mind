@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import urllib.request
 from pathlib import Path
 
@@ -77,10 +78,26 @@ class MemBenchAdapter:
 
     def __init__(
         self,
-        categories: tuple[str, ...] = _DEFAULT_CATEGORIES,
-        topic: str = _DEFAULT_TOPIC,
+        categories: tuple[str, ...] | None = None,
+        topic: str | None = None,
         limit_per_category: int = 0,
     ) -> None:
+        # When the caller doesn't pin categories/topic (the CLI instantiates
+        # ``adapter_cls()`` with no args), fall back to env overrides so a
+        # full-category sweep needs no code edit:
+        #   MEMBENCH_CATEGORIES=all              → every category
+        #   MEMBENCH_CATEGORIES=noisy,simple,... → an explicit subset
+        #   MEMBENCH_TOPIC=""                    → keep all topic keys
+        if categories is None:
+            env_cats = os.environ.get("MEMBENCH_CATEGORIES", "").strip()
+            if env_cats == "all":
+                categories = tuple(CATEGORY_FILES.keys())
+            elif env_cats:
+                categories = tuple(c.strip() for c in env_cats.split(",") if c.strip())
+            else:
+                categories = _DEFAULT_CATEGORIES
+        if topic is None:
+            topic = os.environ.get("MEMBENCH_TOPIC", _DEFAULT_TOPIC)
         bad = [c for c in categories if c not in CATEGORY_FILES]
         if bad:
             raise ValueError(f"Unknown MemBench categories: {bad}")
