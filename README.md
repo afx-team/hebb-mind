@@ -196,6 +196,18 @@ Same-embedding lead: +1.74 pp at bge-large with no rerank, +3.35 pp with rerank;
 
 Retrieval R@5 = **99.0%**, tying MemPalace's best hybrid+rerank config (99.4%) and well above its raw 96.6% — on the same MiniLM-384 embedding. Hebb beats Zep at every retrieval depth (R@1 93.4% vs 75.9%) and leads its QA (79.0% vs 71.2%) with an *untuned* reader prompt; the gap to Mem0 is reader-prompt engineering, not memory — Hebb's retrieval is the stronger layer. <sup>¹ varies by source/setup.</sup>
 
+**MemBench** (ACL 2025; 11 categories, all topics, 11,996 questions) — turn-level Hit@5 against the dataset's `target_step_id` pointer, the metric MemPalace publishes. MCQ ground truth, so no LLM judge (random guessing alone scores 25%).
+
+| Category | Hebb Mind v0.1.6 Hit@5 | MemPalace Hit@5 | Δ |
+|---|---|---|---|
+| noisy | **79.4%** | 43.4% | +36.0 pp |
+| post_processing | **90.3%** | 56.6% | +33.7 pp |
+| conditional | **86.0%** | 57.3% | +28.7 pp |
+| highlevel_rec | **89.6%** | 76.2% | +13.4 pp |
+| **Overall (11 categories)** | **94.6%** | 80.3% | **+14.3 pp** |
+
+MiniLM-384 + bge-reranker-base. Hebb matches MemPalace on the easy categories (within ±4 pp) and wins decisively on all four hard ones — distractors, conditional reasoning, post-processing — exactly where verbatim-embedding retrieval collapses; the lever is the local cross-encoder rerank. Per-category k-curves on the docs site.
+
 Hebb Mind's eval calls the same Claude Code hook code paths (`integrations/claude_code/{write,stop}.py`) and `/api/v1/search` endpoint that the shipped product uses — the numbers above are what a user actually gets in production. Full methodology, per-category breakdowns, and prod-vs-eval-pipeline caveats: [hebb-mind.github.io/benchmarks](https://afx-team.github.io/hebb-mind/benchmarks/).
 
 ## Why "Hebb Mind"?

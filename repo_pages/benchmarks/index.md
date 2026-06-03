@@ -1,6 +1,6 @@
 # Benchmarks
 
-> **Status:** v0.1.2, work in progress. LoCoMo, LongMemEval, ConvoMem, and MemBench (noisy/movie) are full-coverage; PersonaMem is still a small-sample slice and clearly flagged on its page. Treat PersonaMem as smoke, the other four as real baselines we are committing to improve in the open.
+> **Status:** v0.1.2, work in progress. LoCoMo, LongMemEval, ConvoMem, and MemBench (all 11 categories) are full-coverage; PersonaMem is still a small-sample slice and clearly flagged on its page. Treat PersonaMem as smoke, the other four as real baselines we are committing to improve in the open.
 
 Hebb Mind ships a reproducible eval harness at `eval/` so you (and we) can re-run every number on your own hardware and your own LLM. This page documents what we measure today, what we don't, and how to run it.
 
@@ -19,7 +19,7 @@ This section is split **dataset first, then per-competitor**. Each dataset has i
   - [vs MemPalace](./longmemeval/vs-mempalace) — published R@5
   - [vs Zep / Graphiti](./longmemeval/vs-zep) — published R@5
 - [ConvoMem](./convomem/) — 6-category evidence retrieval (end-to-end QA judge)
-- [MemBench](./membench/) — turn-level retrieval, noisy/movie slice (Hit@k)
+- [MemBench](./membench/) — turn-level retrieval, all 11 categories (Hit@k)
 - [PersonaMem](./personamem/) — preference tracking; few public comparisons yet
 
 ## What gets measured

@@ -86,6 +86,7 @@ function guideSidebar(prefix = '') {
                     { text: 'vs Zep / Graphiti', link: `${prefix}/benchmarks/longmemeval/vs-zep` },
                   ],
                 },
+                { text: 'MemBench', link: `${prefix}/benchmarks/membench/` },
               ],
             }
           : {
@@ -114,6 +115,7 @@ function guideSidebar(prefix = '') {
                     { text: 'vs Zep / Graphiti', link: '/benchmarks/longmemeval/vs-zep' },
                   ],
                 },
+                { text: 'MemBench', link: '/benchmarks/membench/' },
                 { text: 'PersonaMem', link: '/benchmarks/personamem/' },
               ],
             },

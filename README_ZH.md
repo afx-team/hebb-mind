@@ -197,6 +197,18 @@ hebb config set pg_url postgresql://user:pass@localhost/hebb
 
 检索 R@5 = **99.0%**，在相同的 MiniLM-384 embedding 上追平 MemPalace 最佳「hybrid + 重排」配置（99.4%），远高于其 raw 96.6%。Hebb 在每个检索深度都胜过 Zep（R@1 93.4% vs 75.9%），并在 QA 上以**未调优**的 reader prompt 领先（79.0% vs 71.2%）；与 Mem0 的差距来自 reader prompt 工程，而非记忆 —— Hebb 的检索才是更强的一层。<sup>¹ 随来源/设置而变。</sup>
 
+**MemBench**（ACL 2025；11 类、所有 topic、共 11,996 题）—— 轮次级 Hit@5，对照数据集的 `target_step_id` 指针，与 MemPalace 同口径。Ground truth 是单选题，因此不用 LLM 判分（瞎猜也有 25%）。
+
+| 类别 | Hebb Mind v0.1.6 Hit@5 | MemPalace Hit@5 | Δ |
+|---|---|---|---|
+| noisy | **79.4%** | 43.4% | +36.0 pp |
+| post_processing | **90.3%** | 56.6% | +33.7 pp |
+| conditional | **86.0%** | 57.3% | +28.7 pp |
+| highlevel_rec | **89.6%** | 76.2% | +13.4 pp |
+| **总体（11 类）** | **94.6%** | 80.3% | **+14.3 pp** |
+
+MiniLM-384 + bge-reranker-base。Hebb 在简单类别上与 MemPalace 持平（±4 pp 以内），在全部四个困难类别上大幅领先 —— 干扰项、条件推理、后处理 —— 这些恰恰是「逐字存储 + embedding」检索会崩溃的地方；关键杠杆是本地 cross-encoder 重排。逐类别 k 曲线见文档站。
+
 Hebb Mind 的评测直接调用与生产同一份 Claude Code hook 代码路径（`integrations/claude_code/{write,stop}.py`）与 `/api/v1/search`，因此上表数字就是用户在生产环境里实际能拿到的数字。完整方法学、分类拆解、benchmark vs production 流水线差异的说明：[hebb-mind.github.io/benchmarks](https://afx-team.github.io/hebb-mind/benchmarks/)。
 
 ## 为什么叫 "Hebb Mind"？
