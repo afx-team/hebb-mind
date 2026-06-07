@@ -21,7 +21,7 @@ arguments:
 
 Stage and commit pending changes with a conventional-commits message. **Does not push.** For push + PR, use `/push-to-github` after.
 
-This repo uses **release-please** — commit messages must follow conventional-commits because release-please parses them to bump version + write `CHANGELOG.md`.
+This repo follows **conventional-commits** for a consistent history that maps cleanly onto the manually-maintained `CHANGELOG.md` sections (Added / Fixed / Performance / Changed / Documentation). Releases are manual — versioning and the changelog are bumped by hand on release (the release-please automation was removed).
 
 ---
 
