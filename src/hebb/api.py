@@ -56,6 +56,7 @@ from hebb.models.memory import (
 )
 from hebb.retrieval.searcher import MemorySearcher
 from hebb.storage.base import MemoryStore, PartitionStore
+from hebb.storage.purge import purge_memory
 
 logger = logging.getLogger(__name__)
 
@@ -416,8 +417,11 @@ class HebbMind:
             StorageError: On backend failure.
         """
         self._ensure_started()
+        assert self._knowledge_graph is not None, "delete requires _ensure_started()"
         try:
-            ok = self._run(self._memory_store.delete(memory_id))
+            # purge_memory keeps SQL + vec0 + FTS5 + the knowledge graph in sync
+            # — the same invariant the REST/scheduler paths use.
+            ok = self._run(purge_memory(self._memory_store, self._knowledge_graph, memory_id))
         except Exception as exc:  # noqa: BLE001
             raise StorageError(f"Memory delete failed: {exc}") from exc
         if not ok:

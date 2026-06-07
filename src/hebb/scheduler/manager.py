@@ -18,6 +18,7 @@ from hebb.graph.knowledge_graph import KnowledgeGraph
 from hebb.scheduler.consolidation_job import run_consolidation
 from hebb.scheduler.forgetting_job import compute_expires_at
 from hebb.storage.base import MemoryStore, PartitionStore
+from hebb.storage.purge import purge_memory
 from hebb.upgrade.checker import run_check as run_upgrade_check
 
 logger = logging.getLogger(__name__)
@@ -118,8 +119,9 @@ class SchedulerManager:
                     # Update the stored expires_at for visibility
                     await self.memory_store.update_expiry(memory.id, expires_at.isoformat())
                     if expires_at < now:
-                        await self.memory_store.delete(memory.id)
-                        self.knowledge_graph.remove_memory_from_tags(memory.id)
+                        # save=False: persist the graph once after the sweep,
+                        # not per memory (avoids an O(nodes) write per delete).
+                        await purge_memory(self.memory_store, self.knowledge_graph, memory.id, save=False)
                         total_deleted += 1
 
             if total_deleted > 0:

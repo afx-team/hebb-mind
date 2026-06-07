@@ -521,6 +521,97 @@ class TestTranscript:
         assert summary is not None
         assert summary.tools == ["Grep", "Read"]
 
+    def test_ignores_subagent_sidechain_lines(self, tmp_path: Path):
+        """Subagent (Task) turns are written into the same JSONL tagged
+        isSidechain:true. They must not contaminate the stored turn: the human
+        prompt stays user_input and only main-agent tools are collected."""
+        path = self._write_jsonl(
+            tmp_path,
+            [
+                {
+                    "type": "user",
+                    "isSidechain": False,
+                    "message": {
+                        "role": "user",
+                        "content": [{"type": "text", "text": "What is the capital of France?"}],
+                    },
+                },
+                {
+                    "type": "assistant",
+                    "isSidechain": False,
+                    "message": {
+                        "role": "assistant",
+                        "content": [{"type": "tool_use", "name": "Task", "id": "a1", "input": {}}],
+                    },
+                },
+                # --- subagent sidechain: must be dropped entirely ---
+                {
+                    "type": "user",
+                    "isSidechain": True,
+                    "message": {
+                        "role": "user",
+                        "content": [{"type": "text", "text": "Search the codebase for capital lookups"}],
+                    },
+                },
+                {
+                    "type": "assistant",
+                    "isSidechain": True,
+                    "message": {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "tool_use", "name": "Grep", "id": "s1", "input": {}},
+                            {"type": "tool_use", "name": "mcp__hebb__search_memory", "id": "s2", "input": {}},
+                        ],
+                    },
+                },
+                # --- main agent resumes after the subagent ---
+                {
+                    "type": "assistant",
+                    "isSidechain": False,
+                    "message": {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "text", "text": "Paris."},
+                            {"type": "tool_use", "name": "Edit", "id": "a2", "input": {}},
+                        ],
+                    },
+                },
+            ],
+        )
+        summary = extract_last_turn(path)
+        assert summary is not None
+        # The human prompt is anchored, NOT the subagent's task prompt.
+        assert summary.user_input == "What is the capital of France?"
+        assert summary.assistant_output == "Paris."
+        # Only main-agent tools; subagent Grep / MCP are excluded. Assert
+        # membership (order is last-assistant-first then earlier assistants).
+        assert set(summary.tools) == {"Task", "Edit"}
+        assert "Grep" not in summary.tools
+        assert summary.mcps == []
+        # Turn index counts only the human turn (the sidechain user is dropped).
+        assert summary.turn == 0
+
+    def test_missing_issidechain_key_treated_as_main_agent(self, tmp_path: Path):
+        """Lines without an isSidechain key (legacy transcripts and every
+        existing fixture) are main-agent and must parse exactly as before."""
+        path = self._write_jsonl(
+            tmp_path,
+            [
+                {
+                    "type": "user",
+                    "message": {"role": "user", "content": [{"type": "text", "text": "Explain recursion"}]},
+                },
+                {
+                    "type": "assistant",
+                    "message": {"role": "assistant", "content": [{"type": "text", "text": "It calls itself."}]},
+                },
+            ],
+        )
+        summary = extract_last_turn(path)
+        assert summary is not None
+        assert summary.user_input == "Explain recursion"
+        assert summary.assistant_output == "It calls itself."
+
     def test_strips_system_noise_from_user_input(self, tmp_path: Path):
         path = self._write_jsonl(
             tmp_path,

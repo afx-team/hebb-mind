@@ -10,6 +10,12 @@ Message bodies live under ``message.content`` — a list of typed blocks:
 - ``{"type": "tool_result", ...}``                  → tool output (in user msgs)
 
 MCP tools follow the naming convention ``mcp__<server>__<tool>``.
+
+Subagent (Task tool) turns are written into the *same* session JSONL as the
+main agent, tagged ``"isSidechain": true``. The Stop hook records the human's
+turn, so those machine-authored lines are dropped at load time (see
+``_is_sidechain``) — otherwise a subagent's task prompt could be stored as the
+user input and its tool calls would leak into the turn summary.
 """
 
 from __future__ import annotations
@@ -72,9 +78,18 @@ def extract_last_turn(transcript_path: str | Path) -> TurnSummary | None:
                 if not line:
                     continue
                 try:
-                    messages.append(json.loads(line))
+                    obj = json.loads(line)
                 except json.JSONDecodeError:
                     continue
+                # Drop subagent (Task tool) lines: the Stop hook records the
+                # human turn, not a subagent's internal turns. Filtering here —
+                # the single point where the transcript is loaded — fixes the
+                # user-input anchor, the turn index, and the tool/mcp lists at
+                # once, since the rest of the parser then only sees main-agent
+                # messages.
+                if _is_sidechain(obj):
+                    continue
+                messages.append(obj)
     except OSError:
         logger.debug("Could not read transcript: %s", path, exc_info=True)
         return None
@@ -182,6 +197,22 @@ def format_turn_memory(
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def _is_sidechain(msg: dict[str, Any]) -> bool:
+    """True when a transcript line belongs to a subagent (Task tool) sidechain.
+
+    Claude Code writes subagent turns into the same session JSONL as the main
+    agent, tagged ``"isSidechain": true``. A missing key denotes a main-agent
+    line, so legacy transcripts (and every existing fixture) are unaffected.
+
+    Args:
+        msg: A parsed transcript line.
+
+    Returns:
+        ``True`` if the line is a subagent sidechain message.
+    """
+    return bool(msg.get("isSidechain", False))
 
 
 def _is_storable_user_text(cleaned: str) -> bool:

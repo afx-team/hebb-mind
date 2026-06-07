@@ -20,6 +20,7 @@ from hebb.embedding.base import EmbeddingProvider
 from hebb.graph.knowledge_graph import KnowledgeGraph
 from hebb.models.memory import Memory, MemoryCreate, MemoryMetadata, MemoryUpdate
 from hebb.storage.base import MemoryStore, PartitionStore
+from hebb.storage.purge import purge_memory
 
 logger = logging.getLogger(__name__)
 
@@ -137,8 +138,8 @@ class ConsolidationAgent:
                     )
                     result.conflicts_resolved += 1
                 elif resolution == "discard":
-                    # New memory is redundant, just delete from hebb
-                    await self.memory_store.delete(memory.id)
+                    # New memory is redundant — delete it from every store.
+                    await purge_memory(self.memory_store, self.kg, memory.id)
                     result.success = True
                     result.target_partition = "discarded"
                     return result
@@ -157,12 +158,15 @@ class ConsolidationAgent:
                 embedding=embedding,
             )
 
-            # Step 6: Update knowledge graph
+            # Step 6: Update knowledge graph with the new consolidated memory.
             self.kg.update_from_tags(tags, new_memory.id)
-            self.kg.save()
 
-            # Step 7: Delete from hebb
-            await self.memory_store.delete(memory.id)
+            # Step 7: Delete the source memory from every store (SQL + graph).
+            # purge_memory strips the source id from the graph too — a no-op
+            # unless the source was itself graphed (in-partition
+            # re-consolidation) — and its kg.save() persists both the new tags
+            # and the removal in one write.
+            await purge_memory(self.memory_store, self.kg, memory.id)
 
             result.target_partition = target_partition
             result.new_memory_id = new_memory.id
@@ -342,9 +346,26 @@ class ConsolidationAgent:
                     )
                 )
 
-            # Delete all source memories from hebb
-            for m in memories:
-                await self.memory_store.delete(m.id)
+            # Delete the source memories — but ONLY if we actually produced
+            # consolidated output. A successful-but-empty LLM response (no
+            # "memories", or every item skipped for empty content) must NOT wipe
+            # the sources: that is silent data loss with zero replacement. Keep
+            # them in the working partition for the next consolidation pass.
+            if results:
+                for m in memories:
+                    await self.memory_store.delete(m.id)
+                    # Strip the source id from the graph (no-op unless the
+                    # source was itself graphed, i.e. in-partition
+                    # re-consolidation). The per-session kg.save() in
+                    # consolidate_batch persists it.
+                    self.kg.remove_memory_from_tags(m.id)
+            else:
+                logger.warning(
+                    "Session %s: consolidation produced no output memories; "
+                    "keeping %d source memories for the next pass (not deleting)",
+                    session_id,
+                    len(memories),
+                )
 
             logger.info(
                 "Session %s: %d turns → %d memories",
@@ -493,6 +514,8 @@ class ConsolidationAgent:
                     )
                     result.conflicts_resolved += 1
                 elif resolution == "discard":
+                    async with kg_lock:
+                        self.kg.remove_memory_from_tags(memory.id)
                     await self.memory_store.delete(memory.id)
                     result.success = True
                     result.target_partition = "discarded"
@@ -513,6 +536,10 @@ class ConsolidationAgent:
 
             async with kg_lock:
                 self.kg.update_from_tags(tags, new_memory.id)
+                # Strip the source id under the same lock (no-op unless the
+                # source was graphed via in-partition re-consolidation). The
+                # end-of-batch kg.save() persists it.
+                self.kg.remove_memory_from_tags(memory.id)
 
             await self.memory_store.delete(memory.id)
 
