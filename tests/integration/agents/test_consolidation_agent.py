@@ -136,6 +136,55 @@ class TestConsolidationAgent:
         assert meta["timestamp"] == "2023-08-01T10:00:00+00:00"
 
     @pytest.mark.asyncio
+    async def test_session_consolidation_empty_output_keeps_sources(
+        self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path
+    ):
+        """A successful-but-empty LLM response must NOT delete the source
+        memories — wiping them with no replacement is silent data loss."""
+        kg = KnowledgeGraph(tmp_path / "kg.json")
+
+        m1 = await memory_store.create(
+            MemoryCreate(
+                content="turn one",
+                partition_id="mem_hippocampus",
+                metadata=MemoryMetadata.model_validate({"session_id": "s9", "turn": 0}),
+            )
+        )
+        m2 = await memory_store.create(
+            MemoryCreate(
+                content="turn two",
+                partition_id="mem_hippocampus",
+                metadata=MemoryMetadata.model_validate({"session_id": "s9", "turn": 1}),
+            )
+        )
+
+        mock_llm.complete_json.side_effect = [
+            {"queries": []},  # RecallAgent
+            {"memories": []},  # consolidation returns nothing usable
+        ]
+
+        recall_agent = RecallAgent(
+            llm=mock_llm,
+            searcher=MemorySearcher(store=memory_store, embedder=noop_embedder),
+        )
+        agent = ConsolidationAgent(
+            llm=mock_llm,
+            recall_agent=recall_agent,
+            memory_store=memory_store,
+            partition_store=partition_store,
+            knowledge_graph=kg,
+            embedder=noop_embedder,
+        )
+
+        results = await agent.consolidate_session([m1, m2])
+
+        # No consolidated output...
+        assert results == []
+        # ...so both sources must still exist (not wiped).
+        assert await memory_store.get(m1.id) is not None
+        assert await memory_store.get(m2.id) is not None
+
+    @pytest.mark.asyncio
     async def test_consolidate_batch_empty(self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path):
         """Batch consolidation with no hebb memories returns empty list."""
         kg = KnowledgeGraph(tmp_path / "kg.json")

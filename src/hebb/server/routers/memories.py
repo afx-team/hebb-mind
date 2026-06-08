@@ -16,6 +16,7 @@ from hebb.server.dependencies import (
     get_memory_store,
 )
 from hebb.storage.base import MemoryStore
+from hebb.storage.purge import purge_memory
 
 router = APIRouter()
 
@@ -99,11 +100,9 @@ async def delete_memory(
     store: MemoryStore = Depends(get_memory_store),
     kg: KnowledgeGraph = Depends(get_knowledge_graph),
 ):
-    deleted = await store.delete(memory_id)
+    deleted = await purge_memory(store, kg, memory_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Memory not found")
-    kg.remove_memory_from_tags(memory_id)
-    kg.save()
 
 
 @router.post("/ingest", response_model=IngestResponse, status_code=201)
