@@ -15,6 +15,7 @@ Covers:
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -120,6 +121,7 @@ def test_windows_task_xml_escapes_metachars(tmp_path: Path, monkeypatch: pytest.
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="launchd is macOS-only")
 def test_launchd_stop_uses_bootout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     calls: list[list[str]] = []
 
