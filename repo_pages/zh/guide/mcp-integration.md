@@ -18,6 +18,11 @@ hebb service install    # 注册后台服务（默认用户级，无需管理员
 | `write_memory` | 写入记忆到海马体工作区 | `content`, `tags?`, `importance?` |
 | `search_memory` | 混合检索（向量+关键词+图谱） | `query`, `top_k?` |
 | `consolidate` | 触发记忆巩固 | 无 |
+| `ingest_conversation` | 摄入一段对话导出（Claude Code JSONL / ChatGPT JSON / 纯文本）—— 自动识别格式、规整每一轮、逐轮存储 | `content`, `format_hint?`, `importance?` |
+
+::: tip 关于 `command` 路径
+下面所有 `.mcp.json` / `claude_desktop_config.json` 示例为简洁起见写的是裸 `hebb-mcp`。**对桌面 GUI 应用（Claude Desktop、Cursor）以及由 launchd 拉起的进程，请改填绝对路径** —— 这类环境的 `PATH` 往往不含 pipx 的 bin 目录，裸命令会静默启动失败。先用 `which hebb-mcp`（Windows：`where hebb-mcp`）查出路径，例如 `/Users/you/.local/bin/hebb-mcp`。或者直接走 `hebb claude-code install` / `hebb codex install`，安装器会自动解析绝对路径。
+:::
 
 ## 配置
 
@@ -35,13 +40,13 @@ hebb claude-code install --scope user
 
 仅 MCP：
 
-在项目目录下创建 `.mcp.json`：
+在项目目录下创建 `.mcp.json`（把 `/absolute/path/to/hebb-mcp` 替换为 `which hebb-mcp` 的输出）：
 
 ```json
 {
   "mcpServers": {
     "hebb": {
-      "command": "hebb-mcp"
+      "command": "/absolute/path/to/hebb-mcp"
     }
   }
 }
@@ -55,7 +60,7 @@ hebb claude-code install --scope user
 {
   "mcpServers": {
     "hebb": {
-      "command": "hebb-mcp",
+      "command": "/absolute/path/to/hebb-mcp",
       "env": {
         "HEBB_URL": "http://192.168.1.100:8321"
       }
@@ -69,25 +74,25 @@ hebb claude-code install --scope user
 推荐：
 
 ```bash
-hebb codex install --scope user
+hebb codex install   # Codex 全局注册 MCP 服务（仅全局）
 codex mcp list
 ```
 
-Codex 原生命令：
+Codex 原生命令（建议传 `hebb-mcp` 的绝对路径）：
 
 ```bash
-codex mcp add hebb -- hebb-mcp
+codex mcp add hebb -- "$(which hebb-mcp)"
 ```
 
 ### Claude Desktop
 
-在 `claude_desktop_config.json`（macOS 通常位于 `~/Library/Application Support/Claude/claude_desktop_config.json`）中添加：
+在 `claude_desktop_config.json`（macOS 通常位于 `~/Library/Application Support/Claude/claude_desktop_config.json`）中添加。Claude Desktop 是 GUI 应用，因此**必须**填 `hebb-mcp` 的绝对路径（取自 `which hebb-mcp`）：
 
 ```json
 {
   "mcpServers": {
     "hebb": {
-      "command": "hebb-mcp"
+      "command": "/absolute/path/to/hebb-mcp"
     }
   }
 }
@@ -95,13 +100,13 @@ codex mcp add hebb -- hebb-mcp
 
 ### Cursor
 
-打开 **Settings → Features → MCP**，添加：
+打开 **Settings → Features → MCP**，添加（Cursor 是 GUI 应用 —— 请用 `which hebb-mcp` 给出的绝对路径）：
 
 ```json
 {
   "mcpServers": {
     "hebb": {
-      "command": "hebb-mcp"
+      "command": "/absolute/path/to/hebb-mcp"
     }
   }
 }

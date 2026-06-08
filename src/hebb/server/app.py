@@ -18,6 +18,7 @@ from hebb.graph.knowledge_graph import KnowledgeGraph
 from hebb.retrieval.rerank import create_reranker
 from hebb.retrieval.searcher import MemorySearcher
 from hebb.scheduler.manager import SchedulerManager
+from hebb.server.auth import AntiCsrfMiddleware
 from hebb.storage.factory import create_stores
 
 logger = logging.getLogger(__name__)
@@ -98,6 +99,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Shutdown
     scheduler.shutdown()
     kg.save()
+    # Release embedder resources (e.g. the async HTTP client of an API/custom
+    # embedder). aclose() is added by the embedding layer (INT-3); guard with
+    # hasattr so embedders that don't define it (local sentence-transformers)
+    # are unaffected.
+    if hasattr(embedder, "aclose"):
+        await embedder.aclose()
     await ctx.close()
     logger.info("Hebb Mind shut down")
 
@@ -111,13 +118,24 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # CORS is restricted to the console's own loopback origins, and credentials
+    # are disabled — the console is served same-origin from this process and
+    # uses no cookies, so the insecure ``allow_origins=["*"] + credentials``
+    # combo (which let any webpage read responses) is gone. Origins are derived
+    # from the configured port at startup.
+    settings = load_settings()
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origins=settings.allowed_origins(),
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Anti-CSRF / drive-by guard (INT-1): reject cross-origin browser requests to
+    # state-changing or secret-exposing routes. Applied globally so every router
+    # is covered without per-route auth.
+    app.add_middleware(AntiCsrfMiddleware)
 
     from hebb.server.routers import (
         admin,

@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from typing import Any
 
 import httpx
@@ -39,6 +40,25 @@ logger = logging.getLogger(__name__)
 
 INPUT_TOKEN = "{{input}}"
 TEXT_TOKEN = "{{text}}"
+
+
+def _l2_normalize(vector: list[float]) -> list[float]:
+    """Return ``vector`` scaled to unit L2 norm.
+
+    The vector-store cosine conversion (``cosine = 1 - d²/2``) only holds for
+    unit vectors, so every provider must return normalized embeddings. A
+    zero (or empty) vector is returned unchanged to avoid division by zero.
+
+    Args:
+        vector: The raw embedding to normalize.
+
+    Returns:
+        The unit-norm embedding, or the input unchanged if its norm is zero.
+    """
+    norm = math.sqrt(sum(v * v for v in vector))
+    if norm == 0.0:
+        return vector
+    return [v / norm for v in vector]
 
 
 def parse_headers(raw: str | None) -> dict[str, str]:
@@ -217,7 +237,7 @@ class CustomHttpEmbedder:
                     f"custom HTTP embedding returned {len(vectors)} vectors for {len(texts)} inputs; "
                     "check the response_path and that the endpoint preserves input order"
                 )
-            return vectors
+            return [_l2_normalize(v) for v in vectors]
 
         # Per-text mode: one request per input via the {{text}} placeholder.
         out: list[list[float]] = []
@@ -225,5 +245,15 @@ class CustomHttpEmbedder:
             payload, _ = render_body(self.body_template, texts=[text])
             response = await self._request(payload)
             vectors = extract_vectors(response, self.response_path)
-            out.append(vectors[0])
+            out.append(_l2_normalize(vectors[0]))
         return out
+
+    async def aclose(self) -> None:
+        """Close the underlying ``httpx.AsyncClient`` if one was opened.
+
+        Safe to call multiple times; the client handle is cleared so a
+        subsequent embed call lazily re-creates it.
+        """
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None

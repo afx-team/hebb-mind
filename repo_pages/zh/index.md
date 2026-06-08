@@ -19,7 +19,7 @@ hero:
 features:
   - icon: ⚡
     title: 60 秒本地启动
-    details: "pipx install + hebb setup + hebb service install。SQLite + sentence-transformers，零外部服务。写入与混合检索完全不依赖 API Key。"
+    details: "pipx install + hebb setup + hebb service install。首次运行仅在尚未缓存时下载一个小 Embedding 模型（英文约 90MB / 多语言约 470MB）。SQLite + sentence-transformers，零外部服务。写入与混合检索完全不依赖 API Key。"
   - icon: 🧠
     title: 巩固时解决冲突
     details: 巩固代理会合并重复、覆盖过时事实，而非简单追加。通过 LiteLLM 接入任意 LLM（OpenAI / Claude / 通义千问 / GLM / Kimi …）。
@@ -118,7 +118,7 @@ features:
     <code>pipx install hebb-mind && hebb setup && hebb service install</code>
     <button class="hippo-copy" onclick="navigator.clipboard.writeText('pipx install hebb-mind && hebb setup && hebb service install');this.innerHTML='<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;20 6 9 17 4 12&quot;/></svg>';setTimeout(()=>{this.innerHTML='<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><rect x=&quot;9&quot; y=&quot;9&quot; width=&quot;13&quot; height=&quot;13&quot; rx=&quot;2&quot;/><path d=&quot;M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1&quot;/></svg>'},1200)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
   </div>
-  <div class="hippo-install-hint">还没装 <code>pipx</code>？ <a href="/zh/guide/installation#如果还没装-pipx">一次性安装</a>（brew / apt / dnf / python -m pip）。然后打开 <a href="http://localhost:8321/">http://localhost:8321/</a>。需要 LLM 巩固时见 <a href="/zh/quick-start#路径-b-5-分钟-启用-llm-巩固">5 分钟路径</a>。</div>
+  <div class="hippo-install-hint">首次运行会下载一个小模型（英文约 90MB / 多语言约 470MB），仅当尚未缓存时才下载 —— 英文 / <code>fast</code> 路径约一分钟，多语言略久。想要高质量的 bge 模型（1–2GB）？用 <code>hebb setup --profile best</code>。还没装 <code>pipx</code>？ <a href="/zh/guide/installation#如果还没装-pipx">一次性安装</a>（brew / apt / dnf / python -m pip）。然后打开 <a href="http://localhost:8321/">http://localhost:8321/</a>。需要 LLM 巩固时见 <a href="/zh/quick-start#路径-b-5-分钟-启用-llm-巩固">5 分钟路径</a>。</div>
 </div>
 
 <!-- TODO(asset): screenshot of /index.html web console with sample memories. Save as repo_pages/public/web-console-hero.png, then uncomment the block below. -->

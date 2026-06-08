@@ -408,6 +408,32 @@ class PGMemoryStore:
                 memory_id,
             )
 
+    async def update_expiry_batch(self, items: _List[tuple[str, str]]) -> None:
+        """Set ``expires_at`` for several memories under one transaction.
+
+        The forgetting sweep recomputes a TTL for every surviving memory each
+        pass; per-row ``update_expiry`` round-trips would be a query storm and
+        leave the sweep non-atomic. This applies all updates as a single
+        ``executemany`` inside one transaction (INT-6).
+
+        Args:
+            items: ``(memory_id, expires_at_iso)`` pairs. ``expires_at_iso`` is
+                an ISO-8601 timestamp string (the same form ``update_expiry``
+                accepts).
+
+        Returns:
+            None.
+        """
+        if not items:
+            return
+        params = [(datetime.fromisoformat(expires_at), memory_id) for memory_id, expires_at in items]
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.executemany(
+                    "UPDATE memories SET expires_at = $1 WHERE id = $2",
+                    params,
+                )
+
 
 class PGPartitionStore:
     """PostgreSQL-backed partition store."""

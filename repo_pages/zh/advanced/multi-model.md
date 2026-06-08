@@ -61,7 +61,7 @@ hebb config set llm_api_key sk-your-kimi-key
 配置完成后，可以通过 API 测试 LLM 连接：
 
 ```bash
-curl -X POST http://localhost:8321/api/v1/config/test-llm \
+curl -X POST http://localhost:8321/api/v1/admin/config/test-llm \
   -H "Content-Type: application/json" \
   -d '{
     "model": "openai/gpt-4o-mini",
@@ -73,10 +73,15 @@ curl -X POST http://localhost:8321/api/v1/config/test-llm \
 
 ## Embedding 模型
 
-Embedding 模型使用本地的 `sentence-transformers` 运行，不依赖外部 API 调用。`hebb setup` 会根据内容语言选择默认模型：
+Embedding 模型使用本地的 `sentence-transformers` 运行，不依赖外部 API 调用。`hebb setup` 会根据内容语言与 `--profile` 选择默认模型。裸 `hebb setup`（`--profile default`）只下载**小模型**，避免首次运行就拉取数 GB 权重：
 
-- 英语：`BAAI/bge-large-en-v1.5`
-- 中文或多语言：`BAAI/bge-m3`
+| Profile | 英语 | 中文 / 多语言 |
+|---------|------|-------------|
+| `default`（默认） | `all-MiniLM-L6-v2`（约 90MB） | `intfloat/multilingual-e5-small`（约 470MB） |
+| `fast` | `all-MiniLM-L6-v2`（约 90MB） | `all-MiniLM-L6-v2`（约 90MB） |
+| `best` | `BAAI/bge-large-en-v1.5`（1–2GB） | `BAAI/bge-m3`（1–2GB） |
+
+如需更高检索质量，再显式运行 `hebb setup --profile best` 拉取 bge 系列大模型。模型仅在本地尚未缓存时才下载，已缓存则直接复用。
 
 下载区域与语言独立。例如英语内容但在国内网络可用 `hebb setup --language en --region cn`，中文内容但在海外网络可用 `hebb setup --language zh --region global`。
 

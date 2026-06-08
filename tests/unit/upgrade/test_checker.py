@@ -12,7 +12,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from hebb.upgrade import checker, state as upgrade_state
+from hebb.upgrade import checker
+from hebb.upgrade import state as upgrade_state
 
 
 def test_parse_stable_versions_excludes_prereleases() -> None:

@@ -16,12 +16,20 @@ def codex() -> None:
 
 
 @codex.command("install")
-@click.option("--scope", type=click.Choice(["user", "project"]), default="user", show_default=True)
+@click.option(
+    "--scope",
+    type=click.Choice(["user"]),
+    default="user",
+    show_default=True,
+    help="Codex stores MCP servers globally in its config; only 'user' (global) is supported.",
+)
 def install(scope: str) -> None:
-    """Install Hebb Mind MCP into Codex."""
+    """Install Hebb Mind MCP into Codex.
+
+    Codex registers MCP servers globally via ``codex mcp add`` — there is no
+    per-project scope, so this command is global-only.
+    """
     _ensure_codex()
-    if scope == "project":
-        click.secho("Codex CLI currently stores MCP servers in its config; using codex mcp add.", fg="yellow")
 
     # Resolve absolute path to hebb-mcp — Codex launches the MCP server as a
     # subprocess whose PATH may not include `pip install --user` bin dirs.
@@ -38,12 +46,16 @@ def install(scope: str) -> None:
 
 
 @codex.command("uninstall")
-@click.option("--scope", type=click.Choice(["user", "project"]), default="user", show_default=True)
+@click.option(
+    "--scope",
+    type=click.Choice(["user"]),
+    default="user",
+    show_default=True,
+    help="Codex stores MCP servers globally in its config; only 'user' (global) is supported.",
+)
 def uninstall(scope: str) -> None:
-    """Remove Hebb Mind MCP from Codex."""
+    """Remove Hebb Mind MCP from Codex (global-only)."""
     _ensure_codex()
-    if scope == "project":
-        click.secho("Codex CLI currently removes MCP servers from its config; using codex mcp remove.", fg="yellow")
 
     result = subprocess.run(["codex", "mcp", "remove", "hebb"], check=False)
     if result.returncode != 0:

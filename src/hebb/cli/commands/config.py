@@ -122,11 +122,50 @@ def config_path() -> None:
         raise SystemExit(1)
 
 
+# Sensitive config keys masked by `hebb config list` / `get`. Kept in sync with
+# the server side (server/routers/config.py SENSITIVE_KEYS): embedding_http_headers
+# carries a bearer token and pg_url embeds a password.
+_SENSITIVE_KEYS = ("llm_api_key", "pg_url", "embedding_api_key", "embedding_http_headers")
+
+
+def _mask_pg_url(url: str) -> str:
+    """Mask the password in a PostgreSQL URL, preserving the rest for diagnosis.
+
+    Args:
+        url: A connection URL, e.g. ``postgresql://user:secret@host:5432/db``.
+
+    Returns:
+        The URL with the password component replaced by ``****``. If the URL has
+        no userinfo password, it is returned with the whole value masked.
+    """
+    # scheme://user:password@host/...  -> mask only the password segment.
+    if "@" in url and "://" in url:
+        scheme, rest = url.split("://", 1)
+        userinfo, _, hostpart = rest.partition("@")
+        if ":" in userinfo:
+            user, _, _ = userinfo.partition(":")
+            return f"{scheme}://{user}:****@{hostpart}"
+    return "****"
+
+
 def _mask(key: str, value: object) -> str:
-    """Mask sensitive values for display."""
+    """Mask sensitive values for display.
+
+    Args:
+        key: The config key.
+        value: The raw value.
+
+    Returns:
+        A display string with any secret hidden. Non-empty secrets are masked
+        unconditionally (no length gate); pg_url keeps its non-secret parts.
+    """
     if value is None:
         return "[dim]null[/]"
     s = str(value)
-    if key in ("llm_api_key", "pg_url", "embedding_api_key") and len(s) > 8:
-        return s[:4] + "****" + s[-4:]
+    if not s:
+        return s
+    if key == "pg_url":
+        return _mask_pg_url(s)
+    if key in _SENSITIVE_KEYS:
+        return "****"
     return s

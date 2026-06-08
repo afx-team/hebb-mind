@@ -11,17 +11,18 @@ This script walks through the core SDK surface:
 Run it
 ------
 
-    # Default DB at examples/data/example.db
+    # Default workspace at examples/data/ (DB lands at examples/data/hebb.db)
     python examples/01_python_sdk_basics.py
 
-    # Wipe the example DB before running (re-runnable)
+    # Wipe the example workspace before running (re-runnable)
     python examples/01_python_sdk_basics.py --reset
 
-    # Or point at any path you like
-    python examples/01_python_sdk_basics.py --db-path /tmp/hippo.db --reset
+    # Or point at any workspace directory you like
+    python examples/01_python_sdk_basics.py --home /tmp/hebb-demo --reset
 
-The script never makes a network call on import — everything happens inside
-``main()``.
+The facade resolves its workspace from ``$HEBB_HOME`` (a directory); the DB
+always lives at ``<workspace>/hebb.db``. The script never makes a network call
+on import — everything happens inside ``main()``.
 """
 
 from __future__ import annotations
@@ -32,13 +33,13 @@ from pathlib import Path
 
 from hebb import HebbMind
 
-DEFAULT_DB_PATH = Path("examples/data/example.db")
+DEFAULT_HOME = Path("examples/data")
 
 SEED_MEMORIES: list[tuple[str, str, list[str]]] = [
     # (content, partition, tags)
     ("Python's GIL serializes bytecode execution within a single process.", "mem_semantic", ["python"]),
     ("RAG = Retrieval-Augmented Generation; retrieve docs then condition the LLM.", "mem_semantic", ["rag"]),
-    ("On 2026-04-19 I shipped the v0.1.1 launch prep PR.", "mem_episodic", ["release"]),
+    ("On 2026-04-19 I shipped the launch prep PR.", "mem_episodic", ["release"]),
     ("I prefer dark mode and 2-space indentation in my editor.", "mem_preference", ["ui"]),
     ("To restart the local server: `hebb service restart`.", "mem_procedural", ["cli"]),
 ]
@@ -46,30 +47,32 @@ SEED_MEMORIES: list[tuple[str, str, list[str]]] = [
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--db-path", type=Path,
-                        default=Path(os.environ.get("HEBB_DB_PATH", DEFAULT_DB_PATH)),
-                        help="SQLite database path (default: examples/data/example.db).")
+    parser.add_argument("--home", type=Path,
+                        default=Path(os.environ.get("HEBB_HOME", DEFAULT_HOME)),
+                        help="Workspace directory (default: examples/data). "
+                             "The DB lives at <home>/hebb.db.")
     parser.add_argument("--reset", action="store_true",
-                        help="Delete the DB file before running so the demo starts clean.")
+                        help="Delete the example DB before running so the demo starts clean.")
     return parser.parse_args()
 
 
-def reset_db(db_path: Path) -> None:
-    """Wipe the example DB so re-runs start from a clean slate."""
+def reset_db(home: Path) -> None:
+    """Wipe the example workspace DB so re-runs start from a clean slate."""
+    home.mkdir(parents=True, exist_ok=True)
+    db_path = home / "hebb.db"
     if db_path.exists():
         db_path.unlink()
         print(f"[reset] removed {db_path}")
-    db_path.parent.mkdir(parents=True, exist_ok=True)
 
 
 def main() -> None:
     args = parse_args()
+    args.home.mkdir(parents=True, exist_ok=True)
     if args.reset:
-        reset_db(args.db_path)
-    args.db_path.parent.mkdir(parents=True, exist_ok=True)
+        reset_db(args.home)
 
-    # The facade picks up HEBB_DB_PATH from env if not passed explicitly.
-    os.environ.setdefault("HEBB_DB_PATH", str(args.db_path))
+    # The facade resolves its workspace (and therefore the DB path) from HEBB_HOME.
+    os.environ.setdefault("HEBB_HOME", str(args.home.resolve()))
     hc = HebbMind()
 
     # 1. Seed five memories across four partitions ---------------------------
@@ -90,15 +93,18 @@ def main() -> None:
         print(f"    {rank}. score={score:.3f}  {mem.content[:80]}")
 
     # 3. List by partition ----------------------------------------------------
+    # hc.list() returns a (memories, total) tuple — unpack it.
     print("\n[3/5] Listing mem_preference partition:")
-    for mem in hc.list(partition="mem_preference"):
+    prefs, _total = hc.list(partition="mem_preference")
+    for mem in prefs:
         print(f"    - {mem.content}")
 
     # 4. Delete one and confirm ----------------------------------------------
     target = ids[0]
     print(f"\n[4/5] Deleting id={target[:8]}...")
     hc.delete(target)
-    remaining = {m.id for m in hc.list()}
+    all_mems, _ = hc.list()
+    remaining = {m.id for m in all_mems}
     assert target not in remaining, "Delete did not take effect"
     print(f"    confirmed gone (now have {len(remaining)} memories)")
 

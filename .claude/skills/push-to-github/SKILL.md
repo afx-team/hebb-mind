@@ -31,7 +31,7 @@ This skill **does not look at the working tree** at all. Uncommitted files are t
 - MUST NOT inspect or report on working-tree cleanliness as a precondition.
 - MUST NOT `git push --force`, `git push --no-verify`, `git reset --hard`, `git commit --amend`, `git config`, or `git rebase -i`.
 - MUST abort if there are no unpushed commits on the current branch.
-- MUST NOT create a PR when on `main` / `master` (those are the trunk — release-please picks up commits from main directly).
+- MUST NOT create a PR when on `main` / `master` (those are the trunk; pushing there is the release trigger — `publish.yml` ships to PyPI when `pyproject.toml`'s version changes on main).
 
 ---
 
@@ -119,7 +119,7 @@ git push -u origin "$BRANCH"
 
 If `BRANCH ∈ {main, master}`:
 - skip PR creation entirely
-- in the report, mention: "Pushed directly to `<BRANCH>` — release-please will incorporate these commits into the next release PR."
+- in the report, mention: "Pushed directly to `<BRANCH>`. Releases are manual — to ship, bump the version in `pyproject.toml` (+ `src/hebb/__init__.py`, `.release-please-manifest.json`, `.claude-plugin/plugin.json`) and add a `CHANGELOG.md` entry; the `pyproject.toml` version change on main triggers `publish.yml`."
 - jump to Step 6
 
 Otherwise, check whether a PR already exists for this branch:
@@ -154,7 +154,7 @@ EOF
 gh pr create --title "$TITLE" --body "$BODY"
 ```
 
-Note: PR title is *not* validated against conventional-commits in this skill. Release-please configuration concerns the commit subjects themselves (which the user authored via `/commit` or by hand). If the title isn't conventional, the worst case is release-please ignores this PR — not a hard failure.
+Note: the PR title is *not* validated against conventional-commits in this skill. What matters for the manually-maintained `CHANGELOG.md` is the commit subjects (authored via `/commit` or by hand); the PR title is cosmetic.
 
 ### Step 6 — Report back
 
@@ -163,7 +163,7 @@ Output:
 - Pushed range: `<BASE>..<HEAD short SHA>` (or "new branch, all commits")
 - Commits pushed: `<N>`
 - PR URL (if a feature branch) — newly created or pre-existing
-- For main / master pushes: note that release-please will accumulate these in its release PR
+- For main / master pushes: note that releases are manual — a `pyproject.toml` version bump on main is what triggers `publish.yml`
 
 ---
 
@@ -177,7 +177,7 @@ unpushed commits exist? ── no → ABORT: "nothing to push"
 git push -u origin <branch>     (no --force, no --no-verify)
    │
    ▼
-branch == main/master? ── yes → done; note release-please will see these commits
+branch == main/master? ── yes → done; releases are manual (bump version to publish)
    │
    no
    ▼

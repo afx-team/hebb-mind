@@ -1,54 +1,59 @@
 # Claude Code Integration
 
-Hebb Mind integrates with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) as both an **MCP server** (manual memory tools) and a **hooks-based auto-memory layer** (automatic write/recall across sessions).
+Hebb Mind integrates with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) as both an **MCP server** (manual memory tools) and a **hooks-based auto-memory layer** (automatic recall and turn capture across sessions).
 
 ## Overview
 
 | Mode | What it does | How it works |
 |------|-------------|--------------|
-| **MCP Server** | Manual `write_memory`, `search_memory`, `consolidate` tools | Claude calls tools on demand |
-| **Hooks (auto-memory)** | Automatically writes each user message and recalls cross-session context | Claude Code hooks fire on session lifecycle events |
+| **MCP Server** | Manual `write_memory`, `search_memory`, `consolidate`, `ingest_conversation` tools | Claude calls tools on demand |
+| **Hooks (auto-memory)** | Recalls cross-session context and captures each user/assistant turn | Claude Code hooks fire on session lifecycle events |
 
 Most users want both — MCP for explicit memory operations, hooks for seamless background memory.
 
 ## Install
 
+The supported way to wire Hebb Mind into Claude Code is the `hebb claude-code install` command. It resolves the absolute path to `hebb` / `hebb-mcp` and writes both the hooks and the MCP server entry into Claude Code's settings:
+
 ```bash
-pipx install hebb-mind         # Install the CLI (use `pipx upgrade hebb-mind` to update)
-hebb setup                     # Initialize + prefetch embedding model
-hebb claude-code install --scope user   # Inject hooks + MCP into Claude Code
+pipx install hebb-mind                   # Install the CLI (use `pipx upgrade hebb-mind` to update)
+hebb setup                               # Initialize + download the embedding model
+hebb claude-code install --scope user    # Inject hooks + MCP into Claude Code
 ```
 
 No `pipx`? See [Installation → Install pipx](./installation.md#install-pipx-if-you-don-t-have-it).
 
 That's it. Restart Claude Code and Hebb Mind will:
 
-- **Recall** cross-session memories at the start of each session
-- **Write** each user message to memory (with noise stripping and dedup)
-- **Consolidate** memories when the session ends
+- **Recall** cross-session memories at the start of each session and before each prompt
+- **Capture** each completed user/assistant turn to the working-memory inbox
+
+Consolidation (merging duplicates, resolving conflicts, extracting tags) does **not** run at the end of a session — it runs on the `consolidation_time` schedule, or on demand via `POST /api/v1/admin/consolidate`.
 
 ### Scope
 
-By default, `hebb claude-code install` writes hooks to the **project-level** `.claude/settings.json`. To install globally:
+`--scope user` (recommended) writes to `~/.claude/settings.json` and applies to every project. `--scope project` writes to the current directory's `.claude/settings.json` and scopes the integration to that project only. Pick one consistently:
 
 ```bash
-hebb claude-code install --scope user   # writes to ~/.claude/settings.json
+hebb claude-code install --scope user      # global, all projects (recommended)
+hebb claude-code install --scope project   # this project only
 ```
 
 ### Uninstall
 
 ```bash
-hebb claude-code uninstall              # remove hooks + MCP from settings
+hebb claude-code uninstall --scope user    # remove hooks + MCP from ~/.claude/settings.json
+hebb claude-code uninstall --scope project # remove from this project's .claude/settings.json
 ```
 
 ## How Hooks Work
 
-Claude Code [hooks](https://docs.anthropic.com/en/docs/claude-code/hooks) are shell commands that fire on session lifecycle events. Hebb Mind registers three:
+Claude Code [hooks](https://docs.anthropic.com/en/docs/claude-code/hooks) are shell commands that fire on session lifecycle events. Hebb Mind registers three (the installer injects each as an **absolute** path, not a bare `hebb`):
 
 ```
-SessionStart ──→ hebb claude-code recall ──→ search API ──→ stdout (injected into context)
-UserPromptSubmit ──→ hebb claude-code write ──→ strip noise + dedup ──→ write API (silent)
-Stop ──→ hebb claude-code stop ──→ consolidate API + cleanup (silent)
+SessionStart     ──→ hebb claude-code recall ──→ search API ──→ stdout (injected into context)
+UserPromptSubmit ──→ hebb claude-code prompt ──→ prompt-relevant search ──→ stdout (injected)
+Stop             ──→ hebb claude-code stop   ──→ capture last turn ──→ write API (silent)
 ```
 
 ### Recall (SessionStart)
@@ -67,23 +72,20 @@ When a new Claude Code session starts, `hebb claude-code recall` searches for re
 </cross-session-memory>
 ```
 
-### Write (UserPromptSubmit)
+### Prompt (UserPromptSubmit)
 
-Each time the user sends a message, `hebb claude-code write` captures it:
+Each time the user submits a prompt, `hebb claude-code prompt` **recalls** memories relevant to *that prompt* and injects them into context. This hook does **not** write memory — it is the per-turn recall path that complements the broader SessionStart recall.
 
-1. **Strips noise** — removes `<system-reminder>`, `<command-name>`, and other system tags
-2. **Skips trivial messages** — anything under 20 characters ("ok", "yes", "/clear")
-3. **Deduplicates** — SHA-256 hash check prevents writing the same content twice per session
-4. **Writes silently** — no stdout output, so the user sees no interruption
+### Stop (turn capture)
 
-Memories are written to the `mem_hippocampus` working inbox with `source: "hook"` and the session ID in metadata.
+When a turn completes, `hebb claude-code stop` captures it:
 
-### Stop
+1. Reads the **last user + assistant turn** from the session transcript
+2. **Strips noise** — system reminders, command tags, and subagent (Task-tool) sidechain lines
+3. **Deduplicates** per `session_id` + turn index so a re-fired Stop doesn't write twice
+4. **Writes silently** to the `mem_hippocampus` working inbox with `source: "hook:stop"`
 
-When the session ends, `hebb claude-code stop`:
-
-1. Triggers memory consolidation (classifies working inbox memories into long-term partitions)
-2. Cleans up the per-session dedup state
+This is where user turns are written to memory. Note that a *re-fired* Stop event for the same final turn is deduped, so you won't see duplicate entries. Consolidation of these inbox memories happens later, on the schedule (see above) — not at Stop.
 
 ## MCP Server
 
@@ -94,25 +96,26 @@ The MCP server provides explicit memory tools that Claude can call during conver
 | `write_memory` | Write a memory to the working-memory inbox | `content`, `tags?`, `importance?` |
 | `search_memory` | Hybrid retrieval (vector + keyword + graph) | `query`, `top_k?` |
 | `consolidate` | Trigger memory consolidation | none |
+| `ingest_conversation` | Ingest a conversation export (Claude Code JSONL / ChatGPT JSON / plain text) | `content`, `format_hint?`, `importance?` |
 
 ### Manual MCP Setup
 
-If you only want the MCP server without hooks, add to `.mcp.json`:
+`hebb claude-code install` already registers the MCP server. If you only want the MCP server **without** the hooks, register `hebb-mcp` by its **absolute path** — a bare `hebb-mcp` can fail to launch under GUI-launched Claude Code that doesn't inherit your shell `PATH`. Find the path with `which hebb-mcp`, then add it to `.mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "hebb": {
-      "command": "hebb-mcp"
+      "command": "/absolute/path/to/hebb-mcp"
     }
   }
 }
 ```
 
-Or use Claude Code's MCP command:
+Or use Claude Code's MCP command (pass the absolute path after `--`):
 
 ```bash
-claude mcp add --transport stdio --scope user hebb -- hebb-mcp
+claude mcp add --transport stdio --scope user hebb -- "$(which hebb-mcp)"
 claude mcp list
 ```
 

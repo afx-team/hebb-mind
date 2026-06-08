@@ -88,4 +88,6 @@ hebb config set consolidation_time 18:00
 
 ## LLM 依赖
 
-巩固功能依赖 LLM 进行智能分类，使用前请确保已配置 `llm_model` 和 `llm_api_key`。未配置 LLM 时，记忆会留在 `mem_hippocampus` 分区中，不影响读写和搜索。
+巩固功能依赖 LLM 进行智能分类。开启巩固的**必填项是 `llm_model`** —— 只要设置了 `llm_model`，巩固即被启用（`hebb doctor` 也以 `llm_model` 作为判定依据）。使用**托管 provider**（如 OpenAI、Anthropic）时还需配置 `llm_api_key`；指向本地模型或自建代理时则不需要 key。
+
+未设置 `llm_model` 时巩固保持关闭：记忆会留在 `mem_hippocampus` 分区中，不影响读写和搜索。

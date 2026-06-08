@@ -130,7 +130,12 @@ class Settings(BaseModel):
     llm_api_key: str | None = Field(default=None, description="LLM provider API key")
 
     # Server
-    host: str = Field(default="0.0.0.0")
+    host: str = Field(
+        default="127.0.0.1",
+        description="Bind address. Defaults to loopback (127.0.0.1) for security — the server has "
+        "no authentication, so remote exposure (e.g. 0.0.0.0) is an explicit opt-in and should be "
+        "paired with a firewall/reverse proxy.",
+    )
     port: int = Field(default=8321)
 
     # Scheduler
@@ -193,3 +198,20 @@ class Settings(BaseModel):
         if self.home_dir:
             return str(self.home_dir / "knowledge_graph.json")
         return "knowledge_graph.json"
+
+    def allowed_origins(self) -> list[str]:
+        """Browser origins permitted to call the console/API (CORS + anti-CSRF).
+
+        The web console is served same-origin from this process, so the only
+        legitimate browser origins are loopback at the configured port. Requests
+        carrying any other ``Origin`` header are cross-site (a drive-by webpage)
+        and are rejected by the anti-CSRF guard. Non-browser clients send no
+        ``Origin`` header and are unaffected.
+
+        Returns:
+            Loopback origins (``127.0.0.1`` and ``localhost``) at ``self.port``.
+        """
+        return [
+            f"http://127.0.0.1:{self.port}",
+            f"http://localhost:{self.port}",
+        ]

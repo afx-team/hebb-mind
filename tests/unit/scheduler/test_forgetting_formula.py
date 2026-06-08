@@ -82,6 +82,10 @@ class TestForgettingFormula:
         assert ttl_old < ttl_recent
 
     def test_zero_importance(self):
+        # Audit C5 / forgetting F1: importance 0 is a valid neutral value, not a
+        # "delete me now" signal. It is treated as the neutral midpoint (5.0),
+        # so the TTL must be positive (and equal to the importance-5 TTL), never
+        # collapse to 0 (which previously caused immediate next-sweep deletion).
         now = datetime.now(timezone.utc)
         ttl = compute_ttl_hours(
             last_accessed_at=now,
@@ -91,7 +95,16 @@ class TestForgettingFormula:
             decay_factor=0.693,
             now=now,
         )
-        assert ttl == 0.0
+        ttl_neutral = compute_ttl_hours(
+            last_accessed_at=now,
+            access_count=1,
+            importance_score=5.0,
+            base_ttl_hours=168,
+            decay_factor=0.693,
+            now=now,
+        )
+        assert ttl > 0.0
+        assert ttl == pytest.approx(ttl_neutral)
 
     def test_never_negative(self):
         now = datetime.now(timezone.utc)

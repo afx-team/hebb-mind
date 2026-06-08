@@ -1,6 +1,6 @@
 {
   "name": "hebb-mind",
-  "version": "0.1.0",
+  "version": "0.1.7",
   "description": "Neuroscience-inspired long-term memory for Claude Code — auto-captures and recalls cross-session context",
   "author": "afx-team",
   "homepage": "https://github.com/afx-team/hebb-mind",
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hebb cc recall",
+            "command": "hebb claude-code recall",
             "timeout": 30
           }
         ]
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hebb cc write",
+            "command": "hebb claude-code prompt",
             "timeout": 10
           }
         ]
@@ -41,7 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hebb cc stop",
+            "command": "hebb claude-code stop",
             "timeout": 30
           }
         ]

@@ -25,15 +25,21 @@ Hebb Mind 给 AI Agent 装上一条受神经科学启发的记忆回路 —— *
 
 ## 快速开始
 
-### 60 秒上手 — 不需要 API Key
+### 约 60 秒上手 — 不需要 API Key
 
-写入和混合检索完全离线运行（基于内置的本地 Embedding 模型）。
+写入和混合检索完全离线运行（基于本地 Embedding 模型）。
 
 ```bash
 pipx install hebb-mind
-hebb setup              # 根据系统语言选择 Embedding 模型
+hebb setup              # 根据系统语言自动下载一个小型 Embedding 模型
 hebb service install    # 注册操作系统后台服务（launchd / systemd / 任务计划程序）
 ```
+
+`hebb setup` 仅在模型尚未缓存时下载一个小型 Embedding 模型 —— 英文约 90MB
+（`all-MiniLM-L6-v2`），多语言约 470MB（`intfloat/multilingual-e5-small`）。
+"约 60 秒"指英文 / `--profile fast` 小模型路径；多语言模型下载体积更大。
+想要高质量模型？用 `hebb setup --profile best` 拉取 BAAI `bge` 系列（1–2GB+）——
+这是可选的高质量档位，默认不下载。
 
 **还没装 `pipx`？** 它是 Python CLI 工具推荐的安装器：隔离 venv、自动配置 PATH、兼容 PEP 668。一次性装好就行：
 
@@ -77,11 +83,11 @@ curl -X POST http://localhost:8321/api/v1/search \
 
 ### 完整体验（5 分钟）— 启用 LLM 巩固
 
-记忆巩固、冲突解决、标签提取需要一个 LLM 后端。**未配置 Key 时这些接口为静默 no-op**（这是 v0.1.1 已知问题，详见 [#consolidation-no-op](https://afx-team.github.io/hebb-mind/zh/troubleshooting.html)）。
+记忆巩固、冲突解决、标签提取需要一个 LLM 后端。开关由 `llm_model` 决定 —— 未设置前这些接口为 no-op（详见 [#consolidation-no-op](https://afx-team.github.io/hebb-mind/zh/troubleshooting.html)）。托管 provider 还需要 `llm_api_key`；本地模型（例如通过 `llm_base_url` 接入的 Ollama）则不需要。
 
 ```bash
-hebb config set llm_api_key sk-...
-hebb config set llm_model openai/gpt-4o-mini
+hebb config set llm_model openai/gpt-4o-mini   # 必填 —— 启用巩固
+hebb config set llm_api_key sk-...             # 托管 provider 需要
 # 通过 LiteLLM 接入通义千问 / GLM / Kimi：
 hebb config set llm_base_url https://dashscope.aliyuncs.com/compatible-mode/v1
 ```
@@ -98,7 +104,7 @@ curl -X POST http://localhost:8321/api/v1/admin/consolidate
 pipx install hebb-mind                 # 推荐方式（隔离的 CLI 安装）
 pipx install 'hebb-mind[pg]'           # 启用 PostgreSQL/pgvector
 pipx upgrade hebb-mind                 # 后续升级
-hebb claude-code install --scope user  # Claude Code：基于 hooks 的自动记忆
+hebb claude-code install --scope user  # Claude Code：基于 hooks 的召回 + 回合写入
 hebb codex install --scope user        # Codex：MCP 记忆工具
 ```
 
@@ -106,21 +112,19 @@ Docker、一键脚本、源码安装详见 [安装指南](https://afx-team.githu
 
 ## 30 秒 Python SDK
 
-<!-- requires v0.1.2 facade — see PR #N -->
-
 ```python
 from hebb import HebbMind
 
-mem = HebbMind()  # 使用 ~/.hebb/hebb.json
+mem = HebbMind()  # 按 cwd → $HEBB_HOME → ~/.hebb 顺序解析 hebb.json
 
 mem.add("用户偏好深色模式", tags=["preference", "ui"], importance=7.5)
 mem.add("用户使用 VS Code 与 One Dark 主题", tags=["preference", "tools"])
 
 for hit in mem.search("UI 偏好", top_k=5):
-    print(hit.score, hit.content)
+    print(hit.score, hit.memory.content)
 ```
 
-`HebbMind()` 门面封装了上述 REST 接口；当本地未运行守护进程时，会自动在进程内拉起一个服务实例。
+`HebbMind()` 门面在进程内直接运行记忆引擎（存储 + 嵌入 + 图谱 + 混合检索）—— 不启动 HTTP 服务，也无需守护进程。它复用了 REST 服务在启动时构建的同一套组件，只是去掉了网络层。
 
 ## 记忆回路
 
@@ -168,7 +172,7 @@ hebb config set pg_url postgresql://user:pass@localhost/hebb
 |------|------|------|
 | `POST` | `/api/v1/memories` | 写入记忆 |
 | `POST` | `/api/v1/search` | 混合搜索 |
-| `POST` | `/api/v1/admin/consolidate` | 立即触发巩固（需配置 `llm_api_key`） |
+| `POST` | `/api/v1/admin/consolidate` | 立即触发巩固（需配置 `llm_model`） |
 | `GET`  | `/api/v1/graph/tags` | 列出知识图谱标签 |
 | `GET`  | `/api/v1/graph/neighbors/{tag}?depth=2` | 沿标签图谱游走 |
 
@@ -209,7 +213,7 @@ hebb config set pg_url postgresql://user:pass@localhost/hebb
 
 MiniLM-384 + bge-reranker-base。Hebb 在简单类别上与 MemPalace 持平（±4 pp 以内），在全部四个困难类别上大幅领先 —— 干扰项、条件推理、后处理 —— 这些恰恰是「逐字存储 + embedding」检索会崩溃的地方；关键杠杆是本地 cross-encoder 重排。逐类别 k 曲线见文档站。
 
-Hebb Mind 的评测直接调用与生产同一份 Claude Code hook 代码路径（`integrations/claude_code/{write,stop}.py`）与 `/api/v1/search`，因此上表数字就是用户在生产环境里实际能拿到的数字。完整方法学、分类拆解、benchmark vs production 流水线差异的说明：[hebb-mind.github.io/benchmarks](https://afx-team.github.io/hebb-mind/benchmarks/)。
+Hebb Mind 的评测直接调用与生产同一份 Claude Code hook 代码路径（`integrations/claude_code/{recall,stop}.py`）与 `/api/v1/search`，因此上表数字就是用户在生产环境里实际能拿到的数字。完整方法学、分类拆解、benchmark vs production 流水线差异的说明：[hebb-mind.github.io/benchmarks](https://afx-team.github.io/hebb-mind/benchmarks/)。
 
 ## 为什么叫 "Hebb Mind"？
 

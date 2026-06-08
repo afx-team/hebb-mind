@@ -57,7 +57,7 @@ export async function renderGraph(root) {
     </div>
     <div class="flex gap-4 mb-4" style="align-items:center;">
       <input class="form-input" id="graph-search" placeholder="${t('graph.search_placeholder')}" style="max-width:300px">
-      <button class="btn btn-sm" id="graph-layout-toggle">Pause layout</button>
+      <button class="btn btn-sm" id="graph-layout-toggle">${t('graph.pause_layout')}</button>
       <span id="graph-stats" class="text-muted text-sm"></span>
     </div>
     <div style="display:flex;gap:16px;height:calc(100vh - 200px);min-height:400px;">
@@ -165,7 +165,7 @@ export async function renderGraph(root) {
     if (layoutRunning) {
       layoutRunning = false;
       clearInterval(fa2Interval); fa2Interval = null;
-      layoutBtn.textContent = 'Resume layout';
+      layoutBtn.textContent = t('graph.resume_layout');
     }
   }, 10000);
 
@@ -173,16 +173,16 @@ export async function renderGraph(root) {
     if (layoutRunning) {
       layoutRunning = false;
       clearInterval(fa2Interval); fa2Interval = null;
-      layoutBtn.textContent = 'Resume layout';
+      layoutBtn.textContent = t('graph.resume_layout');
     } else {
       layoutRunning = true;
       fa2Interval = setInterval(runFA2Step, 50);
-      layoutBtn.textContent = 'Pause layout';
+      layoutBtn.textContent = t('graph.pause_layout');
       setTimeout(() => {
         if (layoutRunning) {
           layoutRunning = false;
           clearInterval(fa2Interval); fa2Interval = null;
-          layoutBtn.textContent = 'Resume layout';
+          layoutBtn.textContent = t('graph.resume_layout');
         }
       }, 10000);
     }
@@ -272,10 +272,10 @@ export async function renderGraph(root) {
         </div>
         <div style="flex-shrink:0;margin-bottom:12px;">
           <span class="text-muted text-sm">${memCount} memories</span>
-          ${neighbors.length ? `<div class="text-muted text-sm" style="margin-top:4px;">Neighbors: ${neighbors.slice(0, 8).map(n => `<span class="tag">${esc(n)}</span>`).join(' ')}${neighbors.length > 8 ? ` +${neighbors.length - 8}` : ''}</div>` : ''}
+          ${neighbors.length ? `<div class="text-muted text-sm" style="margin-top:4px;">${t('graph.neighbors')} ${neighbors.slice(0, 8).map(n => `<span class="tag">${esc(n)}</span>`).join(' ')}${neighbors.length > 8 ? ` +${neighbors.length - 8}` : ''}</div>` : ''}
         </div>
         <div id="panel-memories" style="flex:1;overflow-y:auto;font-size:13px;min-height:0;">
-          <div class="text-muted">Loading memories...</div>
+          <div class="text-muted">${t('graph.loading_memories')}</div>
         </div>
       </div>
     `;

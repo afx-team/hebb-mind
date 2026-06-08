@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Request
@@ -16,22 +18,70 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Fixed mask returned by GET /config for any non-empty secret. Using a constant
+# sentinel — rather than a length-dependent 4-char prefix/suffix reveal — means
+# the masked value leaks nothing about the real secret (not even its length),
+# and gives the test endpoints an unambiguous "this is masked" check instead of
+# the fragile '****'-substring heuristic.
+MASKED_PLACEHOLDER = "__hebb_masked__"
+
+# Config keys whose values are secrets / credentials. embedding_http_headers is
+# a JSON blob that often carries an Authorization token, so it is masked like a
+# key; pg_url embeds a password in its userinfo.
+SENSITIVE_KEYS = ("llm_api_key", "pg_url", "embedding_api_key", "embedding_http_headers")
+
+
+def _is_masked(value: str | None) -> bool:
+    """Return True if a client-supplied secret is the masking sentinel.
+
+    Args:
+        value: A secret value as received from the client (may be None).
+
+    Returns:
+        True when ``value`` equals :data:`MASKED_PLACEHOLDER`, meaning the
+        client echoed back a masked field and the real stored value should be
+        used instead.
+    """
+    return value == MASKED_PLACEHOLDER
+
 
 class ConfigUpdateRequest(BaseModel):
     key: str
     value: str
+    # Explicit opt-in required to change restart-required / infrastructure keys
+    # (host, port, home, storage_type, pg_url). Console edits of editable keys
+    # leave this False; an operator changing a guarded key must pass confirm.
+    confirm: bool = False
+
+
+# Keys the console may edit without an explicit confirm flag. Excludes the
+# infrastructure / network-binding keys whose change has security or
+# data-location consequences (host/port exposure, workspace relocation, storage
+# backend, DB URL) — those require ConfigUpdateRequest.confirm=True.
+CONSOLE_EDITABLE_KEYS = frozenset(Settings.model_fields.keys()) - frozenset(
+    {"host", "port", "home", "storage_type", "pg_url", "home_dir"}
+)
+
+# Keys that may only be changed with an explicit confirm flag.
+CONFIRM_REQUIRED_KEYS = frozenset({"host", "port", "home", "storage_type", "pg_url"})
 
 
 @router.get("/config")
 async def get_config() -> dict[str, Any]:
-    """Return all current configuration values."""
+    """Return all current configuration values, secrets masked.
+
+    Any non-empty secret is replaced with a fixed placeholder regardless of its
+    length — the previous length-gated 4+4 prefix/suffix reveal leaked the first
+    and last characters and the length of short keys.
+
+    Returns:
+        The config dict with :data:`SENSITIVE_KEYS` masked.
+    """
     settings = load_settings()
     data = settings.model_dump()
-    # Mask sensitive values. embedding_http_headers is a JSON blob that often
-    # carries an Authorization token, so it is masked like a key.
-    for key in ("llm_api_key", "pg_url", "embedding_api_key", "embedding_http_headers"):
-        if data.get(key) and isinstance(data[key], str) and len(data[key]) > 8:
-            data[key] = data[key][:4] + "****" + data[key][-4:]
+    for key in SENSITIVE_KEYS:
+        if data.get(key) and isinstance(data[key], str):
+            data[key] = MASKED_PLACEHOLDER
     return data
 
 
@@ -86,6 +136,30 @@ async def update_config(
         "home",
     }
 
+    # Allowlist enforcement: only known, console-editable keys are accepted.
+    # Infrastructure / network-binding keys require an explicit confirm flag.
+    if req.key not in Settings.model_fields or req.key == "home_dir":
+        raise HTTPException(status_code=400, detail=f"Unknown or non-editable config key: {req.key!r}")
+    if req.key in CONFIRM_REQUIRED_KEYS and not req.confirm:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"{req.key!r} changes network binding, storage, or workspace location and requires "
+                "confirm=true to apply."
+            ),
+        )
+    if req.key not in CONSOLE_EDITABLE_KEYS and req.key not in CONFIRM_REQUIRED_KEYS:
+        raise HTTPException(status_code=400, detail=f"Config key {req.key!r} is not editable via the API")
+
+    # Validate workspace relocation before persisting: 'home' must be an existing
+    # writable directory or we strand the daemon on a path it can't use.
+    if req.key == "home" and req.value.lower() not in ("null", "none", ""):
+        home_path = Path(req.value).expanduser()
+        if not home_path.is_dir():
+            raise HTTPException(status_code=400, detail=f"home must be an existing directory: {req.value}")
+        if not os.access(home_path, os.W_OK):
+            raise HTTPException(status_code=400, detail=f"home directory is not writable: {req.value}")
+
     try:
         _, coerced = update_config_field(req.key, req.value)
     except FileNotFoundError:
@@ -109,8 +183,21 @@ async def update_config(
 
 @router.get("/config/reveal/{key}")
 async def reveal_config_value(key: str) -> dict[str, Any]:
-    """Return the unmasked value of a sensitive config field."""
-    if key not in ("llm_api_key", "pg_url", "embedding_api_key", "embedding_http_headers"):
+    """Return the unmasked value of a sensitive config field.
+
+    Behind the anti-CSRF guard (INT-1): a cross-origin browser cannot reach this
+    endpoint, so a malicious webpage can no longer exfiltrate the stored secret.
+
+    Args:
+        key: The sensitive config key to reveal.
+
+    Returns:
+        ``{"key": key, "value": <unmasked value>}``.
+
+    Raises:
+        HTTPException: 400 if ``key`` is not a sensitive field.
+    """
+    if key not in SENSITIVE_KEYS:
         raise HTTPException(status_code=400, detail="Only sensitive fields can be revealed")
     settings = load_settings()
     data = settings.model_dump()
@@ -128,8 +215,18 @@ class LLMTestRequest(BaseModel):
 async def test_llm_connection(req: LLMTestRequest) -> dict[str, Any]:
     """Test LLM connectivity with the provided credentials.
 
-    Sends a minimal completion request to verify model/url/key work.
-    If api_key contains '****' (masked), reads the real key from config file.
+    Sends a minimal completion request to verify model/url/key work. When the
+    caller echoes back the masking sentinel for ``api_key``, the real stored key
+    is substituted — but ONLY if ``base_url`` matches the configured provider
+    URL. If the caller points the test at a *different* URL while passing the
+    masked key, the request is rejected: silently injecting the stored key into
+    an arbitrary endpoint would exfiltrate it to an attacker-controlled URL.
+
+    Args:
+        req: Model, optional base_url, optional api_key (may be the sentinel).
+
+    Returns:
+        ``{"success": ..., ...}`` describing the connectivity probe.
     """
     # Catch common mistake: URL pasted into model field
     if req.model.startswith("http://") or req.model.startswith("https://"):
@@ -142,10 +239,20 @@ async def test_llm_connection(req: LLMTestRequest) -> dict[str, Any]:
             ),
         }
 
-    # If the key is masked (from GET /config), read real key from config
+    # If the key is masked (from GET /config), substitute the real stored key —
+    # but only when the test targets the configured provider URL. Otherwise
+    # require the caller to pass the key explicitly (anti-exfil / anti-SSRF).
     api_key = req.api_key
-    if api_key and "****" in api_key:
+    if _is_masked(api_key):
         settings = load_settings()
+        if req.base_url and req.base_url != settings.llm_base_url:
+            return {
+                "success": False,
+                "error": (
+                    "Refusing to send the stored API key to a different base_url. "
+                    "Pass the api_key explicitly when testing against a non-configured URL."
+                ),
+            }
         api_key = settings.llm_api_key
 
     try:
@@ -194,10 +301,23 @@ async def _test_custom_http_embedding(req: EmbeddingTestRequest) -> dict[str, An
     if not req.http_body:
         return {"success": False, "async": False, "error": "Request body is required for custom HTTP embedding"}
 
-    # Headers may be masked (from GET /config) — fall back to the stored value.
+    # Headers may be masked (from GET /config) — substitute the stored value,
+    # but only when the test targets the configured custom-embedding URL.
+    # Sending the stored headers (which carry the bearer token) to a different
+    # URL would exfiltrate the credential to an attacker-controlled endpoint.
     http_headers = req.http_headers
-    if http_headers and "****" in http_headers:
-        http_headers = load_settings().embedding_http_headers
+    if _is_masked(http_headers):
+        settings = load_settings()
+        if req.http_url and req.http_url != settings.embedding_http_url:
+            return {
+                "success": False,
+                "async": False,
+                "error": (
+                    "Refusing to send the stored headers to a different URL. "
+                    "Pass the headers explicitly when testing against a non-configured endpoint."
+                ),
+            }
+        http_headers = settings.embedding_http_headers
 
     try:
         headers = parse_headers(http_headers)
@@ -231,9 +351,20 @@ async def test_embedding(req: EmbeddingTestRequest) -> dict[str, Any]:
     if req.provider == "api" and req.api_mode == "custom":
         return await _test_custom_http_embedding(req)
 
+    # Masked api_key → substitute the stored embedding key, but only when the
+    # test targets the configured embedding base_url (anti-exfil / anti-SSRF).
     api_key = req.api_key
-    if api_key and "****" in api_key:
+    if _is_masked(api_key):
         settings = load_settings()
+        if req.base_url and req.base_url != settings.embedding_base_url:
+            return {
+                "success": False,
+                "async": False,
+                "error": (
+                    "Refusing to send the stored API key to a different base_url. "
+                    "Pass the api_key explicitly when testing against a non-configured URL."
+                ),
+            }
         api_key = settings.embedding_api_key
 
     if req.provider == "local":

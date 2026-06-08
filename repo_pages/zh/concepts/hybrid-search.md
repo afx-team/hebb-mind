@@ -1,6 +1,6 @@
 # 混合检索
 
-Hebb Mind 采用三路并行检索策略，综合向量语义、关键词匹配和知识图谱三种能力，确保高召回率和精准排序。
+Hebb Mind 采用三路并行检索策略，综合向量语义、关键词匹配和知识图谱三种信号，通过 Reciprocal Rank Fusion（RRF）融合排名，再做三维综合评分，最后可选地用 cross-encoder 重排序提升 top-k 精度。
 
 ## 检索架构
 
@@ -16,12 +16,15 @@ sqlite-vec     FTS5           知识图谱
   └──────────────┴──────────────┘
                  │
                  ▼
-         按 memory ID 去重
-         取最大相关性分数
+       Reciprocal Rank Fusion (RRF)
+       按 memory ID 融合三路排名
                  │
                  ▼
           三维综合评分
    时效性 + 重要性 + 相关性
+                 │
+                 ▼
+     cross-encoder 重排序（可选，默认开启）
                  │
                  ▼
          Top-K 主结果
@@ -42,7 +45,7 @@ sqlite-vec     FTS5           知识图谱
 
 - **SQLite 后端**：使用 sqlite-vec 扩展进行向量检索
 - **PostgreSQL 后端**：使用 pgvector 进行向量检索
-- 默认 Embedding 模型由 `hebb setup` 根据语言选择：英语为 `BAAI/bge-large-en-v1.5`，中文/多语言为 `BAAI/bge-m3`
+- 默认 Embedding 模型由 `hebb setup` 根据语言与 profile 选择：裸 `setup` 用小模型（英语 `all-MiniLM-L6-v2`，中文/多语言 `intfloat/multilingual-e5-small`）；`--profile best` 用 `BAAI/bge-large-en-v1.5`（英语）/ `BAAI/bge-m3`（中文/多语言）
 
 ### 2. 关键词路
 
@@ -53,16 +56,18 @@ sqlite-vec     FTS5           知识图谱
 
 ### 3. 图谱路
 
-利用知识图谱进行概念层面的检索：
+通过知识图谱中的标签共现关系扩展候选集（基于标签匹配，而非语义理解）：
 
-1. 将查询关键词与图谱中的标签匹配
+1. 将查询词与图谱中的标签做匹配
 2. 沿共现边扩展到 1-hop 邻居
-3. 收集邻居标签关联的 memory ID
-4. 根据标签权重计算相关性分数
+3. 收集匹配标签及其邻居关联的 memory ID
+4. 根据标签权重给出相关性分数
 
-## 去重与评分
+> 图谱路是一条基于标签的轻量召回通道，用于补充向量/关键词漏掉的概念关联，**不**等同于真正的语义检索或多跳推理。
 
-三路结果按 memory ID 合并，同一条记忆取最大相关性分数。然后进行三维综合评分：
+## 融合与评分
+
+三路结果通过 Reciprocal Rank Fusion（RRF）按 memory ID 融合排名——同一条记忆在多路命中时，其多路排名共同决定融合分数。融合后进行三维综合评分：
 
 ```
 score = (w_recency * recency + w_importance * importance + w_relevance * relevance)
@@ -78,6 +83,10 @@ score = (w_recency * recency + w_importance * importance + w_relevance * relevan
 | **相关性** (relevance) | 向量/关键词/图谱检索得分 | 与查询的匹配程度 |
 
 三个权重 (`weight_recency`, `weight_importance`, `weight_relevance`) 均可在配置中调整，也可在每次搜索请求中覆盖。
+
+## Cross-encoder 重排序
+
+综合评分后，系统默认会用一个 cross-encoder 模型对 top-N 候选重新打分排序。它把查询与每条候选记忆的内容拼成一对一起编码，比向量内积更能捕捉细粒度的相关性，是提升 top-k 精度的主要手段。重排序在资源受限时可关闭，关闭后排序回退到融合 + 综合评分。
 
 ## 后置扩展
 

@@ -10,6 +10,9 @@ const PAGE_SIZE = 20;
 let offset = 0;
 let currentPartition = '';
 
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 function truncate(s, n = 80) { return s.length > n ? s.slice(0, n) + '...' : s; }
 function fmtDate(d) { return new Date(d).toLocaleString('sv-SE', { dateStyle: 'short', timeStyle: 'short' }); }
 function importanceColor(v) { return v >= 7 ? 'var(--accent-red)' : v >= 4 ? 'var(--accent-yellow)' : 'var(--accent-green)'; }
@@ -37,16 +40,16 @@ async function loadTable(root) {
       return;
     }
     tbody.innerHTML = data.items.map(m => `
-      <tr data-id="${m.id}">
-        <td class="td-truncate" title="${m.content.replace(/"/g, '&quot;')}">${truncate(m.content)}</td>
-        <td><span class="tag tag-blue">${m.partition_id.replace('mem_', '')}</span></td>
+      <tr data-id="${esc(m.id)}">
+        <td class="td-truncate" title="${esc(m.content)}">${esc(truncate(m.content))}</td>
+        <td><span class="tag tag-blue">${esc(m.partition_id.replace('mem_', ''))}</span></td>
         <td><span style="color:${importanceColor(m.importance_score)}">${m.importance_score.toFixed(1)}</span></td>
-        <td>${m.tags.map(t => `<span class="tag">${t}</span>`).join(' ')}</td>
+        <td>${m.tags.map(tag => `<span class="tag">${esc(tag)}</span>`).join(' ')}</td>
         <td class="text-muted text-sm">${fmtDate(m.created_at)}</td>
         <td>
           <div class="btn-group">
-            <button class="btn btn-sm btn-edit" data-id="${m.id}">Edit</button>
-            <button class="btn btn-sm btn-danger btn-del" data-id="${m.id}">Delete</button>
+            <button class="btn btn-sm btn-edit" data-id="${esc(m.id)}">${t('memories.edit')}</button>
+            <button class="btn btn-sm btn-danger btn-del" data-id="${esc(m.id)}">${t('memories.delete')}</button>
           </div>
         </td>
       </tr>
@@ -156,7 +159,7 @@ function showEditModal(m, root) {
   showModal('Edit Memory', `
     <div class="form-group">
       <label class="form-label">Content</label>
-      <textarea class="form-textarea" id="m-content" rows="4">${m.content}</textarea>
+      <textarea class="form-textarea" id="m-content" rows="4"></textarea>
     </div>
     <div class="form-group">
       <label class="form-label">Importance: <span id="m-imp-val">${m.importance_score.toFixed(1)}</span></label>
@@ -166,24 +169,29 @@ function showEditModal(m, root) {
     </div>
     <div class="form-group">
       <label class="form-label">Tags (comma-separated)</label>
-      <input class="form-input" id="m-tags" value="${m.tags.join(', ')}">
+      <input class="form-input" id="m-tags" value="${esc(m.tags.join(', '))}">
     </div>
     <div class="text-sm text-muted mt-4">
-      ID: <span class="text-mono">${m.id}</span><br>
-      Created: ${fmtDate(m.created_at)} &middot; Accessed: ${m.access_count}x
+      ID: <span class="text-mono">${esc(m.id)}</span><br>
+      Created: ${fmtDate(m.created_at)} &middot; Accessed: ${esc(m.access_count)}x
     </div>
   `, async (overlay) => {
+    const content = overlay.querySelector('#m-content').value.trim();
+    if (!content) { error('Content is required'); return; }
     try {
       await api.updateMemory(m.id, {
-        content: overlay.querySelector('#m-content').value.trim(),
+        content,
         importance_score: parseFloat(overlay.querySelector('#m-importance').value),
-        tags: overlay.querySelector('#m-tags').value.split(',').map(t => t.trim()).filter(Boolean),
+        tags: overlay.querySelector('#m-tags').value.split(',').map(s => s.trim()).filter(Boolean),
       });
       overlay.classList.add('hidden');
       success('Memory updated');
       loadTable(root);
     } catch (e) { error(e.message); }
   });
+  // Set the textarea value via the DOM (not HTML interpolation) so memory content
+  // is never parsed as markup — closes the stored-XSS hole on the edit form.
+  document.getElementById('m-content').value = m.content;
   document.getElementById('m-importance').oninput = (e) => {
     document.getElementById('m-imp-val').textContent = parseFloat(e.target.value).toFixed(1);
   };
@@ -205,7 +213,7 @@ export async function renderMemories(root) {
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>Content</th><th>Partition</th><th>Importance</th><th>Tags</th><th>Created</th><th></th>
+            <th>${t('memories.content')}</th><th>${t('memories.partition')}</th><th>${t('memories.importance')}</th><th>${t('memories.tags')}</th><th>${t('memories.created')}</th><th></th>
           </tr></thead>
           <tbody id="mem-tbody"></tbody>
         </table>

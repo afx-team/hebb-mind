@@ -65,17 +65,24 @@ System-wide installs via `sudo pip install` work but are increasingly blocked by
 hebb setup
 ```
 
-Creates `hebb.json` and `hebb.db`, selects the default embedding model, selects the download source, and verifies the model. It does **not** start a background service.
+Creates `hebb.json` and `hebb.db` in the workspace, selects a **small** default embedding model from your OS locale, selects the download source, and downloads the model if it isn't already cached. The bare default is `all-MiniLM-L6-v2` (~90MB, English) or `intfloat/multilingual-e5-small` (~470MB, multilingual); add `--profile best` for the high-quality bge models (1–2GB). It does **not** start a background service.
+
+By default the workspace is `~/.hebb/` (the global fallback). If you run `hebb setup` inside a directory that has — or will get — a `hebb.json`, that directory becomes the workspace instead. Resolution order: `$HEBB_HOME` → nearest ancestor `hebb.json` → `~/.hebb/`. Run `hebb config get workspace` to see the resolved location.
 
 ## Verify
 
 ```bash
 hebb --version
 hebb model status
+```
+
+## Install the background service
+
+```bash
 hebb service install
 ```
 
-Open [http://localhost:8321/](http://localhost:8321/) for the Web Console, or [http://localhost:8321/docs](http://localhost:8321/docs) for the API docs.
+This registers Hebb Mind with launchd (macOS), systemd (Linux), or Task Scheduler (Windows) and starts it — per-user by default (no admin). Then open [http://localhost:8321/](http://localhost:8321/) for the Web Console, or [http://localhost:8321/docs](http://localhost:8321/docs) for the API docs.
 
 ## Docker
 

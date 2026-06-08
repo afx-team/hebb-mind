@@ -6,6 +6,17 @@ small set of "remember this" / "what do you know about X" tools.
 
 ## Install (pick your client)
 
+First make sure the background service is installed and running — the MCP tools
+talk to the local REST server on port 8321, and `hebb ... install` configures
+the client but does **not** install the service for you:
+
+```bash
+hebb setup              # one-time: download the local embedding model (small)
+hebb service install    # one-time: register + start the background service
+```
+
+Then wire up your client:
+
 ```bash
 # Claude Code (writes to ~/.claude/settings.json with --scope user)
 hebb claude-code install --scope user
@@ -35,8 +46,9 @@ agent can call autonomously:
 | `consolidate()` | Manually trigger the consolidation pass that organizes new memories and extracts tags into the knowledge graph. |
 | `ingest_conversation(content, format_hint?, importance?)` | Bulk-import a Claude Code JSONL or ChatGPT JSON export so previous chats become memories. |
 
-The server auto-starts the local Hebb Mind REST service if it's not already
-running, so a fresh install needs zero extra steps.
+If the background service is installed (see above) but stopped, the MCP server
+will start it on first use. If no service is installed, the MCP tools fail to
+reach the REST server — run `hebb service install` first.
 
 ## Try it — three prompts
 
@@ -63,8 +75,9 @@ Once installed, your agent can do things like:
 
 - Full MCP integration guide (with troubleshooting and config schema):
   [docs site → guide → MCP integration](../repo_pages/guide/mcp-integration.md)
-- Claude Code-specific hooks (recall on session start, write on user
-  message, consolidate on stop):
+- Claude Code-specific hooks (recall cross-session memories on session start,
+  recall prompt-relevant memories on user message, capture the last turn on
+  stop — consolidation runs on a schedule, not on stop):
   [`repo_pages/guide/claude-code.md`](../repo_pages/guide/claude-code.md)
 - Codex setup details:
   [`repo_pages/guide/codex.md`](../repo_pages/guide/codex.md)

@@ -17,9 +17,19 @@ hebb setup [--language auto|en|zh|multi] [--region auto|cn|global] [--profile de
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--language` | `auto` | `en` → `BAAI/bge-large-en-v1.5`; `zh`/`multi` → `BAAI/bge-m3`; `auto` infers from system locale |
+| `--language` | `auto` | Selects the content language; `auto` infers from system locale |
 | `--region` | `auto` | `cn` uses `https://hf-mirror.com`; `global` uses HuggingFace official |
-| `--profile` | `default` | `fast` favors small models; `best` favors quality |
+| `--profile` | `default` | Selects the embedding tier (see below) |
+
+By default, `hebb setup` downloads a **small** embedding model (only if it is not already cached):
+
+| Profile | English | Chinese / multilingual |
+|---------|---------|------------------------|
+| `default` | `all-MiniLM-L6-v2` (~90 MB) | `intfloat/multilingual-e5-small` (~470 MB) |
+| `fast` | `all-MiniLM-L6-v2` (~90 MB) | `all-MiniLM-L6-v2` (~90 MB) |
+| `best` | `BAAI/bge-large-en-v1.5` (1–2 GB) | `BAAI/bge-m3` (1–2 GB) |
+
+The high-quality `best` tier (bge models) is **opt-in** and is not downloaded by default. Setup reuses an already-cached model and only downloads when the model is missing.
 
 After setup, install the background service with `hebb service install`.
 
@@ -79,7 +89,7 @@ launchd (com.hebb.server) (OS: Darwin)
   Running:   yes
   Logs:      tail -f /tmp/hebb.log /tmp/hebb.err
 
-Server is running at http://127.0.0.1:8321 (v0.1.1)
+Server is running at http://127.0.0.1:8321 (v0.1.6)
 
 Scheduler Jobs
 ┌──────────────────┬───────────────────────────┐
@@ -164,20 +174,22 @@ Claude Code integration. Installs hooks and registers the MCP server.
 ```bash
 hebb claude-code install   [--scope project|user]   # default: project
 hebb claude-code uninstall [--scope project|user]
-hebb claude-code recall      # SessionStart hook
-hebb claude-code write       # UserPromptSubmit hook
-hebb claude-code stop        # Stop hook (consolidation + cleanup)
+hebb claude-code recall      # SessionStart hook — recall cross-session memories
+hebb claude-code prompt      # UserPromptSubmit hook — recall prompt-relevant memories
+hebb claude-code stop        # Stop hook — record the last turn into the workspace
 ```
 
 `install --scope project` writes to `.claude/` in the current directory; `--scope user` writes to `~/.claude/`.
 
+The hooks are recall-and-capture, not consolidation. `recall` and `prompt` **read** memories and inject them into the session; `stop` **captures** the last user + assistant turn from the transcript (`source: hook:stop`, deduped per `session_id` + turn index). Consolidation does not run on `stop` — it runs on the `consolidation_time` schedule or via `POST /api/v1/admin/consolidate`.
+
 ## hebb codex
 
-Codex CLI integration via `codex mcp add`/`remove`.
+Codex CLI integration via `codex mcp add`/`remove`. Codex registers MCP servers globally — there is no per-project scope, so only `--scope user` (global) is supported.
 
 ```bash
-hebb codex install   [--scope user|project]   # default: user
-hebb codex uninstall [--scope user|project]
+hebb codex install   [--scope user]   # default: user (global-only)
+hebb codex uninstall
 ```
 
 Verify with `codex mcp list`.

@@ -49,7 +49,7 @@ The lift concentrates at rank 1 (+4.4pp) and tapers as k grows — the expected 
 | multi-session | 99.2% |
 | temporal-reasoning | 98.5% |
 
-`single-session-preference` — abstract recommendation questions ("Can you suggest some accessories that would complement my current photography setup?") against concrete user statements ("upgrade my camera flash", "getting a new tripod"), with near-zero token overlap — used to be the floor of this benchmark. Retrieval there is now at ceiling: the production ingest mirror emits a short synthetic memory per preference phrase (matching `integrations/claude_code/write.py`), restoring the query→corpus vocabulary overlap that raw embedding similarity could not bridge, and the reranker resolves the residual ordering.
+`single-session-preference` — abstract recommendation questions ("Can you suggest some accessories that would complement my current photography setup?") against concrete user statements ("upgrade my camera flash", "getting a new tripod"), with near-zero token overlap — used to be the floor of this benchmark. Retrieval there is now at ceiling: the production ingest mirror emits a short synthetic memory per preference phrase (matching `integrations/claude_code/stop.py`), restoring the query→corpus vocabulary overlap that raw embedding similarity could not bridge, and the reranker resolves the residual ordering.
 
 ## End-to-end QA accuracy
 

@@ -99,6 +99,7 @@ class ConsolidationAgent:
                     memory_content=memory.content,
                     exclude_partition=PartitionType.HIPPOCAMPUS.value,
                 )
+            recalled_ids = {m.id for m in related}
 
             # Step 2: Build context
             partition_desc = await self._build_partition_desc()
@@ -127,15 +128,12 @@ class ConsolidationAgent:
             tags = decision.get("tags", memory.tags)
             conflicts = decision.get("conflicts", [])
 
-            # Step 4: Handle conflicts
+            # Step 4: Handle conflicts (only against recalled ids; re-embed text).
             for conflict in conflicts:
                 conflict_id = conflict.get("memory_id", "")
                 resolution = conflict.get("resolution", "keep_both")
-                if resolution == "update" and conflict_id:
-                    await self.memory_store.update(
-                        conflict_id,
-                        MemoryUpdate(content=consolidated_content),
-                    )
+                if resolution == "update" and conflict_id in recalled_ids:
+                    await self._apply_conflict_update(conflict_id, consolidated_content)
                     result.conflicts_resolved += 1
                 elif resolution == "discard":
                     # New memory is redundant — delete it from every store.
@@ -143,6 +141,19 @@ class ConsolidationAgent:
                     result.success = True
                     result.target_partition = "discarded"
                     return result
+
+            # Empty-output guard: never write a placeholder + delete the source
+            # on a garbled/empty LLM decision (silent data loss). Keep the
+            # source for the next pass.
+            if not consolidated_content or not consolidated_content.strip():
+                logger.warning(
+                    "Memory %s: consolidation produced empty content; keeping source "
+                    "memory for the next pass (not deleting)",
+                    memory.id,
+                )
+                result.success = True
+                result.target_partition = "kept"
+                return result
 
             # Step 5: Write consolidated memory to target partition
             embedding = await self.embedder.embed(consolidated_content)
@@ -180,12 +191,24 @@ class ConsolidationAgent:
 
         return result
 
-    async def consolidate_session(self, memories: list[Memory]) -> list[ConsolidationResult]:
+    async def consolidate_session(
+        self, memories: list[Memory], kg_lock: asyncio.Lock | None = None
+    ) -> list[ConsolidationResult]:
         """Consolidate a group of memories from the same session.
 
         Memories are sorted by turn, merged into a conversation context,
         and processed in a single LLM call that may produce multiple output memories.
         If the session is too long, it is split into chunks by turn order.
+
+        Args:
+            memories: Source memories belonging to one session.
+            kg_lock: Optional lock serialising knowledge-graph mutations. When
+                omitted, the graph's own shared lock (``self.kg.lock``) is used
+                so concurrent sessions can never interleave a graph mutation
+                with another task's save.
+
+        Returns:
+            One ``ConsolidationResult`` per produced (or failed) memory.
         """
         # Sort by turn (None last), then by created_at
         memories.sort(
@@ -206,9 +229,10 @@ class ConsolidationAgent:
                 len(chunks),
             )
 
+        lock = kg_lock or self.kg.lock
         all_results: list[ConsolidationResult] = []
         for chunk in chunks:
-            rs = await self._consolidate_session_chunk(chunk)
+            rs = await self._consolidate_session_chunk(chunk, lock)
             all_results.extend(rs)
         return all_results
 
@@ -231,8 +255,18 @@ class ConsolidationAgent:
             chunks.append(current)
         return chunks or [memories]
 
-    async def _consolidate_session_chunk(self, memories: list[Memory]) -> list[ConsolidationResult]:
-        """Consolidate one chunk of a session."""
+    async def _consolidate_session_chunk(
+        self, memories: list[Memory], kg_lock: asyncio.Lock
+    ) -> list[ConsolidationResult]:
+        """Consolidate one chunk of a session.
+
+        Args:
+            memories: Source memories for this chunk (already turn-sorted).
+            kg_lock: Lock serialising all knowledge-graph mutations + saves.
+
+        Returns:
+            One ``ConsolidationResult`` per produced (or failed) memory.
+        """
         session_id = memories[0].metadata.session_id or "unknown"
         results: list[ConsolidationResult] = []
 
@@ -279,6 +313,11 @@ class ConsolidationAgent:
             if related:
                 related_desc = "\n".join(f"- [{m.id}] ({m.partition_id}): {m.content[:200]}" for m in related[:5])
 
+            # Only ids we actually recalled are valid conflict targets. The LLM
+            # can hallucinate ids; updating an unrelated id silently corrupts a
+            # memory we never showed it.
+            recalled_ids = {m.id for m in related}
+
             # Single LLM call for the entire session
             messages = [
                 {"role": "system", "content": SESSION_CONSOLIDATION_SYSTEM_PROMPT},
@@ -311,15 +350,13 @@ class ConsolidationAgent:
                 if not content:
                     continue
 
-                # Handle conflicts
+                # Handle conflicts (only against ids we actually recalled; the
+                # updated text is re-embedded so the vector matches it).
                 for conflict in conflicts:
                     conflict_id = conflict.get("memory_id", "")
                     resolution = conflict.get("resolution", "keep_both")
-                    if resolution == "update" and conflict_id:
-                        await self.memory_store.update(
-                            conflict_id,
-                            MemoryUpdate(content=content),
-                        )
+                    if resolution == "update" and conflict_id in recalled_ids:
+                        await self._apply_conflict_update(conflict_id, content)
 
                 # Create consolidated memory
                 embedding = await self.embedder.embed(content)
@@ -334,7 +371,8 @@ class ConsolidationAgent:
                     ),
                     embedding=embedding,
                 )
-                self.kg.update_from_tags(tags, new_memory.id)
+                async with kg_lock:
+                    self.kg.update_from_tags(tags, new_memory.id)
 
                 results.append(
                     ConsolidationResult(
@@ -352,13 +390,19 @@ class ConsolidationAgent:
             # the sources: that is silent data loss with zero replacement. Keep
             # them in the working partition for the next consolidation pass.
             if results:
-                for m in memories:
-                    await self.memory_store.delete(m.id)
-                    # Strip the source id from the graph (no-op unless the
-                    # source was itself graphed, i.e. in-partition
-                    # re-consolidation). The per-session kg.save() in
-                    # consolidate_batch persists it.
-                    self.kg.remove_memory_from_tags(m.id)
+                async with kg_lock:
+                    for m in memories:
+                        await self.memory_store.delete(m.id)
+                        # Strip the source id from the graph (no-op unless the
+                        # source was itself graphed, i.e. in-partition
+                        # re-consolidation).
+                        self.kg.remove_memory_from_tags(m.id)
+                    # Persist the graph immediately after the SQL deletes, under
+                    # the same lock, to shrink the crash window between "source
+                    # row deleted" and "graph reference removed". The caller's
+                    # end-of-batch save() is now a redundant safety net rather
+                    # than the only persistence point.
+                    self.kg.save()
             else:
                 logger.warning(
                     "Session %s: consolidation produced no output memories; "
@@ -385,6 +429,31 @@ class ConsolidationAgent:
             )
 
         return results
+
+    async def _apply_conflict_update(self, conflict_id: str, content: str) -> None:
+        """Apply a conflict ``update`` resolution to an existing memory.
+
+        Updates the memory's content AND re-embeds it so the stored vec0 vector
+        matches the new text — otherwise vector recall keeps scoring the stale
+        embedding against the updated content.
+
+        Args:
+            conflict_id: Id of the recalled memory being updated. Must be an id
+                we actually recalled (the caller is responsible for that check).
+            content: The new consolidated content to write.
+
+        Returns:
+            None.
+        """
+        if not content.strip():
+            # Never overwrite a real memory with empty/whitespace content.
+            return
+        updated = await self.memory_store.update(conflict_id, MemoryUpdate(content=content))
+        if updated is None:
+            return
+        # Re-embed so the vector matches the updated text.
+        embedding = await self.embedder.embed(content)
+        await self.memory_store.update_embedding(conflict_id, embedding)
 
     async def consolidate_batch(
         self,
@@ -433,16 +502,19 @@ class ConsolidationAgent:
                 standalone.append(m)
 
         sem = asyncio.Semaphore(concurrency)
-        kg_lock = asyncio.Lock()
+        # Use the graph's own shared lock so every read-modify-write + save
+        # across the consolidation and forgetting paths serialises through one
+        # consistent lock (previously a per-batch lock left the session path's
+        # graph mutations unsynchronised — race F4 / C1).
+        kg_lock = self.kg.lock
         all_results: list[ConsolidationResult] = []
         lock = asyncio.Lock()
 
-        # Process sessions
+        # Process sessions. The session path persists the graph itself (under
+        # kg_lock) after its SQL deletes, so no extra save() is needed here.
         async def _process_session(session_memories: list[Memory]) -> None:
             async with sem:
-                rs = await self.consolidate_session(session_memories)
-                async with kg_lock:
-                    self.kg.save()
+                rs = await self.consolidate_session(session_memories, kg_lock)
                 async with lock:
                     all_results.extend(rs)
 
@@ -457,7 +529,8 @@ class ConsolidationAgent:
         tasks += [_process_single(m) for m in standalone]
         await asyncio.gather(*tasks)
 
-        self.kg.save()
+        async with kg_lock:
+            self.kg.save()
 
         session_count = len(sessions)
         standalone_count = len(standalone)
@@ -472,7 +545,18 @@ class ConsolidationAgent:
         return all_results
 
     async def _consolidate_one(self, memory: Memory, kg_lock: asyncio.Lock) -> ConsolidationResult:
-        """consolidate_memory variant that uses a lock for KG writes."""
+        """Consolidate a single standalone memory using a shared KG lock.
+
+        ``consolidate_memory`` variant that serialises knowledge-graph writes
+        through ``kg_lock`` for concurrent batch processing.
+
+        Args:
+            memory: The source memory to consolidate.
+            kg_lock: Lock serialising all knowledge-graph mutations + saves.
+
+        Returns:
+            The ``ConsolidationResult`` for this memory.
+        """
         result = ConsolidationResult(original_memory_id=memory.id)
         try:
             related: list[Memory] = []
@@ -481,6 +565,7 @@ class ConsolidationAgent:
                     memory_content=memory.content,
                     exclude_partition=PartitionType.HIPPOCAMPUS.value,
                 )
+            recalled_ids = {m.id for m in related}
             partition_desc = await self._build_partition_desc()
             related_desc = "None found."
             if related:
@@ -504,22 +589,37 @@ class ConsolidationAgent:
             tags = decision.get("tags", memory.tags)
             conflicts = decision.get("conflicts", [])
 
+            # Handle conflicts first so an explicit ``discard`` still works even
+            # when no consolidated content is produced.
             for conflict in conflicts:
                 conflict_id = conflict.get("memory_id", "")
                 resolution = conflict.get("resolution", "keep_both")
-                if resolution == "update" and conflict_id:
-                    await self.memory_store.update(
-                        conflict_id,
-                        MemoryUpdate(content=consolidated_content),
-                    )
+                if resolution == "update" and conflict_id in recalled_ids:
+                    # Only update ids we actually recalled; re-embed the new text.
+                    await self._apply_conflict_update(conflict_id, consolidated_content)
                     result.conflicts_resolved += 1
                 elif resolution == "discard":
                     async with kg_lock:
                         self.kg.remove_memory_from_tags(memory.id)
+                        self.kg.save()
                     await self.memory_store.delete(memory.id)
                     result.success = True
                     result.target_partition = "discarded"
                     return result
+
+            # Empty-output guard: a garbled/empty LLM decision must NOT write a
+            # placeholder memory and then delete the source — that is silent
+            # data loss with no replacement. Keep the source intact for the next
+            # pass. (Mirrors the session path's empty-output guard at line ~381.)
+            if not consolidated_content or not consolidated_content.strip():
+                logger.warning(
+                    "Memory %s: consolidation produced empty content; keeping source "
+                    "memory for the next pass (not deleting)",
+                    memory.id,
+                )
+                result.success = True
+                result.target_partition = "kept"
+                return result
 
             embedding = await self.embedder.embed(consolidated_content)
             new_memory = await self.memory_store.create(
@@ -537,11 +637,13 @@ class ConsolidationAgent:
             async with kg_lock:
                 self.kg.update_from_tags(tags, new_memory.id)
                 # Strip the source id under the same lock (no-op unless the
-                # source was graphed via in-partition re-consolidation). The
-                # end-of-batch kg.save() persists it.
+                # source was graphed via in-partition re-consolidation).
                 self.kg.remove_memory_from_tags(memory.id)
-
-            await self.memory_store.delete(memory.id)
+                await self.memory_store.delete(memory.id)
+                # Persist the graph immediately after the SQL delete, under the
+                # same lock, to shrink the crash window. The end-of-batch save()
+                # is now a redundant safety net.
+                self.kg.save()
 
             result.target_partition = target_partition
             result.new_memory_id = new_memory.id

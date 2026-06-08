@@ -29,14 +29,46 @@ def test_language_auto_empty_locale_defaults_multi(monkeypatch) -> None:
     assert selection.language == "multi"
 
 
-def test_choose_default_english_model() -> None:
+def test_choose_default_english_model_is_small() -> None:
+    # Default profile must NOT trigger a multi-GB download: en -> MiniLM (~90MB).
     spec = catalog.choose_model("en", "default")
+    assert spec.model_id == "sentence-transformers/all-MiniLM-L6-v2"
+    assert spec.dimension == 384
+
+
+def test_choose_default_chinese_model_is_multilingual_small() -> None:
+    spec = catalog.choose_model("zh", "default")
+    assert spec.model_id == "intfloat/multilingual-e5-small"
+    assert spec.dimension == 384
+
+
+def test_choose_default_multilingual_model_is_multilingual_small() -> None:
+    spec = catalog.choose_model("multi", "default")
+    assert spec.model_id == "intfloat/multilingual-e5-small"
+    assert spec.dimension == 384
+
+
+def test_choose_fast_model_is_minilm() -> None:
+    for language in ("en", "zh", "multi"):
+        spec = catalog.choose_model(language, "fast")
+        assert spec.model_id == "sentence-transformers/all-MiniLM-L6-v2"
+        assert spec.dimension == 384
+
+
+def test_choose_best_english_model_is_bge_large() -> None:
+    spec = catalog.choose_model("en", "best")
     assert spec.model_id == "BAAI/bge-large-en-v1.5"
     assert spec.dimension == 1024
 
 
-def test_choose_default_multilingual_model() -> None:
-    spec = catalog.choose_model("multi", "default")
+def test_choose_best_chinese_model_is_bge_m3() -> None:
+    spec = catalog.choose_model("zh", "best")
+    assert spec.model_id == "BAAI/bge-m3"
+    assert spec.dimension == 1024
+
+
+def test_choose_best_multilingual_model_is_bge_m3() -> None:
+    spec = catalog.choose_model("multi", "best")
     assert spec.model_id == "BAAI/bge-m3"
     assert spec.dimension == 1024
 
@@ -78,6 +110,34 @@ class TestModelDirComplete:
         assert workspace_model_available(tmp_path, "BAAI/bge-m3") is False
         (model_dir / "model.safetensors").write_bytes(b"x")
         assert workspace_model_available(tmp_path, "BAAI/bge-m3") is True
+
+
+class TestPrefetchIgnorePatterns:
+    def test_prefetch_passes_ignore_patterns(self, tmp_path: Path, monkeypatch) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_snapshot_download(**kwargs: object) -> str:
+            captured.update(kwargs)
+            return str(kwargs["local_dir"])
+
+        import huggingface_hub
+
+        monkeypatch.setattr(huggingface_hub, "snapshot_download", fake_snapshot_download)
+
+        catalog.prefetch_model("sentence-transformers/all-MiniLM-L6-v2", tmp_path)
+
+        assert "ignore_patterns" in captured
+        ignored = captured["ignore_patterns"]
+        assert isinstance(ignored, list)
+        # Redundant heavy variants are skipped.
+        assert "*.onnx" in ignored
+        assert "openvino/**" in ignored
+        # The actual weight files must NEVER be excluded — model_dir_complete
+        # requires safetensors OR pytorch_model.bin.
+        assert "*.safetensors" not in ignored
+        assert "*.bin" not in ignored
+        assert "model.safetensors" not in ignored
+        assert "pytorch_model.bin" not in ignored
 
 
 def test_region_auto_prefers_official_when_faster(monkeypatch) -> None:

@@ -14,11 +14,30 @@ from hebb.server.dependencies import (
     get_embedder,
     get_knowledge_graph,
     get_memory_store,
+    get_partition_store,
 )
-from hebb.storage.base import MemoryStore
+from hebb.storage.base import MemoryStore, PartitionStore
 from hebb.storage.purge import purge_memory
 
 router = APIRouter()
+
+
+async def _require_partition(partitions: PartitionStore, partition_id: str) -> None:
+    """Reject writes targeting a partition that does not exist.
+
+    Without this guard a memory would be inserted with a dangling
+    ``partition_id`` — the row persists but never surfaces in any
+    partition-scoped list/search, i.e. a silent write-then-lose.
+
+    Args:
+        partitions: Partition store used to resolve ``partition_id``.
+        partition_id: Target partition for the pending write.
+
+    Raises:
+        HTTPException: 404 if ``partition_id`` does not exist.
+    """
+    if await partitions.get(partition_id) is None:
+        raise HTTPException(status_code=404, detail=f"Partition not found: {partition_id}")
 
 
 @router.get("/memories", response_model=PaginatedResponse[Memory])
@@ -57,7 +76,9 @@ async def create_memory(
     data: MemoryCreate,
     store: MemoryStore = Depends(get_memory_store),
     embedder: EmbeddingProvider = Depends(get_embedder),
+    partitions: PartitionStore = Depends(get_partition_store),
 ) -> Memory:
+    await _require_partition(partitions, data.partition_id)
     embedding = await embedder.embed(data.content)
     return await store.create(data, embedding=embedding)
 
@@ -67,11 +88,22 @@ async def create_memories_batch(
     items: list[MemoryCreate],
     store: MemoryStore = Depends(get_memory_store),
     embedder: EmbeddingProvider = Depends(get_embedder),
+    partitions: PartitionStore = Depends(get_partition_store),
 ) -> list[Memory]:
+    for partition_id in {item.partition_id for item in items}:
+        await _require_partition(partitions, partition_id)
     results: list[Memory] = []
     texts = [item.content for item in items]
     embeddings = await embedder.embed_batch(texts)
-    for item, emb in zip(items, embeddings):
+    # An embedder that drops/merges rows would otherwise misalign content to
+    # vectors via zip's silent truncation; fail loud and count only rows we
+    # actually inserted rather than len(items). (write F4)
+    if len(embeddings) != len(items):
+        raise HTTPException(
+            status_code=502,
+            detail=f"Embedder returned {len(embeddings)} vectors for {len(items)} inputs",
+        )
+    for item, emb in zip(items, embeddings, strict=True):
         memory = await store.create(item, embedding=emb)
         results.append(memory)
     return results
@@ -84,6 +116,11 @@ async def update_memory(
     store: MemoryStore = Depends(get_memory_store),
     embedder: EmbeddingProvider = Depends(get_embedder),
 ) -> Memory:
+    # Reject an explicit empty/whitespace content edit: overwriting + re-embedding
+    # a memory with a blank body silently destroys it. An omitted content field
+    # (None) is still a valid "no change". (INT-5)
+    if data.content is not None and not data.content.strip():
+        raise HTTPException(status_code=422, detail="content must not be empty or whitespace")
     memory = await store.update(memory_id, data)
     if not memory:
         raise HTTPException(status_code=404, detail="Memory not found")
@@ -110,8 +147,10 @@ async def ingest_conversation(
     data: IngestRequest,
     store: MemoryStore = Depends(get_memory_store),
     embedder: EmbeddingProvider = Depends(get_embedder),
+    partitions: PartitionStore = Depends(get_partition_store),
 ) -> IngestResponse:
     """Ingest a conversation export: auto-detect format, normalize, and store as memories."""
+    await _require_partition(partitions, data.partition_id)
     result = normalize(data.content, format_hint=data.format_hint)
 
     items: list[MemoryCreate] = []
@@ -137,16 +176,25 @@ async def ingest_conversation(
             )
         )
 
-    # Batch embed and store
+    # Batch embed and store. Count what we actually insert — an embedder that
+    # returns fewer vectors than turns must fail loud, not silently drop the
+    # tail (zip strict) and over-report memories_created. (write F4)
+    memories_created = 0
     if items:
         texts = [item.content for item in items]
         embeddings = await embedder.embed_batch(texts)
-        for item, emb in zip(items, embeddings):
+        if len(embeddings) != len(items):
+            raise HTTPException(
+                status_code=502,
+                detail=f"Embedder returned {len(embeddings)} vectors for {len(items)} inputs",
+            )
+        for item, emb in zip(items, embeddings, strict=True):
             await store.create(item, embedding=emb)
+            memories_created += 1
 
     return IngestResponse(
         format_detected=result.format_detected,
         turns_parsed=result.turn_count,
-        memories_created=len(items),
+        memories_created=memories_created,
         warnings=result.warnings,
     )

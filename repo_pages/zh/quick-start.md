@@ -40,11 +40,18 @@ python -m pip install --user pipx && python -m pipx ensurepath
 hebb setup
 ```
 
-在工作目录下生成 `hebb.json` 与 `hebb.db`，根据系统语言选择 Embedding 模型，并预下载。`language` 与 `region` 是独立参数：
+在工作目录下生成 `hebb.json` 与 `hebb.db`，根据系统语言选择 Embedding 模型，并在本地尚无缓存时下载。**首次运行会下载一个小模型**（英文约 90MB / 多语言约 470MB），仅当模型尚未缓存时才下载；已缓存则直接复用，不会重复下载。英文 / `--profile fast` 的小模型路径通常在 60 秒左右完成，多语言模型略久。`language`、`region`、`profile` 是相互独立的参数：
 
 ```bash
-hebb setup --language en --region cn      # 英文模型，国内镜像
-hebb setup --language zh --region global  # 多语言模型，HuggingFace 官方源
+hebb setup --language en --region cn      # 英文小模型（~90MB），国内镜像
+hebb setup --language zh --region global  # 多语言小模型（~470MB），HuggingFace 官方源
+hebb setup --profile fast                 # 最小模型 all-MiniLM-L6-v2（~90MB）
+```
+
+需要更高质量的检索时，再用高质量档（仅在需要时下载，1–2GB 以上）：
+
+```bash
+hebb setup --profile best                 # 英文 bge-large-en-v1.5 / 中文多语言 bge-m3
 ```
 
 ### 3. 安装后台服务
@@ -82,15 +89,15 @@ curl -X POST http://localhost:8321/api/v1/search \
 
 到这一步，向量 + 关键词 + 标签图谱的三路混合检索已完全在本地运行，无任何外部调用。
 
-## 路径 B — 5 分钟，启用 LLM 巩固
+## 路径 B - 5 分钟，启用 LLM 巩固
 
-巩固、冲突解决、标签提取需要 LLM。**未配置 `llm_api_key` 时，相关接口会静默返回空结果**（v0.1.1 已知问题，详见 [Troubleshooting](./troubleshooting.md#consolidation-no-op)）。
+巩固、冲突解决、标签提取需要 LLM。巩固的开关门槛是 `llm_model`：**未设置它时，相关接口会静默返回空结果**（详见 [故障排查](./troubleshooting.md#consolidate-返回-processed-0-或冲突一直没被解决)）。本地或代理模型只需模型名；托管厂商还需要额外配置 `llm_api_key`。
 
 ### 1. 配置 LLM
 
 ```bash
-hebb config set llm_api_key sk-your-key
 hebb config set llm_model openai/gpt-4o-mini
+hebb config set llm_api_key sk-your-key      # 托管厂商需要
 ```
 
 通过 [LiteLLM](https://github.com/BerriAI/litellm) 切换提供商：
@@ -114,17 +121,17 @@ curl -X POST http://localhost:8321/api/v1/admin/consolidate
 
 ## 30 秒 Python SDK
 
-<!-- requires v0.1.2 facade — see PR #N -->
+门面在**进程内**直接运行整套引擎（存储、Embedding、图谱、检索），不是 HTTP 客户端，也无需后台服务在运行。
 
 ```python
 from hebb import HebbMind
 
-mem = HebbMind()  # 使用 ~/.hebb/hebb.json
+mem = HebbMind()  # 进程内引擎；自动加载就近的 hebb.json（回退 ~/.hebb/hebb.json）
 
 mem.add("用户偏好深色模式", tags=["preference", "ui"], importance=7.5)
 
 for hit in mem.search("UI 偏好", top_k=5):
-    print(hit.score, hit.content)
+    print(hit.score, hit.memory.content)   # 命中文本在 hit.memory.content（不是顶层属性）
 ```
 
 ## 服务生命周期
@@ -147,16 +154,16 @@ Docker 部署见 [存储后端](./advanced/storage-backends.md#docker-deployment
 
 ```bash
 hebb claude-code install --scope user      # Claude Code：hooks 自动记忆
-hebb codex install --scope user   # Codex：MCP 记忆工具
-codex mcp list                           # 验证
+hebb codex install                         # Codex：MCP 记忆工具（仅全局）
+codex mcp list                             # 验证
 ```
 
-通用 MCP 客户端（Cursor 等）：
+通用 MCP 客户端（Cursor 等）请填 `hebb-mcp` 的**绝对路径**（GUI 应用 / launchd 下 `PATH` 往往不含 pipx 的 bin 目录，裸命令会静默启动失败）。先用 `which hebb-mcp`（Windows：`where hebb-mcp`）查出路径：
 
 ```json
 {
   "mcpServers": {
-    "hebb": { "command": "hebb-mcp" }
+    "hebb": { "command": "/Users/you/.local/bin/hebb-mcp" }
   }
 }
 ```

@@ -4,7 +4,7 @@
 
 We report LoCoMo as **session-level Recall@10** — the same metric MemPalace publishes, so the numbers compare directly.
 
-> **Production parity.** Ingestion calls the exact same Claude Code hook code paths that fire in real usage (`src/hebb/integrations/claude_code/write.py` + `stop.py`), and retrieval goes through the same `/api/v1/search` endpoint that the MCP server, CLI, and Web Console use. The numbers below are what a user actually gets in production — not an idealised eval-only configuration. See [vs MemPalace](./vs-mempalace#production-parity-the-most-important-caveat) for how this contrasts with eval setups that diverge from their own production pipeline.
+> **Production parity.** Ingestion calls the exact same Claude Code hook code path that fires in real usage (`src/hebb/integrations/claude_code/stop.py`, the per-turn capture hook), and retrieval goes through the same `/api/v1/search` endpoint that the MCP server, CLI, and Web Console use. The numbers below are what a user actually gets in production — not an idealised eval-only configuration. See [vs MemPalace](./vs-mempalace#production-parity-the-most-important-caveat) for how this contrasts with eval setups that diverge from their own production pipeline.
 
 ## Session-level Recall@10
 

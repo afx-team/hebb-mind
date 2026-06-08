@@ -1,13 +1,15 @@
 # 切换 Embedding 模型
 
-`hebb setup` 第一次运行时会根据系统语言挑一个 Embedding 模型。之后任何时候 —— 即便服务已经在跑、已经写了一堆记忆 —— 都可以切到任何 [sentence-transformers](https://www.sbert.net/docs/pretrained_models.html) 兼容模型，或任何 LiteLLM 兼容的云端 Embedding API。
+`hebb setup` 第一次运行时会根据系统语言挑一个**小**的 Embedding 模型，且仅在尚未缓存时下载。默认（`--profile default`）是 `all-MiniLM-L6-v2`（384 维，英文）或 `intfloat/multilingual-e5-small`（384 维，多语言）；高质量的 bge 档 —— `BAAI/bge-large-en-v1.5` / `BAAI/bge-m3`（均 1024 维）—— 需通过 `hebb setup --profile best` 主动选用。之后任何时候 —— 即便服务已经在跑、已经写了一堆记忆 —— 都可以切到任何 [sentence-transformers](https://www.sbert.net/docs/pretrained_models.html) 兼容模型，或任何 LiteLLM 兼容的云端 Embedding API。已缓存的模型会直接复用，只有缺失的才下载。
+
+一个常见的升级是从小默认模型换到 bge 档以获得更强检索 —— 这是一次**维度变化**（384 → 1024），请按下表「维度变了」那一行操作。
 
 切换分三种情况，按你的实际情况看下表对应小节。
 
 | 情况 | 发生了什么 | 需要做什么 |
 |------|-----------|-----------|
-| **同维度，换模型**（例如 `BAAI/bge-large-en-v1.5` → `intfloat/multilingual-e5-large`，都是 1024 维） | 已有向量仍可用，但语义已不同 | 改配置 → 重启 → 建议再 reembed 一次保持一致 |
-| **维度变了**（例如 `BAAI/bge-large-en-v1.5` 1024 → `all-MiniLM-L6-v2` 384） | 启动时向量表会自动重建，旧向量丢失 | 改配置 → 重启 → **执行 `hebb memory reembed`** |
+| **同维度，换模型**（例如 `all-MiniLM-L6-v2` → `intfloat/multilingual-e5-small`，都是 384 维） | 已有向量仍可用，但语义已不同 | 改配置 → 重启 → 建议再 reembed 一次保持一致 |
+| **维度变了**（例如 `all-MiniLM-L6-v2` 384 → `BAAI/bge-large-en-v1.5` 1024） | 启动时向量表会自动重建，旧向量丢失 | 改配置 → 重启 → **执行 `hebb memory reembed`** |
 | **本地 ↔ API 切换** | provider、base_url、api_key 一起变 | 用 Web 控制台批量改，或 CLI 逐项 `config set`，然后重启 |
 
 ## 路径 A — CLI 一行流（推荐）

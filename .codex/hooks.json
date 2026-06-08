@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hebb cc recall",
+            "command": "hebb claude-code recall",
             "timeout": 30
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hebb cc write",
+            "command": "hebb claude-code prompt",
             "timeout": 10
           }
         ]
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hebb cc stop",
+            "command": "hebb claude-code stop",
             "timeout": 30
           }
         ]

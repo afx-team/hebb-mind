@@ -141,7 +141,7 @@ curl http://localhost:8321/health
 ```json
 {
   "status": "ok",
-  "version": "0.1.2"
+  "version": "0.1.6"
 }
 ```
 
@@ -163,7 +163,7 @@ curl http://localhost:8321/status
 
 ```json
 {
-  "version": "0.1.2",
+  "version": "0.1.6",
   "scheduler": {
     "running": true,
     "jobs": {

@@ -3,8 +3,8 @@
 Runnable examples that show what the Hebb Mind memory framework actually does.
 Each example is self-contained and can be read in under five minutes.
 
-> **Heads up — v0.1.1.** The Python facade (`from hebb import HebbMind`)
-> is new. APIs may shift before 1.0; we'll call out breaking changes in the
+> **Heads up.** The Python facade (`from hebb import HebbMind`) is still
+> pre-1.0 — APIs may shift before 1.0; we'll call out breaking changes in the
 > [CHANGELOG](../CHANGELOG.md).
 
 ---
@@ -39,7 +39,8 @@ pip install -e .          # from a clone of this repo (inside a venv)
 # OR
 pipx install hebb-mind    # from PyPI (isolated CLI install)
 
-# 2. Optional: download the local embedding model (first run does this lazily)
+# 2. Optional: pre-download the local embedding model (small model, only if
+#    not already cached — ~90MB English / ~470MB multilingual)
 hebb setup
 
 # 3. Copy the env template and fill in at least one LLM key for example 02
@@ -52,7 +53,7 @@ $EDITOR examples/.env
 | Variable | Used by | Required? |
 |----------|---------|-----------|
 | `OPENAI_API_KEY` (or any LiteLLM provider key) | `02_persistent_chat.py` | No — falls back to a local stub responder if absent. |
-| `HEBB_DB_PATH` | All Python examples | No — defaults to `./examples/data/example.db`. |
+| `HEBB_HOME` | All Python examples | No — the workspace directory; defaults to `./examples/data` (the DB lands at `<HEBB_HOME>/hebb.db`). |
 
 LiteLLM supports many providers (Anthropic, DeepSeek, Azure, Bedrock, Ollama,
 …). Set the matching env var and pass `--model` to example 02. See the
@@ -63,8 +64,8 @@ LiteLLM supports many providers (Anthropic, DeepSeek, Azure, Bedrock, Ollama,
 ## Running an example
 
 ```bash
-# Example 01 — SDK basics. The --reset flag wipes the example DB so you can
-# re-run cleanly.
+# Example 01 — SDK basics. The --reset flag wipes the example workspace DB so
+# you can re-run cleanly.
 python examples/01_python_sdk_basics.py --reset
 
 # Example 02 — chat. Quit with Ctrl-D or "/quit", then re-run to see recall.

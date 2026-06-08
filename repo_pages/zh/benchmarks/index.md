@@ -4,7 +4,7 @@
 
 Hebb Mind 在 `eval/` 提供一套可复现的评测 harness，让你（和我们）能在自己的硬件、自己的 LLM 上复跑每一个数字。本页记录我们今天测什么、不测什么，以及如何运行。
 
-> **构造上即生产一致。** 本节中的每个基准都驱动与发布到生产环境相同的写入 + 检索代码路径 —— Claude Code hook（`write.py` / `stop.py`）、MCP server 和 `/api/v1/search`。我们从不运行仅供评测的写入或评分管线。这些数字是用户实际得到的，而非理想化 harness 得到的。当竞品系统在其基准测试与生产环境中跑*不同*管线时，我们会在对应的竞品页面上指出（例如 [LoCoMo vs MemPalace](./locomo/vs-mempalace)）。
+> **构造上即生产一致。** 本节中的每个基准都驱动与发布到生产环境相同的写入 + 检索代码路径 —— Claude Code 钩子（`prompt` 召回 / `stop` 写入）、MCP server 和 `/api/v1/search`。我们从不运行仅供评测的写入或评分管线。这些数字是用户实际得到的，而非理想化 harness 得到的。当竞品系统在其基准测试与生产环境中跑*不同*管线时，我们会在对应的竞品页面上指出（例如 [LoCoMo vs MemPalace](./locomo/vs-mempalace)）。
 
 ## 结构
 
@@ -19,9 +19,9 @@ Hebb Mind 在 `eval/` 提供一套可复现的评测 harness，让你（和我�
   - [vs MemPalace](/zh/benchmarks/longmemeval/vs-mempalace) —— 检索 R@5
   - [vs mem0](/zh/benchmarks/longmemeval/vs-mem0) —— 端到端 QA
   - [vs Zep / Graphiti](/zh/benchmarks/longmemeval/vs-zep) —— 检索 R@k + 端到端 QA
-- [ConvoMem](/benchmarks/convomem/) —— 6 类别证据检索（端到端 QA 判分）
+- [ConvoMem](/zh/benchmarks/convomem/) —— 6 类别证据检索（端到端 QA 判分）
 - [MemBench](/zh/benchmarks/membench/) —— 轮次级检索，11 类全量（Hit@k）
-- [PersonaMem](/benchmarks/personamem/) —— 偏好追踪；目前公开对比尚少
+- [PersonaMem](/zh/benchmarks/personamem/) —— 偏好追踪；目前公开对比尚少
 
 ## 测的是什么
 
@@ -49,10 +49,10 @@ LoCoMo、LongMemEval、ConvoMem 与 MemBench 探测的是*检索 + 作答*阶段
 | 数据集 | 指标 | 为何用此指标 |
 |---|---|---|
 | [LoCoMo](./locomo/) | **Session R@k** | 证据按 session 标注（`evidence: ["D1:3", ...]`）→ R@k 是该数据集的原生信号：检索是否召回了某个证据 session 的记忆？ |
-| [LongMemEval](/benchmarks/longmemeval/) | **Session R@k** | Ground truth 是 `answer_session_ids` —— 一组干净的 session id。R@k 正是数据集作者的本意；LLM 判分只会增加噪声，却不会对检索测出任何不同的东西。 |
-| [ConvoMem](/benchmarks/convomem/) | **端到端 QA 判分** | Ground truth 是自由文本答案。数据集公布的「在证据上做子串匹配」指标是一个嘈杂的代理，会惩罚任何归一化；我们刻意**不**报告它。完整理由见 [ConvoMem 页面](/benchmarks/convomem/#how-we-evaluate)。 |
-| [MemBench](/benchmarks/membench/) | **轮次级 Hit@k** | Ground truth 是一个轮次索引指针（`target_step_id`）。问题是 4 选 1 单选题 → LLM 判分仅凭随机猜测就能得 25%，会把检索失败与生成运气混为一谈。 |
-| [PersonaMem](/benchmarks/personamem/) | **端到端 QA 判分** | Ground truth 是对一个演变中偏好的自由文本重写；没有干净的检索级标识符可供匹配。 |
+| [LongMemEval](/zh/benchmarks/longmemeval/) | **Session R@k** | Ground truth 是 `answer_session_ids` —— 一组干净的 session id。R@k 正是数据集作者的本意；LLM 判分只会增加噪声，却不会对检索测出任何不同的东西。 |
+| [ConvoMem](/zh/benchmarks/convomem/) | **端到端 QA 判分** | Ground truth 是自由文本答案。数据集公布的「在证据上做子串匹配」指标是一个嘈杂的代理，会惩罚任何归一化；我们刻意**不**报告它。完整理由见 [ConvoMem 页面](/zh/benchmarks/convomem/#如何评测)。 |
+| [MemBench](/zh/benchmarks/membench/) | **轮次级 Hit@k** | Ground truth 是一个轮次索引指针（`target_step_id`）。问题是 4 选 1 单选题 → LLM 判分仅凭随机猜测就能得 25%，会把检索失败与生成运气混为一谈。 |
+| [PersonaMem](/zh/benchmarks/personamem/) | **端到端 QA 判分** | Ground truth 是对一个演变中偏好的自由文本重写；没有干净的检索级标识符可供匹配。 |
 
 定义：
 
@@ -102,7 +102,7 @@ runner 在基准之间清理数据库，使结果相互独立。它*不*在模�
 
 - 我们尚**未**发布针对 mem0 / Letta / Zep 的第一方对比。它们的 harness、判分器与场景数量各不相同；公平的正面对决需要把每个系统接入*同一套* harness 复跑，这在路线图上。
 - QA 模式数字的判分器是 `openai/Kimi-K2.5`；更换判分器会让绝对准确率波动数个点。务必披露判分器。
-- Embedding 模型维度（384 vs 1024）是已知的混淆因素 —— [mempalace 深度剖析](https://github.com/afx-team/hebb-mind/blob/main/docs/analysis/mempalace-benchmark-deep-dive.md)显示 LoCoMo single-hop 上有约 16 pp 的摆动。我们 `setup` 默认用 BGE；harness 继承你 `hebb.json` 指定的任何模型。
-- 我们刻意不去追 MemPalace 的 ConvoMem 子串匹配数字。原因见 [ConvoMem 页面](/benchmarks/convomem/#how-we-evaluate)。
+- Embedding 模型维度（384 vs 1024）是已知的混淆因素 —— [mempalace 深度剖析](https://github.com/afx-team/hebb-mind/blob/main/docs/analysis/mempalace-benchmark-deep-dive.md)显示 LoCoMo single-hop 上有约 16 pp 的摆动。`hebb setup` 默认用**小模型**（英语 `all-MiniLM-L6-v2`，中文/多语言 `intfloat/multilingual-e5-small`），更高质量的 `BAAI/bge-large-en-v1.5` / `BAAI/bge-m3` 需通过 `--profile best` 显式选择；harness 继承你 `hebb.json` 指定的任何模型。各基准报告中的具体模型见其配置块。
+- 我们刻意不去追 MemPalace 的 ConvoMem 子串匹配数字。原因见 [ConvoMem 页面](/zh/benchmarks/convomem/#如何评测)。
 
 如果你在不同硬件 / 不同判分器 / 更大样本上复现，欢迎提交 PR 给对应页面加一行 —— 这是让这些数字变得可信的最快途径。

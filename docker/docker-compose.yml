@@ -4,16 +4,19 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     ports:
-      - "8321:8321"
+      - "${HEBB_PORT:-8321}:${HEBB_PORT:-8321}"
     volumes:
       - hebb-data:/data
     environment:
       - HEBB_HOME=/data
+      - HEBB_PORT=${HEBB_PORT:-8321}
       - HEBB_LANGUAGE=${HEBB_LANGUAGE:-auto}
       - HEBB_REGION=${HEBB_REGION:-auto}
       - HEBB_LLM_API_KEY=${HEBB_LLM_API_KEY}
       - HEBB_LLM_MODEL=${HEBB_LLM_MODEL:-openai/gpt-4o-mini}
       - HEBB_LLM_BASE_URL=${HEBB_LLM_BASE_URL:-}
+      - HEBB_STORAGE_TYPE=${HEBB_STORAGE_TYPE:-}
+      - HEBB_PG_URL=${HEBB_PG_URL:-}
     restart: unless-stopped
 
 volumes:

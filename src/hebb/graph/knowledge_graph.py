@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import networkx as nx
 
@@ -13,6 +16,12 @@ from hebb.models.graph import (
     TagNode,
 )
 
+if TYPE_CHECKING:
+    from hebb.storage.base import MemoryStore
+
+# Split a query into lowercase word tokens for per-token tag matching.
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
 
 class KnowledgeGraph:
     """Tag-based knowledge graph with file-backed persistence."""
@@ -20,6 +29,12 @@ class KnowledgeGraph:
     def __init__(self, path: Path) -> None:
         self.path = path
         self.graph: nx.Graph = nx.Graph()
+        # Single shared lock for read-modify-write + save sequences. Both the
+        # consolidation and forgetting paths mutate the in-memory graph and
+        # persist it; serialising through this one lock keeps concurrent
+        # background tasks from interleaving a mutation with another task's
+        # save (which would write out a partially-updated graph).
+        self.lock = asyncio.Lock()
         self._load()
 
     def _load(self) -> None:
@@ -224,13 +239,38 @@ class KnowledgeGraph:
         return GraphQueryResult(nodes=[n for n in nodes if n is not None], edges=edges, paths=[path])
 
     def search_tags(self, query: str) -> list[TagNode]:
-        """Substring search on tag IDs and labels."""
-        query = query.lower().strip()
-        results = []
+        """Token-wise search on tag IDs and labels.
+
+        Tags are single-concept short words, so testing whether the *whole*
+        lowercased query is a substring of one tag almost never matches for a
+        normal multi-word query. Instead, tokenize the query and match each
+        content token against the tag id / label tokens: a tag matches when any
+        of its tokens shares a query token (or one is a substring of the other,
+        to keep singular/plural and stem-ish near-misses).
+
+        Args:
+            query: Free-text query; tokenized into lowercase word tokens.
+
+        Returns:
+            Matching tag nodes (deduplicated, in graph iteration order).
+        """
+        query_tokens = _TOKEN_RE.findall(query.lower())
+        if not query_tokens:
+            return []
+
+        results: list[TagNode] = []
         for node_id in self.graph.nodes:
             data = self.graph.nodes[node_id]
-            label = data.get("label", "")
-            if query in node_id or query in label.lower():
+            label = str(data.get("label", ""))
+            tag_tokens = set(_TOKEN_RE.findall(str(node_id).lower())) | set(_TOKEN_RE.findall(label.lower()))
+            if not tag_tokens:
+                continue
+            matched = any(
+                qt == tt or (len(qt) >= 3 and qt in tt) or (len(tt) >= 3 and tt in qt)
+                for qt in query_tokens
+                for tt in tag_tokens
+            )
+            if matched:
                 results.append(
                     TagNode(
                         id=data.get("id", node_id),
@@ -241,6 +281,47 @@ class KnowledgeGraph:
                     )
                 )
         return results
+
+    async def reconcile(self, store: MemoryStore) -> int:
+        """Strip graph references to memory ids that no longer exist in ``store``.
+
+        A crash between an SQL delete and the graph save (or legacy/partial
+        re-consolidation) can leave tag nodes referencing already-deleted
+        memory ids. Such orphans are runtime-harmless (recall skips dead ids)
+        but accumulate and skew tag weights. This sweeps every referenced id
+        against the store and removes the dead ones, pruning emptied nodes, then
+        persists the graph if anything changed.
+
+        Args:
+            store: Memory store used to test whether each referenced id exists.
+
+        Returns:
+            The number of (node, memory_id) references removed.
+        """
+        referenced: set[str] = set()
+        for node_id in self.graph.nodes:
+            referenced.update(self.graph.nodes[node_id].get("memory_ids", []))
+
+        dead: set[str] = set()
+        for mid in referenced:
+            if await store.get(mid) is None:
+                dead.add(mid)
+
+        if not dead:
+            return 0
+
+        async with self.lock:
+            # Count (node, memory_id) references before stripping, then remove.
+            removed = sum(
+                1
+                for node_id in self.graph.nodes
+                for mid in self.graph.nodes[node_id].get("memory_ids", [])
+                if mid in dead
+            )
+            for mid in dead:
+                self.remove_memory_from_tags(mid)
+            self.save()
+        return removed
 
     def get_all_tags(self) -> list[TagNode]:
         """Return all tag nodes."""

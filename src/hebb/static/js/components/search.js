@@ -6,6 +6,9 @@ import * as api from '../api.js';
 import { t } from '../i18n.js';
 import { error } from './toast.js';
 
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 function truncate(s, n = 200) { return s.length > n ? s.slice(0, n) + '...' : s; }
 
 export async function renderSearch(root) {
@@ -71,22 +74,22 @@ export async function renderSearch(root) {
           <div class="flex-between">
             <div class="result-score">
               #${i + 1} &middot; ${t('search.score')}: <strong>${r.score.toFixed(3)}</strong>
-              &middot; <span class="tag tag-blue">${r.memory.partition_id.replace('mem_', '')}</span>
-              ${r.memory.tags.map(t => `<span class="tag">${t}</span>`).join(' ')}
+              &middot; <span class="tag tag-blue">${esc(r.memory.partition_id.replace('mem_', ''))}</span>
+              ${r.memory.tags.map(tag => `<span class="tag">${esc(tag)}</span>`).join(' ')}
             </div>
           </div>
-          <div class="result-content">${truncate(r.memory.content)}</div>
+          <div class="result-content">${esc(truncate(r.memory.content))}</div>
           <div class="score-bars">
             <div class="score-bar-item">
-              <div class="score-bar-label">Relevance ${r.relevance_score.toFixed(2)}</div>
+              <div class="score-bar-label">${t('search.relevance_label')} ${r.relevance_score.toFixed(2)}</div>
               <div class="score-bar"><div class="score-bar-fill blue" style="width:${(r.relevance_score * 100).toFixed(1)}%"></div></div>
             </div>
             <div class="score-bar-item">
-              <div class="score-bar-label">Importance ${r.importance_score_normalized.toFixed(2)}</div>
+              <div class="score-bar-label">${t('search.importance_label')} ${r.importance_score_normalized.toFixed(2)}</div>
               <div class="score-bar"><div class="score-bar-fill yellow" style="width:${(r.importance_score_normalized * 100).toFixed(1)}%"></div></div>
             </div>
             <div class="score-bar-item">
-              <div class="score-bar-label">Recency ${r.recency_score.toFixed(2)}</div>
+              <div class="score-bar-label">${t('search.recency_label')} ${r.recency_score.toFixed(2)}</div>
               <div class="score-bar"><div class="score-bar-fill green" style="width:${(r.recency_score * 100).toFixed(1)}%"></div></div>
             </div>
           </div>
@@ -98,15 +101,15 @@ export async function renderSearch(root) {
         html += `
           <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
             <h4 style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">
-              Related (via knowledge graph)
+              ${t('search.related')}
             </h4>
             ${related.map(m => `
               <div class="result-card" style="opacity:0.75">
                 <div class="result-score">
-                  <span class="tag tag-blue">${m.partition_id.replace('mem_', '')}</span>
-                  ${m.tags.map(t => `<span class="tag">${t}</span>`).join(' ')}
+                  <span class="tag tag-blue">${esc(m.partition_id.replace('mem_', ''))}</span>
+                  ${m.tags.map(tag => `<span class="tag">${esc(tag)}</span>`).join(' ')}
                 </div>
-                <div class="result-content">${truncate(m.content)}</div>
+                <div class="result-content">${esc(truncate(m.content))}</div>
               </div>
             `).join('')}
           </div>`;

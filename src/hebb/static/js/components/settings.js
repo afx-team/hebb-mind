@@ -42,16 +42,16 @@ export function offerRestart({ onRestarted } = {}) {
   overlay.classList.remove('hidden');
   overlay.innerHTML = `
     <div class="modal" style="max-width:420px">
-      <h3 class="modal-title">Restart service to apply?</h3>
+      <h3 class="modal-title">${t('settings.restart.title')}</h3>
       <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin:0 0 8px;">
-        One or more fields you changed only take effect after a restart of the Hebb Mind service.
+        ${t('settings.restart.body')}
       </p>
       <p style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin:0;">
-        Expected downtime: a few seconds. The page will reload when the service is back.
+        ${t('settings.restart.downtime')}
       </p>
       <div class="modal-actions">
-        <button class="btn" id="restart-cancel">Later</button>
-        <button class="btn btn-primary" id="restart-now">Restart now</button>
+        <button class="btn" id="restart-cancel">${t('settings.restart.later')}</button>
+        <button class="btn btn-primary" id="restart-now">${t('settings.restart.now')}</button>
       </div>
     </div>
   `;
@@ -60,24 +60,24 @@ export function offerRestart({ onRestarted } = {}) {
   overlay.querySelector('#restart-now').onclick = async () => {
     const btn = overlay.querySelector('#restart-now');
     btn.disabled = true;
-    btn.textContent = 'Restarting…';
+    btn.textContent = t('settings.restart.restarting');
     try {
       await api.restartService();
     } catch (e) {
-      error('Restart request failed: ' + e.message);
+      error(t('settings.restart.request_failed') + ': ' + e.message);
       close();
       return;
     }
-    info('Restart issued. Waiting for service to come back…');
+    info(t('settings.restart.issued'));
     const ok = await waitForHealthRecovery(30);
     close();
     if (ok) {
-      success('Service restarted');
+      success(t('settings.restart.ok'));
       if (typeof onRestarted === 'function') {
         try { await onRestarted(); } catch { /* ignore */ }
       }
     } else {
-      error('Service did not respond within 30s. Check `hebb status` in a terminal.');
+      error(t('settings.restart.timeout'));
     }
   };
 }
@@ -120,7 +120,7 @@ const EMB_HTTP_DEFAULTS = {
 
 /* --- Config groups, organised into top-level tabs --- */
 const GROUP_RECALL = {
-  title: 'Recall Pipeline',
+  titleKey: 'settings.group.recall',
   icon: '&#128269;',
   keys: ['keyword_search_enabled', 'graph_search_enabled', 'lexical_boost_enabled', 'temporal_boost_enabled', 'graph_expansion_enabled', 'recall_min_score'],
   hints: {
@@ -133,7 +133,7 @@ const GROUP_RECALL = {
   },
 };
 const GROUP_RERANK = {
-  title: 'Rerank',
+  titleKey: 'settings.group.rerank',
   icon: '&#127919;',
   keys: ['rerank_enabled', 'rerank_provider', 'rerank_model', 'rerank_top_n'],
   hints: {
@@ -144,7 +144,7 @@ const GROUP_RERANK = {
   },
 };
 const GROUP_WEIGHTS = {
-  title: 'Scoring Weights',
+  titleKey: 'settings.group.weights',
   icon: '&#9878;',
   note:
     'When rerank is off, results are ranked by a weighted blend of three normalised [0–1] signals — ' +
@@ -161,22 +161,22 @@ const GROUP_WEIGHTS = {
   },
 };
 const GROUP_LIFECYCLE = {
-  title: 'Memory Lifecycle',
+  titleKey: 'settings.group.lifecycle',
   icon: '&#128260;',
   keys: ['consolidation_time', 'consolidation_concurrency', 'consolidation_max_tokens', 'forget_interval_seconds', 'base_ttl_hours', 'decay_factor'],
 };
 const GROUP_STORAGE = {
-  title: 'Storage',
+  titleKey: 'settings.group.storage',
   icon: '&#128451;',
   keys: ['storage_type', 'pg_url', 'pg_pool_min', 'pg_pool_max'],
 };
 const GROUP_WORKSPACE = {
-  title: 'Workspace',
+  titleKey: 'settings.group.workspace',
   icon: '&#128193;',
   keys: ['home'],
 };
 const GROUP_SERVER = {
-  title: 'Server',
+  titleKey: 'settings.group.server',
   icon: '&#128421;',
   keys: ['host', 'port'],
 };
@@ -271,15 +271,18 @@ function buildLLMSection(config) {
   const section = document.createElement('div');
   section.className = 'card mb-4';
 
-  const isConfigured = config.llm_model && config.llm_api_key;
+  // The real gate for LLM usage is the model id; a key is optional for local /
+  // proxy models that don't require one. Mirror that here so a keyless model
+  // still shows "configured".
+  const isConfigured = Boolean(config.llm_model);
 
   section.innerHTML = `
     <div class="flex-between mb-4">
       <h3 style="font-size:14px;font-weight:600;">
-        <span style="margin-right:6px">&#129302;</span>LLM Configuration
+        <span style="margin-right:6px">&#129302;</span>${t('settings.llm_title')}
         ${isConfigured
-          ? '<span class="tag tag-green" style="font-size:10px;margin-left:8px">configured</span>'
-          : '<span class="tag tag-yellow" style="font-size:10px;margin-left:8px">not configured</span>'}
+          ? `<span class="tag tag-green" style="font-size:10px;margin-left:8px">${t('settings.configured')}</span>`
+          : `<span class="tag tag-yellow" style="font-size:10px;margin-left:8px">${t('settings.not_configured')}</span>`}
       </h3>
     </div>
     ${!isConfigured ? `
@@ -472,7 +475,7 @@ function buildEmbeddingSection(config) {
   section.innerHTML = `
     <div class="flex-between mb-4">
       <h3 style="font-size:14px;font-weight:600;">
-        <span style="margin-right:6px">&#128300;</span>Embedding Configuration
+        <span style="margin-right:6px">&#128300;</span>${t('settings.embedding_title')}
         <span id="emb-status-badge" style="font-size:10px;margin-left:8px"></span>
       </h3>
     </div>
@@ -1001,7 +1004,7 @@ function buildGenericSection(group, config) {
   section.innerHTML = `
     <div class="flex-between mb-4">
       <h3 style="font-size:14px;font-weight:600;">
-        <span style="margin-right:6px">${group.icon}</span>${group.title}
+        <span style="margin-right:6px">${group.icon}</span>${group.titleKey ? t(group.titleKey) : group.title}
       </h3>
     </div>
     ${group.note ? `<div style="background:var(--bg-tertiary);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--text-secondary);line-height:1.6;">${group.note}</div>` : ''}

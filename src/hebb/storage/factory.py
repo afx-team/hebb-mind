@@ -44,6 +44,13 @@ async def _create_sqlite(settings: Settings) -> StorageContext:
     from hebb.storage.sqlite_store import SQLiteMemoryStore
 
     db = await get_connection(settings.db_path, load_vec=settings.embedding_enabled)
+    # Resilient pragmas on the single shared connection. WAL is already set in
+    # get_connection; reaffirm it and add a busy_timeout so a concurrent writer
+    # (e.g. a background sweep) waits for the lock instead of failing fast with
+    # "database is locked". Serialization itself is handled by the store's
+    # in-process write lock (INT-2), not by re-architecting to a pool.
+    await db.execute("PRAGMA journal_mode=WAL")
+    await db.execute("PRAGMA busy_timeout=5000")
     await initialize_schema(db, settings.embedding_dim, create_vec_table=settings.embedding_enabled)
 
     memory_store = SQLiteMemoryStore(db)

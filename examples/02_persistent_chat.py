@@ -35,7 +35,7 @@ from pathlib import Path
 from hebb import HebbMind
 
 DEFAULT_MODEL = "openai/gpt-4o-mini"
-DEFAULT_DB_PATH = Path("examples/data/example.db")
+DEFAULT_HOME = Path("examples/data")
 SYSTEM_PROMPT_BASE = (
     "You are a helpful assistant with persistent memory. Use the MEMORY block "
     "below to personalize answers. If a fact is missing, say so honestly."
@@ -46,9 +46,10 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--model", default=DEFAULT_MODEL,
                         help=f"LiteLLM model id (default: {DEFAULT_MODEL}).")
-    parser.add_argument("--db-path", type=Path,
-                        default=Path(os.environ.get("HEBB_DB_PATH", DEFAULT_DB_PATH)),
-                        help="SQLite path for memory storage.")
+    parser.add_argument("--home", type=Path,
+                        default=Path(os.environ.get("HEBB_HOME", DEFAULT_HOME)),
+                        help="Workspace directory for memory storage "
+                             "(DB lives at <home>/hebb.db).")
     parser.add_argument("--top-k", type=int, default=5,
                         help="How many memories to inject as context per turn.")
     return parser.parse_args()
@@ -122,7 +123,9 @@ def chat_loop(hc: HebbMind, model: str, top_k: int, online: bool) -> None:
             print("bye.")
             return
         if user_msg == "/forget":
-            for mem in list(hc.list()):
+            # hc.list() returns a (memories, total) tuple — unpack it.
+            all_mems, _ = hc.list()
+            for mem in all_mems:
                 hc.delete(mem.id)
             print("(memory wiped)")
             history.clear()
@@ -151,8 +154,9 @@ def chat_loop(hc: HebbMind, model: str, top_k: int, online: bool) -> None:
 
 def main() -> None:
     args = parse_args()
-    args.db_path.parent.mkdir(parents=True, exist_ok=True)
-    os.environ.setdefault("HEBB_DB_PATH", str(args.db_path))
+    args.home.mkdir(parents=True, exist_ok=True)
+    # The facade resolves its workspace (and therefore the DB path) from HEBB_HOME.
+    os.environ.setdefault("HEBB_HOME", str(args.home.resolve()))
 
     online = has_any_llm_key()
     if not online:

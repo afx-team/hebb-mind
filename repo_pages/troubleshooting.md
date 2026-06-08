@@ -15,20 +15,20 @@ curl -X POST http://localhost:8321/api/v1/admin/consolidate
 
 Or you can see new memories piling up in the database but nothing is being merged, deduplicated, or tagged.
 
-**Cause.** No LLM API key is configured. Consolidation, conflict resolution, importance scoring, and automatic tag extraction all call out to an LLM via [LiteLLM](https://github.com/BerriAI/litellm). Without a key, the consolidation worker silently skips every batch — vector search and CRUD still work, but nothing "agentic" runs.
+**Cause.** No LLM model is configured. Consolidation, conflict resolution, importance scoring, and automatic tag extraction all call out to an LLM via [LiteLLM](https://github.com/BerriAI/litellm). The on/off gate is **`llm_model`** — until it is set, the consolidation worker silently skips every batch. Vector search and CRUD still work, but nothing "agentic" runs. (A hosted provider also needs `llm_api_key`; a local/proxy model does not.)
 
 **Fix.**
 
 ```bash
-hebb config set llm_api_key sk-your-key-here
-# Optional: switch model and endpoint
 hebb config set llm_model openai/gpt-4o-mini
+# Hosted providers also need a key (skip for local/proxy models):
+hebb config set llm_api_key sk-your-key-here
 hebb config set llm_base_url https://api.openai.com/v1
 # Re-trigger
 curl -X POST http://localhost:8321/api/v1/admin/consolidate
 ```
 
-You can verify the key is loaded with `hebb doctor` — it shows `LLM: [OK]` once the key is set. See [Configuration](./guide/configuration.md) for the full list of supported providers.
+You can verify the model is loaded with `hebb doctor` — it shows `LLM: [OK]` once `llm_model` is set. See [Configuration](./guide/configuration.md) for the full list of supported providers.
 
 ---
 
@@ -99,7 +99,7 @@ Remember to point any MCP / Claude Code integration at the new port, and update 
 
 **Symptom.** `hebb setup` or `hebb service install` appears stuck. No progress, no error.
 
-**Cause.** The embedding model is downloading from HuggingFace. A multilingual model like `BAAI/bge-m3` is ~2 GB and on a typical home connection takes 3–5 minutes; behind a slow link or a corporate proxy it can take 15+. The progress bar is provided by `huggingface_hub` and is sometimes swallowed when stdout is not a TTY.
+**Cause.** The embedding model is downloading from HuggingFace. The default models are small — `all-MiniLM-L6-v2` (~90MB, English) or `intfloat/multilingual-e5-small` (~470MB, multilingual) — and land in about a minute on a typical connection. If you ran `hebb setup --profile best`, a high-quality model like `BAAI/bge-large-en-v1.5` (~1.3 GB) or `BAAI/bge-m3` (~2 GB) is downloading instead; on a slow link or behind a corporate proxy that can take several minutes to 15+. The progress bar is provided by `huggingface_hub` and is sometimes swallowed when stdout is not a TTY.
 
 **Fix.**
 
@@ -109,7 +109,7 @@ Remember to point any MCP / Claude Code integration at the new port, and update 
    ls -lah ~/.cache/huggingface/hub/
    ```
 
-   You should see a `models--BAAI--*` directory whose size is growing.
+   You should see a `models--*` directory (e.g. `models--sentence-transformers--all-MiniLM-L6-v2`, or `models--BAAI--*` for the `best` profile) whose size is growing.
 
 2. If you're in mainland China or behind the Great Firewall, switch the source to the [hf-mirror.com](https://hf-mirror.com) mirror:
 
@@ -119,10 +119,10 @@ Remember to point any MCP / Claude Code integration at the new port, and update 
 
    This sets `HF_ENDPOINT=https://hf-mirror.com` before downloading.
 
-3. If a previous download crashed midway, clear the partial cache and retry:
+3. If a previous download crashed midway, clear the partial cache for the affected model and retry (replace the directory name with the model you're downloading):
 
    ```bash
-   rm -rf ~/.cache/huggingface/hub/models--BAAI--bge-m3
+   rm -rf ~/.cache/huggingface/hub/models--sentence-transformers--all-MiniLM-L6-v2
    hebb model prefetch
    ```
 
@@ -144,7 +144,7 @@ The model lives under `~/.cache/huggingface/hub/` (or `$HF_HOME` if you set it).
 
 ```bash
 hebb config get workspace
-# /Users/you/projects/myapp/hebb.db
+# /Users/you/projects/myapp     (the workspace directory; hebb.db lives inside it)
 ```
 
 If it's not what you expect, either `cd` into the project that owns the db, or pin it explicitly:
@@ -169,7 +169,7 @@ For a tour of what each Console tab does, see [Web Console](./guide/web-console.
 ```bash
 # 1. Make sure the HTTP server is up
 hebb status
-# Expected: "Hebb Mind is running at http://localhost:8321"
+# Expected: "Server is running at http://127.0.0.1:8321 (v…)"
 
 # 2. Inspect what Claude Code knows about
 claude mcp list
