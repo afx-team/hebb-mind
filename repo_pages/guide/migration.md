@@ -2,15 +2,20 @@
 
 This page maps the concepts and APIs of the three most-asked-about agent-memory frameworks onto Hebb Mind, plus shows how to move data over. Hebb Mind is younger than all three; we call out the gaps honestly so you can decide whether the move makes sense for your use case today.
 
-All Python snippets use the public facade:
+All Python snippets use the public facade, which runs the engine **in-process** (its own storage, embedder, knowledge graph, and searcher — no HTTP server):
 
 ```python
 from hebb import HebbMind
 
-mem = HebbMind()  # talks to http://localhost:8321 by default
+mem = HebbMind()  # resolves the workspace: $HEBB_HOME → nearest hebb.json → ~/.hebb
 ```
 
-The background service must be installed and running (`hebb service install`). See [Quick Start](../quick-start.md).
+The facade signatures used below:
+
+- `mem.add(content, *, partition="mem_hippocampus", importance=5.0, tags=None, metadata=None, source="library") -> Memory`
+- `mem.search(query, *, top_k=10, partition_ids=None, tags=None, ...) -> list[MemorySearchResult]` — read content via `hit.memory.content`.
+
+The facade has **no `ingest()` method** — calling one on the `mem` object raises `AttributeError`. For bulk/turn ingestion (LLM fact extraction over a chat turn), call the REST endpoint `POST /api/v1/ingest`, or loop `mem.add()` for verbatim per-turn storage. The REST endpoints below require the background service to be installed and running (`hebb service install`); the in-process facade does not. See [Quick Start](../quick-start.md).
 
 ---
 
@@ -49,16 +54,26 @@ from hebb import HebbMind
 
 mem = HebbMind()
 mem.add(
-    content="I'm allergic to peanuts",
-    partition_id="alice",
+    "I'm allergic to peanuts",
+    partition="alice",
     metadata={"source": "chat"},
 )
-results = mem.search(query="food allergies", partition_id="alice", top_k=5)
+results = mem.search("food allergies", partition_ids=["alice"], top_k=5)
+for hit in results:
+    print(hit.score, hit.memory.content)
 ```
 
 ### Data import
 
-We do not yet ship a one-shot importer for mem0 dumps. The schemas are similar enough that a ~30-line script using mem0's `get_all()` and Hebb Mind's `add()` will move most data; we're tracking a first-class importer in [issue #TBD](https://github.com/afx-team/hebb-mind/issues). PRs welcome.
+We do not yet ship a one-shot importer for mem0 dumps. The schemas are similar enough that a ~30-line script that reads mem0's `get_all()` and calls `mem.add()` per row will move most data; we're tracking a first-class importer in [issue #TBD](https://github.com/afx-team/hebb-mind/issues). PRs welcome.
+
+```python
+from hebb import HebbMind
+
+mem = HebbMind()
+for row in m.get_all(user_id="alice")["results"]:   # mem0 export
+    mem.add(row["memory"], partition="alice", metadata=row.get("metadata"))
+```
 
 ### Where we lag mem0 today
 
@@ -99,8 +114,8 @@ hits = agent.memory.archival_memory_search("UI preferences", count=5)
 from hebb import HebbMind
 
 mem = HebbMind()
-mem.add(content="User prefers dark mode", partition_id=agent_id, importance_score=7.5)
-hits = mem.search(query="UI preferences", partition_id=agent_id, top_k=5)
+mem.add("User prefers dark mode", partition=agent_id, importance=7.5)
+hits = mem.search("UI preferences", partition_ids=[agent_id], top_k=5)
 ```
 
 Register that as a Letta tool and the rest of the agent loop is unchanged.
@@ -156,16 +171,22 @@ results = zep.memory.search_memory("alice", text="user occupation", limit=5)
 from hebb import HebbMind
 
 mem = HebbMind()
-mem.ingest(
-    messages=[{"role": "user", "content": "I run a vegan bakery"}],
-    partition_id="alice",
-)
-results = mem.search(query="user occupation", partition_id="alice", top_k=5)
+# Verbatim per-turn storage via the in-process facade:
+mem.add("I run a vegan bakery", partition="alice", source="chat")
+results = mem.search("user occupation", partition_ids=["alice"], top_k=5)
+```
+
+To get Zep-style LLM **fact extraction** over a raw turn (instead of verbatim storage), POST the turn to the running service's ingest endpoint:
+
+```bash
+curl -X POST http://localhost:8321/api/v1/ingest \
+  -H 'Content-Type: application/json' \
+  -d '{"content": "user: I run a vegan bakery", "partition_id": "alice"}'
 ```
 
 ### Data import
 
-Zep exposes `GET /sessions/{id}/messages` and `GET /sessions/{id}/facts`. A small loop that pulls those and calls `mem.add()` (or `mem.ingest()` for raw messages) covers the common case. No first-party importer yet — [issue #TBD](https://github.com/afx-team/hebb-mind/issues).
+Zep exposes `GET /sessions/{id}/messages` and `GET /sessions/{id}/facts`. A small loop that pulls those and calls `mem.add()` per item covers the common case; for raw messages you want fact-extracted, POST each to `/api/v1/ingest` instead. No first-party importer yet — [issue #TBD](https://github.com/afx-team/hebb-mind/issues).
 
 ### Where we lag Zep today
 
@@ -180,6 +201,6 @@ If your use case leans on entity-temporal graph queries today, Zep / Graphiti is
 ## Common to all three migrations
 
 - **Test in a fresh partition first.** Migrate one user/agent/session before bulk-importing.
-- **Re-consolidate after import.** `curl -X POST http://localhost:8321/api/v1/admin/consolidate` runs the consolidation agent over the new memories — required for tag extraction and dedup. Needs `llm_api_key`; see [Troubleshooting](../troubleshooting.md#consolidate-returns-processed-0-or-no-conflicts-get-resolved).
+- **Re-consolidate after import.** `curl -X POST http://localhost:8321/api/v1/admin/consolidate` runs the consolidation agent over the new memories — required for tag extraction and dedup. Needs `llm_model` set (and `llm_api_key` for hosted providers); see [Troubleshooting](../troubleshooting.md#consolidate-returns-processed-0-or-no-conflicts-get-resolved).
 - **Verify with the Web Console.** Open <http://localhost:8321/> and skim the Memories tab to confirm the import landed where you expected. See [Web Console](./web-console.md).
-- **Pick the right embedding dimension up front.** Switching `embedding_model` after ingest forces a re-ingest. The default (`BAAI/bge-large-en-v1.5`, 1024-d) is a good starting point for English.
+- **Pick the right embedding dimension up front.** Switching `embedding_model` after ingest forces a re-embed (`hebb memory reembed`). The default `all-MiniLM-L6-v2` (384-d) is a fast English starting point; for the strongest English retrieval, `hebb setup --profile best` selects `BAAI/bge-large-en-v1.5` (1024-d). See [Switch the Embedding Model](./switch-embedding-model.md).

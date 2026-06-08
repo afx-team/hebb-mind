@@ -46,9 +46,11 @@ async def search_memories(
     # surfaced so the forgetting TTL / recency ranking treat them as alive
     # (the "use it or lose it" loop the search path otherwise never closed).
     # In-process recall during consolidation calls the searcher directly and
-    # bypasses this; only genuine retrieval surfaces (MCP/hook/console/REST)
-    # hit this endpoint. Off under benchmarks for snapshot reproducibility.
-    if settings.recall_strengthening_enabled and response.results:
+    # bypasses this. Gated on ``strict_recall`` so only genuine agent recall
+    # (Claude Code hook / MCP, which opt in) strengthens — plain REST /search,
+    # i.e. console browsing and ad-hoc queries, must NOT bias recency/forgetting
+    # just by being looked at. Master switch off under benchmarks. (recall F8)
+    if settings.recall_strengthening_enabled and query.strict_recall and response.results:
         await store.update_access_batch([r.memory.id for r in response.results])
 
     return response

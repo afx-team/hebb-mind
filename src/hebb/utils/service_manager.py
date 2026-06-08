@@ -21,11 +21,13 @@ from __future__ import annotations
 
 import os
 import platform
+import shlex
 import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
+from xml.sax.saxutils import escape as _xml_escape
 
 from hebb.utils.cli_paths import hebb_command as _hebb_argv
 
@@ -61,10 +63,46 @@ def hebb_command() -> list[str]:
 
 
 def workspace_dir() -> str:
-    """Return the workspace root that services run in."""
+    """Return the workspace root that services run in.
+
+    Falls back to the current ``resolve_workspace()`` result. Used only when a
+    manager was constructed without an explicit ``home`` (e.g. status / start /
+    stop on an already-installed service, where the workspace is read from the
+    registered unit, not re-derived). Installation always pins an explicit,
+    cwd-independent home — see :func:`resolve_service_home`.
+    """
     from hebb.config.workspace import resolve_workspace
 
     return str(resolve_workspace())
+
+
+def resolve_service_home(explicit: str | Path | None = None) -> Path:
+    """Resolve the absolute, cwd-independent home the daemon must bind to.
+
+    The OS service's data location MUST NOT depend on the directory the
+    installer happened to run in. Reinstalling from a different directory used
+    to silently re-point the 8321 daemon at whatever ``hebb.db`` was near that
+    cwd (the documented eval-contamination / recall-death root cause).
+
+    Priority:
+        1. *explicit* (e.g. the ``--home`` install option)
+        2. ``HEBB_HOME`` environment variable
+        3. ``~/.hebb`` (the global default)
+
+    Args:
+        explicit: An explicit home path (``--home``), or ``None``.
+
+    Returns:
+        Absolute :class:`~pathlib.Path` to the home directory. The path is
+        resolved but **not** created here (install creates it via the config
+        layer); this keeps the function pure for tests.
+    """
+    if explicit:
+        return Path(explicit).expanduser().resolve()
+    env_home = os.environ.get("HEBB_HOME")
+    if env_home:
+        return Path(env_home).expanduser().resolve()
+    return (Path.home() / ".hebb").resolve()
 
 
 # ---------------------------------------------------------------------------
@@ -76,9 +114,20 @@ class ServiceManager:
     """Abstract base — every platform implements install/uninstall/start/stop/status."""
 
     scope: Scope = "user"
+    home: Path | None = None
+
+    def home_dir(self) -> str:
+        """Return the home/workspace directory this service binds to.
+
+        Returns the pinned ``home`` when one was supplied at construction
+        (install path), otherwise falls back to :func:`workspace_dir`.
+        """
+        if self.home is not None:
+            return str(self.home)
+        return workspace_dir()
 
     # Lifecycle ------------------------------------------------------------
-    def install(self) -> None:
+    def install(self, force: bool = False) -> None:
         raise NotImplementedError
 
     def uninstall(self) -> None:
@@ -164,11 +213,35 @@ def _remove_with_sudo(path: Path) -> None:
         subprocess.run(["sudo", "rm", str(path)], check=True)
 
 
+def _plist_string_after_key(text: str, key: str) -> str | None:
+    """Return the ``<string>`` value following ``<key>{key}</key>`` in a plist.
+
+    A minimal, dependency-free reader good enough to recover the home a service
+    was installed against. Returns the XML-unescaped value, or ``None`` when the
+    key is absent or not immediately followed by a ``<string>`` element.
+    """
+    from xml.sax.saxutils import unescape as _xml_unescape
+
+    needle = f"<key>{key}</key>"
+    idx = text.find(needle)
+    if idx == -1:
+        return None
+    after = text[idx + len(needle) :]
+    open_tag = after.find("<string>")
+    if open_tag == -1:
+        return None
+    close_tag = after.find("</string>", open_tag)
+    if close_tag == -1:
+        return None
+    return _xml_unescape(after[open_tag + len("<string>") : close_tag])
+
+
 class LaunchdManager(ServiceManager):
     """macOS launchd LaunchAgent (user) or LaunchDaemon (system)."""
 
-    def __init__(self, scope: Scope = "user") -> None:
+    def __init__(self, scope: Scope = "user", home: Path | None = None) -> None:
         self.scope = scope
+        self.home = home
 
     @property
     def display_name(self) -> str:
@@ -192,26 +265,31 @@ class LaunchdManager(ServiceManager):
 
     def _plist(self) -> str:
         program_args = hebb_command() + ["_serve"]
-        args_xml = "\n".join(f"    <string>{a}</string>" for a in program_args)
+        # XML-escape every interpolated value before embedding in <string>.
+        args_xml = "\n".join(f"    <string>{_xml_escape(a)}</string>" for a in program_args)
+        home = _xml_escape(self.home_dir())
         return f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>{SERVICE_LABEL}</string>
+  <string>{_xml_escape(SERVICE_LABEL)}</string>
   <key>ProgramArguments</key>
   <array>
 {args_xml}
   </array>
   <key>WorkingDirectory</key>
-  <string>{workspace_dir()}</string>
+  <string>{home}</string>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
-  <true/>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
   <key>ThrottleInterval</key>
-  <integer>5</integer>
+  <integer>30</integer>
   <key>StandardOutPath</key>
   <string>/tmp/hebb.log</string>
   <key>StandardErrorPath</key>
@@ -220,14 +298,22 @@ class LaunchdManager(ServiceManager):
   <dict>
     <key>PATH</key>
     <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
+    <key>HEBB_HOME</key>
+    <string>{home}</string>
   </dict>
 </dict>
 </plist>
 """
 
     # Lifecycle ------------------------------------------------------------
-    def install(self) -> None:
+    def install(self, force: bool = False) -> None:
         path = self.install_path
+        # Guard against silently re-pointing a running daemon onto a new DB.
+        if path.exists() and not force:
+            current = self._registered_home()
+            new = self.home_dir()
+            if current is not None and Path(current).resolve() != Path(new).resolve():
+                raise HomeConflictError(current=current, new=new)
         _write_with_sudo(path, self._plist())
         # Re-register so plist changes take effect, then start it.
         self._bootout()
@@ -254,16 +340,22 @@ class LaunchdManager(ServiceManager):
     def start(self) -> None:
         if not self.install_path.exists():
             raise ServiceNotInstalledError()
+        # A prior ``stop`` boots the service out of the domain, so re-bootstrap
+        # before kickstarting; ignore "already bootstrapped" errors.
+        if not self._is_loaded():
+            _launchctl(["bootstrap", _launchd_domain(self.scope), str(self.install_path)], self.scope)
         result = _launchctl(["kickstart", _launchd_target(self.scope)], self.scope)
-        if result.returncode != 0:
+        if result.returncode != 0 and not self._is_loaded():
             raise ServiceError(f"launchctl kickstart failed: {result.stderr.strip()}")
 
     def stop(self) -> None:
         if not self.install_path.exists():
             return
-        # ``kill`` sends a signal but keeps the service loaded so KeepAlive may relaunch.
-        # We want a real stop — use ``bootout`` then ``bootstrap`` for a true stop+keep-installed cycle.
-        _launchctl(["kill", "SIGTERM", _launchd_target(self.scope)], self.scope)
+        # ``kill``/SIGTERM is a no-op: KeepAlive relaunches the daemon within
+        # seconds. ``bootout`` is the only real stop — it removes the job from
+        # the launchd domain (leaving the plist on disk so ``start`` can revive
+        # it). See startup F2.
+        self._bootout()
 
     def restart(self) -> None:
         if not self.install_path.exists():
@@ -293,6 +385,18 @@ class LaunchdManager(ServiceManager):
     def _bootout(self) -> None:
         _launchctl(["bootout", _launchd_domain(self.scope), str(self.install_path)], self.scope)
 
+    def _registered_home(self) -> str | None:
+        """Read the ``HEBB_HOME`` the installed plist currently binds to.
+
+        Returns ``None`` if the plist is missing, unreadable, or predates the
+        ``HEBB_HOME`` key (in which case we fall back to ``WorkingDirectory``).
+        """
+        try:
+            text = self.install_path.read_text()
+        except OSError:
+            return None
+        return _plist_string_after_key(text, "HEBB_HOME") or _plist_string_after_key(text, "WorkingDirectory")
+
 
 # ---------------------------------------------------------------------------
 # Linux — systemd
@@ -312,8 +416,9 @@ def _systemctl(scope: Scope, args: list[str], check: bool = False) -> subprocess
 class SystemdManager(ServiceManager):
     """systemd user unit (no root) or system unit (requires sudo)."""
 
-    def __init__(self, scope: Scope = "user") -> None:
+    def __init__(self, scope: Scope = "user", home: Path | None = None) -> None:
         self.scope = scope
+        self.home = home
 
     @property
     def display_name(self) -> str:
@@ -344,7 +449,10 @@ class SystemdManager(ServiceManager):
         return hints
 
     def _unit(self) -> str:
-        cmd = " ".join(hebb_command() + ["_serve"])
+        # shlex.quote each token so a space in the python / hebb path does not
+        # split the command (install F4).
+        cmd = " ".join(shlex.quote(tok) for tok in (hebb_command() + ["_serve"]))
+        home = self.home_dir()
         install_target = "default.target" if self.scope == "user" else "multi-user.target"
         # Optional User= field — only on system scope.
         user_line = f"User={os.environ.get('USER', SERVICE_NAME)}\n" if self.scope == "system" else ""
@@ -354,7 +462,8 @@ After=network.target
 
 [Service]
 Type=simple
-{user_line}WorkingDirectory={workspace_dir()}
+{user_line}WorkingDirectory={home}
+Environment=HEBB_HOME={home}
 ExecStart={cmd}
 Restart=on-failure
 RestartSec=5
@@ -364,9 +473,14 @@ WantedBy={install_target}
 """
 
     # Lifecycle ------------------------------------------------------------
-    def install(self) -> None:
+    def install(self, force: bool = False) -> None:
         if not shutil.which("systemctl"):
             raise ServiceError("systemctl not found — is systemd installed and active?")
+        if self.install_path.exists() and not force:
+            current = self._registered_home()
+            new = self.home_dir()
+            if current is not None and Path(current).resolve() != Path(new).resolve():
+                raise HomeConflictError(current=current, new=new)
         _write_with_sudo(self.install_path, self._unit())
         _systemctl(self.scope, ["daemon-reload"], check=True)
         _systemctl(self.scope, ["enable", SERVICE_NAME], check=True)
@@ -406,6 +520,21 @@ WantedBy={install_target}
         running = active.stdout.strip() == "active"
         return ServiceStatus(installed=True, running=running, detail=active.stdout.strip())
 
+    def _registered_home(self) -> str | None:
+        """Read ``HEBB_HOME`` (or ``WorkingDirectory``) from the installed unit."""
+        try:
+            text = self.install_path.read_text()
+        except OSError:
+            return None
+        for prefix in ("Environment=HEBB_HOME=", "WorkingDirectory="):
+            for line in text.splitlines():
+                stripped = line.strip()
+                if stripped.startswith(prefix):
+                    value = stripped[len(prefix) :].strip()
+                    if value:
+                        return value
+        return None
+
 
 # ---------------------------------------------------------------------------
 # Windows — Task Scheduler
@@ -424,8 +553,9 @@ class WindowsTaskManager(ServiceManager):
     elevated shell.
     """
 
-    def __init__(self, scope: Scope = "user") -> None:
+    def __init__(self, scope: Scope = "user", home: Path | None = None) -> None:
         self.scope = scope
+        self.home = home
 
     @property
     def display_name(self) -> str:
@@ -455,22 +585,35 @@ class WindowsTaskManager(ServiceManager):
         user = os.environ.get("USERNAME") or os.environ.get("USER") or "hebb"
         return f"{domain}\\{user}" if domain else user
 
-    def _wrapper_script(self) -> Path:
-        """A small ``.cmd`` wrapper that captures stdout/stderr to %TEMP%\\hebb.log."""
+    def _wrapper_dir(self) -> Path:
+        """Directory holding the ``.cmd`` wrapper and task XML."""
         appdata = os.environ.get("LOCALAPPDATA") or str(Path.home())
-        wrapper = Path(appdata) / "HebbMind" / "hebb-serve.cmd"
+        return Path(appdata) / "HebbMind"
+
+    def _wrapper_script(self) -> Path:
+        """A small ``.cmd`` wrapper that captures stdout/stderr to %TEMP%\\hebb.log.
+
+        Pins ``HEBB_HOME`` (cwd-independent) and ``cd``s into the home so the
+        daemon's DB location does not depend on where install ran.
+        """
+        wrapper = self._wrapper_dir() / "hebb-serve.cmd"
         wrapper.parent.mkdir(parents=True, exist_ok=True)
         cmd_argv = hebb_command() + ["_serve"]
         # Quote each arg for cmd.exe — paths may contain spaces.
         quoted = " ".join(f'"{a}"' if " " in a else a for a in cmd_argv)
+        home = self.home_dir()
         wrapper.write_text(
-            f'@echo off\r\ncd /d "{workspace_dir()}"\r\n{quoted} 1>"%TEMP%\\hebb.log" 2>"%TEMP%\\hebb.err"\r\n'
+            f'@echo off\r\nset "HEBB_HOME={home}"\r\ncd /d "{home}"\r\n'
+            f'{quoted} 1>"%TEMP%\\hebb.log" 2>"%TEMP%\\hebb.err"\r\n'
         )
         return wrapper
 
     def _task_xml(self) -> str:
-        wrapper = self._wrapper_script()
-        user_id = self._user_id()
+        # XML-escape every interpolated value (install F5/F9).
+        wrapper = _xml_escape(str(self._wrapper_script()))
+        home = _xml_escape(self.home_dir())
+        user_id = _xml_escape(self._user_id())
+        task_name = _xml_escape(WINDOWS_TASK_NAME)
         if self.scope == "system":
             principal = (
                 '<Principal id="Author">\n'
@@ -490,7 +633,7 @@ class WindowsTaskManager(ServiceManager):
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
     <Description>Hebb Mind background memory server</Description>
-    <URI>\\{WINDOWS_TASK_NAME}</URI>
+    <URI>\\{task_name}</URI>
   </RegistrationInfo>
   <Triggers>
     <LogonTrigger>
@@ -531,19 +674,40 @@ class WindowsTaskManager(ServiceManager):
   <Actions Context="Author">
     <Exec>
       <Command>{wrapper}</Command>
-      <WorkingDirectory>{workspace_dir()}</WorkingDirectory>
+      <WorkingDirectory>{home}</WorkingDirectory>
     </Exec>
   </Actions>
 </Task>
 """
 
+    def _xml_path(self) -> Path:
+        return self._wrapper_dir() / f"{WINDOWS_TASK_NAME}.xml"
+
+    def _registered_home(self) -> str | None:
+        """Read ``HEBB_HOME`` from the wrapper ``.cmd`` the task currently runs."""
+        wrapper = self._wrapper_dir() / "hebb-serve.cmd"
+        try:
+            text = wrapper.read_text()
+        except OSError:
+            return None
+        for line in text.splitlines():
+            stripped = line.strip()
+            # set "HEBB_HOME=C:\path"  (quoted form written by _wrapper_script)
+            if stripped.startswith('set "HEBB_HOME='):
+                return stripped[len('set "HEBB_HOME=') :].rstrip('"').strip()
+        return None
+
     # Lifecycle ------------------------------------------------------------
-    def install(self) -> None:
+    def install(self, force: bool = False) -> None:
         if not shutil.which("schtasks"):
             raise ServiceError("schtasks.exe not found — is this really Windows?")
+        if self._exists() and not force:
+            current = self._registered_home()
+            new = self.home_dir()
+            if current is not None and Path(current).resolve() != Path(new).resolve():
+                raise HomeConflictError(current=current, new=new)
         # Task Scheduler reads UTF-16 XML; write with BOM.
-        appdata = os.environ.get("LOCALAPPDATA") or str(Path.home())
-        xml_path = Path(appdata) / "HebbMind" / f"{WINDOWS_TASK_NAME}.xml"
+        xml_path = self._xml_path()
         xml_path.parent.mkdir(parents=True, exist_ok=True)
         xml_path.write_text(self._task_xml(), encoding="utf-16")
         args = ["/Create", "/TN", WINDOWS_TASK_NAME, "/XML", str(xml_path), "/F"]
@@ -562,6 +726,18 @@ class WindowsTaskManager(ServiceManager):
             return
         self.stop()
         _schtasks(["/Delete", "/TN", WINDOWS_TASK_NAME, "/F"])
+        # Best-effort cleanup of the on-disk wrapper + XML so uninstall leaves
+        # no orphans (install F7).
+        wrapper_dir = self._wrapper_dir()
+        for artifact in (wrapper_dir / "hebb-serve.cmd", self._xml_path()):
+            try:
+                artifact.unlink()
+            except OSError:
+                pass
+        try:
+            wrapper_dir.rmdir()  # only succeeds when empty
+        except OSError:
+            pass
 
     def start(self) -> None:
         if not self._exists():
@@ -611,13 +787,46 @@ class UnsupportedPlatformError(ServiceError):
     """Raised when the current OS has no supported service backend."""
 
 
-def get_manager(scope: Scope = "user") -> ServiceManager:
-    """Return the right :class:`ServiceManager` for the current OS."""
+class HomeConflictError(ServiceError):
+    """Raised when reinstalling would re-point the daemon onto a different home.
+
+    Carries both the *current* (registered) and *new* (requested) home so the
+    CLI can show a current-vs-new diff and require ``--force`` to proceed.
+    """
+
+    def __init__(self, current: str, new: str) -> None:
+        self.current = current
+        self.new = new
+        super().__init__(
+            f"Hebb Mind is already installed against a different home.\n"
+            f"  current: {current}\n"
+            f"  new:     {new}\n"
+            "Re-pointing the daemon would change which hebb.db it serves. "
+            "Re-run with --force to proceed, or pass --home to keep the current one."
+        )
+
+
+def get_manager(scope: Scope = "user", home: Path | None = None) -> ServiceManager:
+    """Return the right :class:`ServiceManager` for the current OS.
+
+    Args:
+        scope: ``user`` (no admin) or ``system`` (requires elevation).
+        home: Pinned, cwd-independent home the service binds to. When ``None``
+            the manager falls back to :func:`workspace_dir` (used for
+            status/start/stop on an already-installed service). Installation
+            should pass an explicit home from :func:`resolve_service_home`.
+
+    Returns:
+        A :class:`ServiceManager` for the current platform.
+
+    Raises:
+        UnsupportedPlatformError: If the OS has no supported service backend.
+    """
     system = platform.system()
     if system == "Darwin":
-        return LaunchdManager(scope)
+        return LaunchdManager(scope, home=home)
     if system == "Linux":
-        return SystemdManager(scope)
+        return SystemdManager(scope, home=home)
     if system == "Windows":
-        return WindowsTaskManager(scope)
+        return WindowsTaskManager(scope, home=home)
     raise UnsupportedPlatformError(f"Unsupported OS: {system}")

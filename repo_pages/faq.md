@@ -6,7 +6,7 @@ Short answers to questions that come up before reading the docs in depth. For sy
 
 ## Do I need an LLM API key?
 
-No, for ingest, vector search, CRUD, and the Web Console. **Yes**, for consolidation, conflict resolution, importance scoring, and tag extraction. Without a key, `POST /api/v1/admin/consolidate` runs but processes zero memories. Set one with `hebb config set llm_api_key sk-...`.
+No, for ingest, vector search, CRUD, and the Web Console. **Yes**, for consolidation, conflict resolution, importance scoring, and tag extraction. The on/off gate is **`llm_model`** — until it is set, `POST /api/v1/admin/consolidate` runs but processes zero memories. Turn it on with `hebb config set llm_model openai/gpt-4o-mini`; a hosted provider also needs `hebb config set llm_api_key sk-...` (a local/proxy model does not).
 
 ## Which LLMs are supported?
 
@@ -89,4 +89,4 @@ The **hippocampus** — the project's original name — lives on inside Hebb Min
 
 ## Is the embedding model multilingual?
 
-It depends on what `hebb setup` selected. `--language en` defaults to an English-only model (`BAAI/bge-large-en-v1.5`, dim 1024). `--language zh` or `--language multi` selects `BAAI/bge-m3` (multilingual, dim 1024). To swap models after install — including the dimension-change → re-embed flow — see [Switch the Embedding Model](./guide/switch-embedding-model.md).
+It depends on what `hebb setup` selected. By default (`--profile default`), `--language en` selects a small English-only model (`all-MiniLM-L6-v2`, dim 384, ~90MB) and `--language zh` / `--language multi` selects `intfloat/multilingual-e5-small` (multilingual, dim 384, ~470MB). The high-quality bge tier — `BAAI/bge-large-en-v1.5` (English) / `BAAI/bge-m3` (multilingual), both dim 1024, 1–2GB — is opt-in via `hebb setup --profile best`. To swap models after install — including the dimension-change → re-embed flow — see [Switch the Embedding Model](./guide/switch-embedding-model.md).

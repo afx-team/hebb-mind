@@ -4,7 +4,7 @@ Two paths. The 60-second path needs **no API key**. The 5-minute path adds LLM-p
 
 ## Path A — 60 seconds, no API key
 
-Ingest and hybrid search work fully offline using the bundled local embedding model.
+Ingest and hybrid search work fully offline using a local embedding model. The first `hebb setup` downloads a **small** embedding model — about 90MB for English (`all-MiniLM-L6-v2`) or ~470MB for multilingual (`intfloat/multilingual-e5-small`) — and only if it isn't already cached. The English/`fast` path lands in roughly a minute; multilingual takes a little longer. The high-quality bge models (1–2GB) are opt-in via `hebb setup --profile best` and are **not** downloaded by default.
 
 ### 1. Install
 
@@ -40,12 +40,16 @@ Prefer plain `pip`? `python -m venv .venv && source .venv/bin/activate && pip in
 hebb setup
 ```
 
-Creates `hebb.json` and `hebb.db` under the workspace, picks an embedding model from your OS locale, and pre-downloads it. Language and region are independent flags:
+Creates `hebb.json` and `hebb.db` under the workspace, picks a **small** embedding model from your OS locale, and downloads it only if it isn't already cached. Language, region, and profile are independent flags:
 
 ```bash
 hebb setup --language en --region cn      # English model, China mirror
 hebb setup --language zh --region global  # Multilingual model, official HuggingFace
+hebb setup --profile fast                 # smallest model (all-MiniLM, ~90MB)
+hebb setup --profile best                 # high-quality bge models (1–2GB, opt-in)
 ```
+
+The default `--profile default` selects `all-MiniLM-L6-v2` (~90MB) for English and `intfloat/multilingual-e5-small` (~470MB, multilingual) for Chinese/multi. Use `--profile best` for `BAAI/bge-large-en-v1.5` (English) / `BAAI/bge-m3` (multilingual) when you want the strongest retrieval and don't mind the larger download.
 
 ### 3. Install the background service
 
@@ -84,13 +88,13 @@ That's it — vector + keyword + tag-graph hybrid search runs locally with no th
 
 ## Path B — 5 minutes, with LLM consolidation
 
-Consolidation, conflict resolution, and tag extraction need an LLM. **Without an `llm_api_key` set, those endpoints return an empty result silently** (known v0.1.1 gap, see [Troubleshooting](./troubleshooting.md#consolidation-no-op)).
+Consolidation, conflict resolution, and tag extraction need an LLM. The on/off gate is **`llm_model`** — until it is set, those endpoints run but process zero memories (a hosted provider also needs `llm_api_key`; local/proxy models do not). See [Troubleshooting](./troubleshooting.md#consolidate-returns-processed-0-or-no-conflicts-get-resolved).
 
 ### 1. Configure an LLM
 
 ```bash
-hebb config set llm_api_key sk-your-key
 hebb config set llm_model openai/gpt-4o-mini
+hebb config set llm_api_key sk-your-key      # hosted providers only; skip for local/proxy models
 ```
 
 Switch providers via [LiteLLM](https://github.com/BerriAI/litellm):
@@ -114,17 +118,17 @@ Or wait for the daily 18:00 scheduler. Tags extracted during consolidation popul
 
 ## 30-second Python SDK
 
-<!-- requires v0.1.2 facade — see PR #N -->
+The `HebbMind` facade runs the engine **in-process** — its own storage, embedder, knowledge graph, and searcher — no HTTP server required.
 
 ```python
 from hebb import HebbMind
 
-mem = HebbMind()  # uses ~/.hebb/hebb.json
+mem = HebbMind()  # resolves the workspace: $HEBB_HOME → nearest hebb.json → ~/.hebb
 
 mem.add("User prefers dark mode", tags=["preference", "ui"], importance=7.5)
 
 for hit in mem.search("UI preferences", top_k=5):
-    print(hit.score, hit.content)
+    print(hit.score, hit.memory.content)
 ```
 
 ## Service lifecycle
@@ -146,17 +150,17 @@ For Docker, see [Storage Backends](./advanced/storage-backends.md#docker-deploym
 ## MCP and editor integrations
 
 ```bash
-hebb claude-code install --scope user      # Claude Code: hooks-based auto memory
-hebb codex install --scope user   # Codex: MCP memory tools
+hebb claude-code install --scope user   # Claude Code: hooks-based auto memory
+hebb codex install                       # Codex: MCP memory tools (global-only)
 codex mcp list                           # verify
 ```
 
-For raw MCP clients (Cursor, etc.):
+For raw MCP clients (Cursor, etc.), register `hebb-mcp` by its **absolute path** (run `which hebb-mcp` to find it) — a bare `hebb-mcp` can fail to launch under GUI apps that don't inherit your shell `PATH`:
 
 ```json
 {
   "mcpServers": {
-    "hebb": { "command": "hebb-mcp" }
+    "hebb": { "command": "/absolute/path/to/hebb-mcp" }
   }
 }
 ```

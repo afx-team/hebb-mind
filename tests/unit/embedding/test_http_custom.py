@@ -115,7 +115,9 @@ class TestCustomHttpEmbedder:
             lambda payload: {"data": [{"embedding": [float(i)]} for i in range(len(payload["input"]))]},
         )
         out = await emb.embed_batch(["a", "b", "c"])
-        assert out == [[0.0], [1.0], [2.0]]
+        # F4: vectors are L2-normalized, so each single-component vector [n]
+        # collapses to unit magnitude ([1.0]); [0.0] has no direction and stays.
+        assert out == [[0.0], [1.0], [1.0]]
 
     async def test_batch_count_mismatch_raises(self) -> None:
         emb = CustomHttpEmbedder(
@@ -139,7 +141,8 @@ class TestCustomHttpEmbedder:
         assert emb._per_text is True
         _stub_request(emb, lambda payload: {"embedding": [float(len(payload["text"]))]})
         out = await emb.embed_batch(["a", "bbb"])
-        assert out == [[1.0], [3.0]]
+        # F4: per-text vectors are L2-normalized; [1.0] and [3.0] both become [1.0].
+        assert out == [[1.0], [1.0]]
 
     async def test_embed_single(self) -> None:
         emb = CustomHttpEmbedder(
@@ -149,7 +152,8 @@ class TestCustomHttpEmbedder:
             body_template='{"input": {{input}}}',
         )
         _stub_request(emb, {"data": [{"embedding": [0.5, 0.6]}]})
-        assert await emb.embed("hi") == [0.5, 0.6]
+        # F4: the returned vector is L2-normalized ([0.5, 0.6] / |[0.5, 0.6]|).
+        assert await emb.embed("hi") == pytest.approx([0.6401843996644799, 0.7682212795973759])
 
     async def test_empty_batch(self) -> None:
         emb = CustomHttpEmbedder(

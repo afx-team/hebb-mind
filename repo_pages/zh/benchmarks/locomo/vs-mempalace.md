@@ -4,7 +4,7 @@ MemPalace 在全量 1,986 个 LoCoMo 问题上公布 session 级 Recall@k。他�
 
 ## 生产环境一致性 —— 最重要的说明
 
-**Hebb Mind 的基准测试调用与发布产品相同的代码路径。** 评测 harness 把每一个 LoCoMo 轮次都经由生产环境的 Claude Code hook 写入（每条用户 prompt 触发 `src/hebb/integrations/claude_code/write.py`，每轮往返触发 `stop.py`）：逐条发言的记忆使用相同的最小长度过滤与 session 范围去重；逐轮配对的摘要使用相同的 `[<timestamp>] [<role>] …` 格式。检索走的是 Claude Code、MCP server 和 Web 控制台都命中的同一个 `/api/v1/search`。**你在这里看到的 91.4% / 94.1% R@10，就是用户在生产环境中实际得到的 R@10**（发布的 bge-large 默认配置、重排关闭时为 94.1%）。
+**Hebb Mind 的基准测试调用与发布产品相同的代码路径。** 评测 harness 把每一个 LoCoMo 轮次都经由生产环境的 Claude Code 捕获 hook 写入（每轮往返触发 `src/hebb/integrations/claude_code/stop.py`）：逐条发言的记忆使用相同的最小长度过滤与 session 范围去重；逐轮配对的摘要使用相同的 `[<timestamp>] [<role>] …` 格式。检索走的是 Claude Code、MCP server 和 Web 控制台都命中的同一个 `/api/v1/search`。**你在这里看到的 91.4% / 94.1% R@10，就是用户在生产环境中实际得到的 R@10**（`--profile best` bge 档位、重排关闭时为 94.1%）。
 
 **MemPalace 的基准测试并不调用他们的生产管线。** 我们对其仓库的[源码级审计](https://github.com/afx-team/hebb-mind/blob/main/docs/analysis/mempalace-benchmark-deep-dive.md)发现三处具体偏离：
 

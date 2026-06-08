@@ -11,7 +11,7 @@ hebb --help       # 显示帮助信息
 
 ## hebb setup
 
-准备开箱即用环境：必要时初始化 workspace，根据内容语言选择 embedding 模型，根据网络区域选择 HuggingFace 下载源，下载并验证模型。**不会**启动服务。
+准备开箱即用环境：必要时初始化 workspace，根据内容语言与 profile 选择 embedding 模型，根据网络区域选择 HuggingFace 下载源，下载并验证模型。**不会**启动服务。
 
 ```bash
 hebb setup [--language auto|en|zh|multi] [--region auto|cn|global] [--profile default|fast|best]
@@ -19,9 +19,19 @@ hebb setup [--language auto|en|zh|multi] [--region auto|cn|global] [--profile de
 
 | 选项 | 默认 | 说明 |
 |------|------|------|
-| `--language` | `auto` | `en` → `BAAI/bge-large-en-v1.5`；`zh`/`multi` → `BAAI/bge-m3`；`auto` 按系统 locale 推断 |
+| `--language` | `auto` | 选择内容语言；`auto` 按系统 locale 推断 |
 | `--region` | `auto` | `cn` 走 `https://hf-mirror.com`；`global` 走 HuggingFace 官方 |
-| `--profile` | `default` | `fast` 偏向小模型；`best` 偏向高质量 |
+| `--profile` | `default` | 选择模型档位，详见下表 |
+
+`--profile` 决定下载哪个 embedding 模型：
+
+| Profile | 英语（`en`） | 中文 / 多语言（`zh`、`multi`） |
+|---------|-------------|------------------------------|
+| `default`（默认） | `all-MiniLM-L6-v2`（约 90MB） | `intfloat/multilingual-e5-small`（约 470MB，多语言） |
+| `fast` | `all-MiniLM-L6-v2`（约 90MB，最小） | `all-MiniLM-L6-v2`（约 90MB） |
+| `best` | `BAAI/bge-large-en-v1.5`（高质量，1–2GB） | `BAAI/bge-m3`（高质量，1–2GB） |
+
+裸 `hebb setup`（即 `--profile default`）只会下载**小模型**：英语约 90MB，多语言约 470MB，**且仅在本地尚未缓存该模型时才下载**，已缓存则直接复用、不会重复下载。需要更高检索质量时再显式使用 `hebb setup --profile best` 拉取 bge 系列大模型（1–2GB）。
 
 `setup` 不启动服务，完成后运行 `hebb service install` 以安装并启动后台服务。
 
@@ -124,7 +134,7 @@ hebb model prefetch [--model MODEL_ID] [--region auto|cn|global]
 记忆批量操作。
 
 ```bash
-hebb memory reembed [--partition NAME] [--batch-size 64] [--dry-run] [--yes]
+hebb memory reembed [--partition NAME] [--batch-size 64] [--dry-run] [--restart] [--yes]
 ```
 
 `reembed` 遍历所有记忆（或指定分区），用**当前配置**的 embedder 重新计算向量。切换 `embedding_model` 或 `embedding_dim` 之后用 —— 维度变化时启动会自动重建向量表，再用此命令把已有记忆的向量补回去。
@@ -156,20 +166,28 @@ Claude Code 集成。安装钩子并注册 MCP 服务。
 ```bash
 hebb claude-code install   [--scope project|user]   # 默认: project
 hebb claude-code uninstall [--scope project|user]
-hebb claude-code recall      # SessionStart 钩子
-hebb claude-code write       # UserPromptSubmit 钩子
-hebb claude-code stop        # Stop 钩子（巩固 + 清理）
+hebb claude-code recall      # SessionStart 钩子：注入跨会话记忆
+hebb claude-code prompt      # UserPromptSubmit 钩子：召回与本次提问相关的记忆
+hebb claude-code stop        # Stop 钩子：记录本轮对话
 ```
 
 `install --scope project` 写入当前目录的 `.claude/`；`--scope user` 写入 `~/.claude/`。
 
+三个钩子各司其职：
+
+- `recall`（SessionStart）—— 会话开始时，把跨会话的相关记忆注入上下文。
+- `prompt`（UserPromptSubmit）—— 每次提交提问时，**召回**与提问相关的记忆并注入；它**不写入**任何内容。
+- `stop`（Stop）—— 助手回合结束时，从 transcript 抓取最后一轮「用户 + 助手」对话写入工作区（`source` 为 `hook:stop`，按 `session_id + 轮次` 去重）。
+
+> Stop 钩子只**写入本轮对话**，**不触发巩固**。巩固按 `consolidation_time` 定时任务运行，或手动调用 `POST /api/v1/admin/consolidate`。
+
 ## hebb codex
 
-Codex CLI 集成（封装 `codex mcp add/remove`）。
+Codex CLI 集成（封装 `codex mcp add/remove`）。Codex 只在全局注册 MCP server，没有按项目区分的 scope，因此这两个命令均为全局生效。
 
 ```bash
-hebb codex install   [--scope user|project]   # 默认: user
-hebb codex uninstall [--scope user|project]
+hebb codex install     # 仅支持全局（--scope user，默认且唯一取值）
+hebb codex uninstall   # 全局卸载
 ```
 
 可通过 `codex mcp list` 验证。

@@ -1,7 +1,17 @@
 """Config loading: hebb.json is the single source of truth.
 
-All configuration lives in hebb.json. No environment variable overrides.
-Use `hebb config set <key> <value>` to modify config from the CLI.
+All configuration values live in hebb.json. Use ``hebb config set <key>
+<value>`` to modify config from the CLI.
+
+Environment variable overrides
+------------------------------
+Two env vars do override hebb.json, in this precedence (env wins over file):
+
+  * ``HEBB_HOME`` — overrides the workspace root that resolves ``home_dir``
+    and therefore ``db_path`` / ``kg_path`` (see :mod:`hebb.config.workspace`).
+    Highest priority; independent of any ``home`` field in hebb.json.
+  * ``HEBB_AUTO_UPGRADE`` — ``auto`` / ``notify`` / ``off`` overrides
+    ``auto_upgrade_mode`` for fleet/CI control.
 
 Data file paths (db_path, kg_path) are computed from the workspace root
 and are not stored in the config file.
@@ -11,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -100,22 +111,96 @@ def create_default_config(target: Path) -> None:
         f.write("\n")
 
 
-def update_config_field(key: str, value: str, config_path: Path | None = None) -> tuple[Path, Any]:
-    """Update a single field in hebb.json.
+def _atomic_write_json(path: Path, data: dict[str, Any]) -> None:
+    """Write *data* as JSON to *path* atomically.
 
-    Handles type coercion: bool, int, float, None, or str.
+    Writes to a temp file in the same directory (so ``os.replace`` is a same-
+    filesystem atomic rename) and fsyncs before the rename, so a crash mid-write
+    can never leave a truncated hebb.json.
+
+    Args:
+        path: Destination config file.
+        data: JSON-serializable mapping to persist.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2)
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_name, path)
+    except BaseException:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+
+
+class _ConfigLock:
+    """Cross-process advisory lock guarding hebb.json read-modify-write.
+
+    Uses ``fcntl.flock`` on POSIX so concurrent CLI ``config set`` and server
+    ``PUT /config`` writers serialize instead of clobbering each other or
+    leaving a half-written file. A no-op on platforms without ``fcntl``
+    (Windows), where the atomic ``os.replace`` still prevents truncation.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self._lock_path = path.with_name(f".{path.name}.lock")
+        self._fd: int | None = None
+
+    def __enter__(self) -> _ConfigLock:
+        try:
+            import fcntl
+        except ImportError:
+            return self
+        self._lock_path.parent.mkdir(parents=True, exist_ok=True)
+        self._fd = os.open(str(self._lock_path), os.O_CREAT | os.O_RDWR, 0o644)
+        fcntl.flock(self._fd, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        if self._fd is None:
+            return
+        try:
+            import fcntl
+
+            fcntl.flock(self._fd, fcntl.LOCK_UN)
+        except ImportError:
+            pass
+        finally:
+            os.close(self._fd)
+            self._fd = None
+
+
+def update_config_field(key: str, value: str, config_path: Path | None = None) -> tuple[Path, Any]:
+    """Update a single field in hebb.json atomically.
+
+    Handles type coercion: bool, int, float, None, or str. The read-modify-write
+    runs under a cross-process file lock and the result is written via a temp
+    file + ``os.replace`` so concurrent CLI/server writers can neither clobber
+    each other nor leave a truncated config behind.
+
+    Args:
+        key: A valid ``Settings`` field name.
+        value: The raw string value (coerced to the field's type).
+        config_path: Explicit hebb.json path, or ``None`` to auto-discover.
 
     Returns:
         ``(path, coerced_value)`` — the config file path and the value after
         Pydantic validation, so callers can apply the same value to a live
         Settings instance without re-loading the file.
+
+    Raises:
+        FileNotFoundError: If the config file does not exist.
+        KeyError: If *key* is not a known ``Settings`` field.
     """
     path = config_path or find_config_file() or Path("hebb.json")
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
-
-    with open(path) as f:
-        data = json.load(f)
 
     if key not in Settings.model_fields:
         raise KeyError(f"Unknown config key: {key!r}")
@@ -123,16 +208,18 @@ def update_config_field(key: str, value: str, config_path: Path | None = None) -
     # Coerce value based on the field's type annotation
     field_info = Settings.model_fields[key]
     annotation = field_info.annotation
-
     coerced = _coerce_value(value, annotation)
-    data[key] = coerced
-    settings = Settings(**{k: v for k, v in data.items() if k in Settings.model_fields})
-    validated = getattr(settings, key)
-    data[key] = validated
 
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
+    with _ConfigLock(path):
+        with open(path) as f:
+            data = json.load(f)
+
+        data[key] = coerced
+        settings = Settings(**{k: v for k, v in data.items() if k in Settings.model_fields})
+        validated = getattr(settings, key)
+        data[key] = validated
+
+        _atomic_write_json(path, data)
     return path, validated
 
 

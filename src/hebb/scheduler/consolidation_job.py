@@ -36,6 +36,14 @@ async def run_consolidation(
             memories back into the source partition (preserving per-scenario
             isolation) instead of moving them to a long-term partition.
     """
+    # Guard the scheduled/library path the same way the API ``consolidate()``
+    # handler does: with no ``llm_model`` configured, building an LLMClient and
+    # calling litellm with ``model=None`` raises on every daily run. Skip
+    # cleanly instead (LLM config F3).
+    if not settings.llm_model:
+        logger.info("Skipping consolidation: no llm_model configured")
+        return []
+
     llm = LLMClient(settings)
     searcher = MemorySearcher(store=memory_store, embedder=embedder)
     recall_agent = RecallAgent(llm=llm, searcher=searcher)

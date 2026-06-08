@@ -194,7 +194,11 @@ class TestSearchEndpoint:
         items = client.get("/api/v1/memories").json()["items"]
         assert all(m["access_count"] == 0 for m in items)
 
-        resp = client.post("/api/v1/search", json={"query": "programming language"})
+        # Strengthening is opt-in for REST (recall F8): genuine agent recall
+        # (hook / MCP) sets strict_recall, plain console browsing does not.
+        resp = client.post(
+            "/api/v1/search", json={"query": "programming language", "strict_recall": True}
+        )
         hit_ids = {r["memory"]["id"] for r in resp.json()["results"]}
         assert hit_ids
 

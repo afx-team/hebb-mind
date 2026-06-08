@@ -196,6 +196,20 @@ class HebbMind:
         from hebb.retrieval.searcher import MemorySearcher
         from hebb.storage.factory import create_stores
 
+        # Embedder FIRST — create_stores sizes the vec0 virtual table from
+        # settings.embedding_dim, so the storage layer must see the embedder's
+        # *true* dimension before it builds the schema (mirrors server/app.py).
+        # Building the store first would bake in the configured dim and break
+        # every write when the model's real width differs.
+        try:
+            embedder = await create_embedder(self.settings)
+        except Exception as exc:  # noqa: BLE001
+            raise EmbeddingError(f"Failed to initialize embedding provider: {exc}") from exc
+        # Sync the dimension back onto settings the way server/app.py does
+        # so that subsequent storage interactions see the correct value.
+        self.settings.embedding_dim = embedder.dimension
+        self._embedder = embedder
+
         try:
             ctx = await create_stores(self.settings)
         except Exception as exc:  # noqa: BLE001
@@ -208,15 +222,6 @@ class HebbMind:
             await ctx.partition_store.ensure_defaults()
         except Exception as exc:  # noqa: BLE001
             raise StorageError(f"Failed to seed default partitions: {exc}") from exc
-
-        try:
-            embedder = await create_embedder(self.settings)
-        except Exception as exc:  # noqa: BLE001
-            raise EmbeddingError(f"Failed to initialize embedding provider: {exc}") from exc
-        # Sync the dimension back onto settings the way server/app.py does
-        # so that subsequent storage interactions see the correct value.
-        self.settings.embedding_dim = embedder.dimension
-        self._embedder = embedder
 
         kg_path_value = self.settings.kg_path
         self._knowledge_graph = KnowledgeGraph(Path(kg_path_value))
@@ -236,6 +241,14 @@ class HebbMind:
                         self._knowledge_graph.save()
                     except Exception:  # noqa: BLE001
                         logger.warning("Failed to save knowledge graph on close", exc_info=True)
+                # Release any embedder-held resources (e.g. the custom HTTP
+                # client). Guarded by hasattr — older embedders may predate
+                # the aclose() protocol method.
+                if self._embedder is not None and hasattr(self._embedder, "aclose"):
+                    try:
+                        self._run(self._embedder.aclose())
+                    except Exception:  # noqa: BLE001
+                        logger.warning("Embedder close raised", exc_info=True)
                 if self._storage_close is not None:
                     try:
                         self._run(self._storage_close())

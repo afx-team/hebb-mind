@@ -1,13 +1,15 @@
 # Switch the Embedding Model
 
-`hebb setup` picks an embedding model from your OS locale on first run. You can switch to any other [sentence-transformers](https://www.sbert.net/docs/pretrained_models.html)-compatible model — or any LiteLLM-compatible cloud embedding API — at any time, even after the service has been running and storing memories.
+`hebb setup` picks a **small** embedding model from your OS locale on first run, and downloads it only if it isn't already cached. By default (`--profile default`) that is `all-MiniLM-L6-v2` (384-d, English) or `intfloat/multilingual-e5-small` (384-d, multilingual); the high-quality bge tier — `BAAI/bge-large-en-v1.5` / `BAAI/bge-m3` (both 1024-d) — is opt-in via `hebb setup --profile best`. You can switch to any other [sentence-transformers](https://www.sbert.net/docs/pretrained_models.html)-compatible model — or any LiteLLM-compatible cloud embedding API — at any time, even after the service has been running and storing memories. A model that is already cached is reused; only missing models are downloaded.
+
+A common upgrade is moving from the small default to the bge tier for stronger retrieval — that is a **dimension change** (384 → 1024), so follow the "Different dimension" row below.
 
 Switching falls into one of three cases. Pick the section that matches yours.
 
 | Case | What changes | What you need to do |
 |------|--------------|---------------------|
-| **Same dimension, different model** (e.g. `BAAI/bge-large-en-v1.5` → `intfloat/multilingual-e5-large`, both 1024-d) | Stored vectors keep working until you re-embed | Update config → restart → optionally re-embed for consistency |
-| **Different dimension** (e.g. `BAAI/bge-large-en-v1.5` 1024 → `all-MiniLM-L6-v2` 384) | Vector table is auto-reset on next start; old vectors are lost | Update config → restart → **run `hebb memory reembed`** |
+| **Same dimension, different model** (e.g. `all-MiniLM-L6-v2` → `intfloat/multilingual-e5-small`, both 384-d) | Stored vectors keep working until you re-embed | Update config → restart → optionally re-embed for consistency |
+| **Different dimension** (e.g. `all-MiniLM-L6-v2` 384 → `BAAI/bge-large-en-v1.5` 1024) | Vector table is auto-reset on next start; old vectors are lost | Update config → restart → **run `hebb memory reembed`** |
 | **Local → API or vice versa** | Provider, base URL, API key all change | Use the Web Console or set each field via CLI, then restart |
 
 ## Path A — CLI, one-shot (recommended)

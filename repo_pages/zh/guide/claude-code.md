@@ -1,15 +1,17 @@
 # Claude Code 集成
 
-Hebb Mind 与 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 深度集成，提供 **MCP 工具**（手动记忆操作）和 **Hooks 自动记忆层**（跨会话自动写入/召回）。
+Hebb Mind 与 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 深度集成，提供 **MCP 工具**（手动记忆操作）和 **Hooks 自动记忆层**（跨会话自动召回 + 按回合写入）。
 
 ## 概览
 
 | 模式 | 功能 | 工作方式 |
 |------|------|---------|
-| **MCP Server** | 手动调用 `write_memory`、`search_memory`、`consolidate` | Claude 按需调用工具 |
-| **Hooks（自动记忆）** | 自动写入每条用户消息，会话开始时召回跨会话记忆 | Claude Code hooks 在会话生命周期事件中触发 |
+| **MCP Server** | 手动调用 `write_memory`、`search_memory`、`consolidate`、`ingest_conversation` | Claude 按需调用工具 |
+| **Hooks（自动记忆）** | 提示提交时召回相关记忆；会话结束时按回合写入对话 | Claude Code hooks 在会话生命周期事件中触发 |
 
 推荐两者同时使用 — MCP 用于显式记忆操作，Hooks 用于无感的后台记忆。
+
+受支持的安装路径只有 `hebb claude-code install`。本仓库**没有**发布 plugin marketplace，请勿通过 marketplace 路径安装。
 
 ## 安装
 
@@ -23,9 +25,11 @@ hebb claude-code install --scope user   # 注入 hooks + MCP 到 Claude Code
 
 重启 Claude Code 即可生效。Hebb Mind 会自动：
 
-- **召回** 每次会话开始时加载跨会话记忆
-- **写入** 每条用户消息自动存入记忆（自动去噪、去重）
-- **巩固** 会话结束时触发记忆整理
+- **召回（SessionStart）** 每次会话开始时加载跨会话记忆，注入上下文
+- **召回（UserPromptSubmit）** 每次提交提示时，召回与该提示相关的记忆并注入（这一步**只读不写**）
+- **写入（Stop）** 会话/回合结束时，从 transcript 抓取最后一轮用户 + 助手对话写入工作区
+
+巩固**不会**在 Stop 时运行 —— 它按 `consolidation_time` 定时执行，或通过 `POST /api/v1/admin/consolidate` 手动触发。
 
 ### 作用域
 
@@ -46,10 +50,12 @@ hebb claude-code uninstall              # 从 settings 中移除 hooks + MCP
 Claude Code [hooks](https://docs.anthropic.com/en/docs/claude-code/hooks) 是在会话生命周期事件中触发的 shell 命令。Hebb Mind 注册了三个：
 
 ```
-SessionStart ──→ hebb claude-code recall ──→ 搜索 API ──→ stdout（注入上下文）
-UserPromptSubmit ──→ hebb claude-code write ──→ 去噪 + 去重 ──→ 写入 API（静默）
-Stop ──→ hebb claude-code stop ──→ 巩固 API + 清理（静默）
+SessionStart ──────→ hebb claude-code recall ──→ 搜索 API ──→ stdout（注入上下文）
+UserPromptSubmit ──→ hebb claude-code prompt ──→ 搜索 API ──→ stdout（注入与提示相关的记忆，只读不写）
+Stop ──────────────→ hebb claude-code stop ───→ 写入 API（按回合存入工作区）
 ```
+
+对应的 CLI 子命令是 `recall`、`prompt`、`stop`（**没有 `write` 这个命令**）。
 
 ### 召回（SessionStart）
 
@@ -67,23 +73,15 @@ Stop ──→ hebb claude-code stop ──→ 巩固 API + 清理（静默）
 </cross-session-memory>
 ```
 
-### 写入（UserPromptSubmit）
+### 提示召回（UserPromptSubmit）
 
-每次用户发送消息时，`hebb claude-code write` 自动捕获：
+每次用户提交提示时，`hebb claude-code prompt` 会**召回**与该提示相关的记忆并注入上下文。注意：这一步**只检索、不写入** —— 它做的是召回，而不是把用户消息存进库。
 
-1. **去噪** — 移除 `<system-reminder>`、`<command-name>` 等系统标签
-2. **跳过琐碎消息** — 20 字符以下的内容（"ok"、"yes"、"/clear"）
-3. **去重** — SHA-256 哈希检查，同一会话内不重复写入相同内容
-4. **静默写入** — 无 stdout 输出，用户无感知
+### 写入（Stop）
 
-记忆写入 `mem_hippocampus` 工作区，标记 `source: "hook"` 和 session ID。
+用户回合的**写入**发生在 **Stop** 钩子。`hebb claude-code stop` 从 transcript 中抓取最后一轮（用户 + 助手）对话，写入 `mem_hippocampus` 工作区，标记 `source: "hook:stop"`，并按 `session_id + 回合序号`去重。
 
-### 停止（Stop）
-
-会话结束时，`hebb claude-code stop`：
-
-1. 触发记忆巩固（将工作区记忆分类到长期分区）
-2. 清理当前会话的去重状态
+巩固**不在** Stop 时运行 —— 会话结束只负责把这一轮写进工作区收件箱；记忆的整理（分类到长期分区、去重、打标签）由 `consolidation_time` 定时任务或手动 `POST /api/v1/admin/consolidate` 完成。
 
 ## MCP Server
 
@@ -94,25 +92,26 @@ MCP 服务提供显式记忆工具，Claude 可在对话中主动调用：
 | `write_memory` | 写入记忆到工作区 | `content`, `tags?`, `importance?` |
 | `search_memory` | 混合检索（向量+关键词+图谱） | `query`, `top_k?` |
 | `consolidate` | 触发记忆巩固 | 无 |
+| `ingest_conversation` | 摄入一段对话导出（Claude Code JSONL / ChatGPT JSON / 纯文本），逐轮存储 | `content`, `format_hint?`, `importance?` |
 
 ### 仅 MCP 配置
 
-如果只需要 MCP 工具而不需要 hooks，在 `.mcp.json` 中添加：
+如果只需要 MCP 工具而不需要 hooks，在 `.mcp.json` 中填 `hebb-mcp` 的**绝对路径**（GUI / launchd 下 `PATH` 往往不含 pipx 的 bin 目录，裸命令会静默启动失败）。先用 `which hebb-mcp`（Windows：`where hebb-mcp`）查出路径：
 
 ```json
 {
   "mcpServers": {
     "hebb": {
-      "command": "hebb-mcp"
+      "command": "/Users/you/.local/bin/hebb-mcp"
     }
   }
 }
 ```
 
-也可以使用 Claude Code 官方 MCP 命令：
+也可以使用 Claude Code 官方 MCP 命令（同样建议传绝对路径）：
 
 ```bash
-claude mcp add --transport stdio --scope user hebb -- hebb-mcp
+claude mcp add --transport stdio --scope user hebb -- "$(which hebb-mcp)"
 claude mcp list
 ```
 
@@ -122,7 +121,7 @@ claude mcp list
 
 Hooks 使用与主服务相同的 `hebb.json` 配置，无需额外配置。
 
-如果 hook 触发时服务未运行，会自动启动。
+如果 hook 触发时服务未运行，会请求 OS 服务管理器（launchd / systemd / 任务计划程序）拉起它。如果服务尚未安装，先运行一次 `hebb service install`。
 
 远程服务可通过环境变量指定：
 

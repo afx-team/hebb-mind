@@ -51,11 +51,15 @@ class TestForgettingJob:
             MemoryCreate(content="old fact", partition_id="mem_semantic"),
         )
 
-        # Set last_accessed_at to 365 days ago and low importance
+        # Set last_accessed_at AND created_at to 365 days ago, low importance,
+        # and access_count > 0. The new-memory grace window (audit C5) only
+        # protects never-accessed memories (access_count == 0); an old memory
+        # that has been accessed must still expire past the TTL floor.
         old_time = (datetime.now(timezone.utc) - timedelta(days=365)).isoformat()
         await memory_store.db.execute(
-            "UPDATE memories SET last_accessed_at = ?, importance_score = 1.0 WHERE id = ?",
-            (old_time, mem.id),
+            "UPDATE memories SET last_accessed_at = ?, created_at = ?, "
+            "importance_score = 1.0, access_count = 3 WHERE id = ?",
+            (old_time, old_time, mem.id),
         )
         await memory_store.db.commit()
 

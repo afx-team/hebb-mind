@@ -32,7 +32,7 @@ curl http://localhost:8321/api/v1/admin/config
   "llm_model": null,
   "llm_base_url": null,
   "llm_api_key": "sk-x****ykey",
-  "host": "0.0.0.0",
+  "host": "127.0.0.1",
   "port": 8321,
   "consolidation_time": "18:00",
   "forget_interval_seconds": 1800,

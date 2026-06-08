@@ -254,7 +254,7 @@ class _FakeManager:
         self.installed = False
         self.events: list[str] = []
 
-    def install(self) -> None:
+    def install(self, force: bool = False) -> None:
         self.installed = True
         self.events.append("install")
 
@@ -279,7 +279,7 @@ class _FakeManager:
 
 def test_service_install_command_invokes_manager(monkeypatch: pytest.MonkeyPatch) -> None:
     fake = _FakeManager()
-    monkeypatch.setattr(service_cli, "get_manager", lambda scope: fake)
+    monkeypatch.setattr(service_cli, "get_manager", lambda scope, home=None: fake)
     monkeypatch.setattr(service_cli, "_wait_until_healthy", lambda url, **_: True)
 
     runner = CliRunner()
@@ -290,7 +290,7 @@ def test_service_install_command_invokes_manager(monkeypatch: pytest.MonkeyPatch
 
 def test_service_uninstall_command_skips_when_not_installed(monkeypatch: pytest.MonkeyPatch) -> None:
     fake = _FakeManager()
-    monkeypatch.setattr(service_cli, "get_manager", lambda scope: fake)
+    monkeypatch.setattr(service_cli, "get_manager", lambda scope, home=None: fake)
 
     runner = CliRunner()
     result = runner.invoke(service_cli.service_cmd, ["uninstall"])

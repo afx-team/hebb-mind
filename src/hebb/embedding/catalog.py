@@ -76,6 +76,23 @@ MODEL_DIMS: dict[str, int] = {
     "intfloat/multilingual-e5-small": 384,
 }
 
+# Redundant weight variants we never load (PyTorch/safetensors is enough).
+# Skipping these in ``snapshot_download`` roughly halves the bytes pulled for
+# repos that ship ONNX/OpenVINO/TensorFlow exports alongside the torch weights.
+# NOTE: keep ``*.bin`` and ``*.safetensors`` — ``model_dir_complete`` requires a
+# real weight file (``model.safetensors`` OR ``pytorch_model.bin``).
+PREFETCH_IGNORE_PATTERNS: tuple[str, ...] = (
+    "*.onnx",
+    "onnx/**",
+    "openvino/**",
+    "openvino_model.*",
+    "*.h5",
+    "tf_model.h5",
+    "*.ckpt",
+    "*.msgpack",
+    "*.pb",
+)
+
 
 def resolve_language(language: str = "auto", environ: dict[str, str] | None = None) -> LanguageSelection:
     """Resolve the content language strategy.
@@ -103,6 +120,18 @@ def resolve_language(language: str = "auto", environ: dict[str, str] | None = No
 def choose_model(language: str, profile: str = "default") -> ModelSpec:
     """Choose the default embedding model for a language and profile.
 
+    The ``default`` profile selects a *small* model so a bare ``hebb setup``
+    never triggers a multi-gigabyte download. The high-quality ``bge`` models
+    are the explicit ``best`` opt-in tier.
+
+    Profile mapping:
+
+    - ``fast``   -> ``all-MiniLM-L6-v2`` (~90MB, smallest).
+    - ``best``   -> ``BAAI/bge-large-en-v1.5`` (en) / ``BAAI/bge-m3`` (zh, multi),
+      the 1-2GB+ high-quality tier.
+    - ``default`` -> ``all-MiniLM-L6-v2`` (en, ~90MB) /
+      ``intfloat/multilingual-e5-small`` (zh, multi, ~470MB, multilingual).
+
     Args:
         language: Resolved language: en, zh, or multi.
         profile: Model profile: default, fast, or best.
@@ -120,10 +149,12 @@ def choose_model(language: str, profile: str = "default") -> ModelSpec:
 
     if profile == "fast":
         model_id = "sentence-transformers/all-MiniLM-L6-v2"
+    elif profile == "best":
+        model_id = "BAAI/bge-large-en-v1.5" if language == "en" else "BAAI/bge-m3"
     elif language == "en":
-        model_id = "BAAI/bge-large-en-v1.5"
+        model_id = "sentence-transformers/all-MiniLM-L6-v2"
     else:
-        model_id = "BAAI/bge-m3"
+        model_id = "intfloat/multilingual-e5-small"
 
     return ModelSpec(
         model_id=model_id,
@@ -245,6 +276,11 @@ def prefetch_model(
 ) -> Path:
     """Download a HuggingFace model into the Hebb Mind workspace.
 
+    Redundant weight variants (ONNX, OpenVINO, TensorFlow, msgpack) are skipped
+    via :data:`PREFETCH_IGNORE_PATTERNS`; the PyTorch ``*.bin`` / ``*.safetensors``
+    weights plus config, tokenizer, and sentence-transformers module files are
+    always fetched.
+
     Args:
         model_id: HuggingFace repository ID.
         workspace: Resolved Hebb Mind workspace directory.
@@ -282,7 +318,11 @@ def prefetch_model(
     old_offline_const = _hf_const.HF_HUB_OFFLINE
     _hf_const.HF_HUB_OFFLINE = False
 
-    snapshot_kwargs: dict = {"repo_id": model_id, "local_dir": str(local_dir)}
+    snapshot_kwargs: dict = {
+        "repo_id": model_id,
+        "local_dir": str(local_dir),
+        "ignore_patterns": list(PREFETCH_IGNORE_PATTERNS),
+    }
     if progress_callback is not None:
         from hebb.embedding.progress import make_progress_tqdm
 

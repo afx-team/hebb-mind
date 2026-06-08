@@ -54,10 +54,13 @@ def _add_config_check(table: Table) -> Settings | None:
     settings = load_settings(config_path)
     table.add_row("Config", _status(True), str(config_path))
     table.add_row("Workspace", _status(settings.home_dir is not None), str(settings.home_dir))
-    if not settings.llm_api_key:
-        table.add_row("LLM", "[WARN]", "Not configured. Consolidation is disabled until llm_api_key is set.")
+    # Consolidation gates on llm_model (the actual driver of LLM calls), not
+    # llm_api_key: a local/proxy model needs no key, while a set key without a
+    # model still cannot consolidate.
+    if not settings.llm_model:
+        table.add_row("LLM", "[WARN]", "Not configured. Consolidation is disabled until llm_model is set.")
     else:
-        table.add_row("LLM", "[OK]", settings.llm_model or "configured")
+        table.add_row("LLM", "[OK]", settings.llm_model)
     return settings
 
 

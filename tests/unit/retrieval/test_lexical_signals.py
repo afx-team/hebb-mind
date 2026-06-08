@@ -14,7 +14,6 @@ from hebb.retrieval.lexical_signals import (
     lexical_boost,
 )
 
-
 # ----------------------------------------------------------------------
 # Predicate keywords
 # ----------------------------------------------------------------------
@@ -74,7 +73,7 @@ def test_person_names_extracts_capitalized_proper_nouns() -> None:
     assert set(names) == {"Caroline", "Melanie"}
 
 
-def test_person_names_rejects_NOT_NAMES_set() -> None:
+def test_person_names_rejects_not_names_set() -> None:
     """Sentence-initial wh-words, months, weekdays must not count as names."""
     names = extract_person_names("What did Caroline do on Monday in August?")
     assert names == ["Caroline"]

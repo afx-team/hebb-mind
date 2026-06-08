@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from datetime import datetime, timezone
 
 from hebb.embedding.base import EmbeddingProvider
 from hebb.graph.knowledge_graph import KnowledgeGraph
 from hebb.models.memory import Memory, MemoryQuery, MemorySearchResult, SearchResponse
 from hebb.retrieval.keyword_rank import blend_keyword_rank
-from hebb.retrieval.lexical_relevance import build_lexical_query, lexical_relevance
+from hebb.retrieval.lexical_relevance import (
+    build_lexical_query,
+    cjk_surface_tokens,
+    lexical_relevance,
+    make_idf,
+    query_surface_tokens,
+)
 from hebb.retrieval.lexical_signals import extract_query_signals, lexical_boost
 from hebb.retrieval.query_sanitizer import sanitize_query
 from hebb.retrieval.rerank import Reranker
@@ -20,6 +27,25 @@ from hebb.retrieval.scorer import (
 )
 from hebb.retrieval.temporal_boost import parse_query_dates, temporal_boost
 from hebb.storage.base import MemoryStore
+
+# Recency decay base for ``score = decay ** hours``. Mirrors the configured
+# default ``Settings.decay_factor`` (0.693) so the search path's recency is on
+# the same curve the forgetting TTL was tuned against — the previous silent
+# 0.99 baked in a near-flat decay that ignored the configured value entirely.
+# A module constant (not a new Settings field, per INT-8); the searcher has no
+# Settings handle, and recency weight is already tunable per-query via
+# ``weight_recency``.
+_RECENCY_DECAY_FACTOR = 0.693
+
+# Strict-recall floor lives on a MIXED scale after rerank: reranked pool entries
+# carry the cross-encoder *sigmoid* relevance while the tail keeps the calibrated
+# composite. The two are not comparable — a genuinely relevant short memory often
+# scores a bge sigmoid well below a 0.8 *composite* floor (the cross-encoder is
+# conservative on terse text), so a uniform 0.8 silently empties strict-recall
+# results on the hook + MCP surfaces. We translate the composite floor to a
+# rerank-scale floor with this ratio: a relevant cross-encoder hit clears ~0.5
+# sigmoid, so a 0.8 composite floor maps to a 0.5 sigmoid floor (0.8 * 0.625).
+_RERANK_FLOOR_RATIO = 0.625
 
 
 class MemorySearcher:
@@ -98,7 +124,11 @@ class MemorySearcher:
             if self.keyword_search_enabled
             else _empty_ranked()
         )
-        graph_task = self._graph_search(query.query, overfetch) if self.graph_search_enabled else _empty_ranked()
+        graph_task = (
+            self._graph_search(query.query, overfetch, query.partition_ids)
+            if self.graph_search_enabled
+            else _empty_ranked()
+        )
         vec_results, kw_results, graph_results = await asyncio.gather(vec_task, kw_task, graph_task)
 
         # Reciprocal Rank Fusion across the three retrieval channels.
@@ -118,12 +148,22 @@ class MemorySearcher:
         # serve directly as a calibrated semantic relevance.
         sem_sims: dict[str, float] = {mem.id: sim for mem, sim in vec_results}
 
-        # Absolute keyword relevance comparator: IDF-less coverage + proximity
+        # Absolute keyword relevance comparator: IDF-weighted coverage + proximity
         # in [0, 1], computed per (query, content) — on the same scale as the
         # vector cosine, so the two channels are directly comparable (the
         # "类比关系") and the min_score floor means the same thing for both.
         # Parsed once; ``lexical_relevance`` is applied per candidate below.
-        lexical_query = build_lexical_query(query.query)
+        #
+        # Wire IDF through so the "Σ idf·matched / Σ idf" contract is honoured:
+        # without it every term weighs 1.0 and the calibrated score degenerates
+        # to plain coverage, so a doc sharing only generic words reads as
+        # relevant as one with the query's rare discriminating term — and the
+        # strict floor then reads an uncalibrated number. Fetch the corpus DF for
+        # the query's surface tokens (FTS/tsvector stem them the same way) and
+        # build a ``token -> idf`` weighter scoped to the same partitions recall
+        # ran over.
+        idf = await self._build_idf(query.query, query.partition_ids)
+        lexical_query = build_lexical_query(query.query, idf)
 
         # Surface-overlap signals for the *ranking* nudge (unchanged from the
         # tuned hybrid stack): a small multiplicative lift on the RRF relevance
@@ -145,7 +185,7 @@ class MemorySearcher:
             if query.tags and not set(query.tags).intersection(memory.tags):
                 continue
 
-            recency = compute_recency_score(memory.last_accessed_at, now)
+            recency = compute_recency_score(memory.last_accessed_at, now, _RECENCY_DECAY_FACTOR)
             importance_norm = compute_importance_score(memory.importance_score)
 
             # Per-channel [0, 1] relevance VALUE: absolute keyword coverage and
@@ -219,6 +259,12 @@ class MemorySearcher:
         # camera flash" ↔ "suggest accessories"). Skipped entirely when
         # self.reranker is None — that branch is indistinguishable from
         # the pre-rerank code path.
+        # Track how many leading results carry a *rerank* score vs a *composite*
+        # score: ``score`` is on two different [0, 1] scales after rerank (the
+        # cross-encoder sigmoid for the reranked pool, the calibrated composite
+        # for the un-reranked tail), so the strict floor below must be applied
+        # per-scale, not uniformly.
+        reranked_count = 0
         if self.reranker is not None and results:
             pool = results[: self.reranker.top_n]
             tail = results[self.reranker.top_n :]
@@ -228,14 +274,26 @@ class MemorySearcher:
                 r.relevance_score = float(s)
             pool.sort(key=lambda r: r.score, reverse=True)
             results = pool + tail
+            reranked_count = len(pool)
 
-        # Relevance floor: drop anything below min_score. The composite is
-        # bounded to [0, 1] by construction (each signal is in [0, 1] and the
-        # weights are normalised) and rerank scores are sigmoid-normalised, so
-        # the floor lives on a [0, 1] scale in both modes. Used by strict recall
-        # surfaces (hook, MCP); 0.0 (console default) is a no-op.
+        # Relevance floor: drop anything below min_score. Used by strict recall
+        # surfaces (hook, MCP); 0.0 (console default) is a no-op. The floor must
+        # be applied on ONE consistent scale per result. WITHOUT rerank every
+        # ``score`` is the calibrated composite, so a single floor is correct.
+        # WITH rerank the leading ``reranked_count`` entries carry the
+        # cross-encoder sigmoid (a different distribution — bge is conservative on
+        # short text, so genuinely relevant terse memories sit well below a 0.8
+        # *composite* floor); applying the composite floor to them empties strict
+        # recall on the two production surfaces. So translate the floor to the
+        # rerank scale for the pool and keep the composite floor for the tail.
         if query.min_score > 0.0:
-            results = [r for r in results if r.score >= query.min_score]
+            rerank_floor = query.min_score * _RERANK_FLOOR_RATIO
+            kept: list[MemorySearchResult] = []
+            for i, r in enumerate(results):
+                floor = rerank_floor if i < reranked_count else query.min_score
+                if r.score >= floor:
+                    kept.append(r)
+            results = kept
 
         # Final ordering. When the cross-encoder reranker ran, ``score`` is its
         # joint (query, content) relevance — a strong ranker — so order by it.
@@ -411,11 +469,58 @@ class MemorySearcher:
         return candidates
 
     # ------------------------------------------------------------------
+    # IDF weighting for calibrated lexical relevance
+    # ------------------------------------------------------------------
+
+    async def _build_idf(self, query: str, partition_ids: list[str] | None) -> Callable[[str], float] | None:
+        """Build a ``token -> idf`` weighter from corpus document frequencies.
+
+        Looks up the corpus DF of the query's surface tokens (English content
+        terms + CJK bigrams, the same forms :func:`build_lexical_query` weights)
+        scoped to the searched partitions, then builds an IDF callable so the
+        calibrated relevance honours its "Σ idf·matched / Σ idf" contract. Rare,
+        discriminating terms dominate; generic shared words barely move the score.
+
+        Args:
+            query: Raw user query.
+            partition_ids: Partition scope for the DF / corpus-size counts —
+                matched to the partitions recall ran over.
+
+        Returns:
+            A ``token -> idf`` callable, or ``None`` when the corpus is empty or
+            the query has no DF-eligible tokens (callers then fall back to plain
+            coverage with every term weighing 1.0).
+        """
+        surface = [*query_surface_tokens(query), *cjk_surface_tokens(query)]
+        if not surface:
+            return None
+        total_docs = await self.store.corpus_size(partition_ids)
+        if total_docs <= 0:
+            return None
+        doc_freqs = await self.store.keyword_doc_freqs(surface, partition_ids)
+        return make_idf(doc_freqs, total_docs)
+
+    # ------------------------------------------------------------------
     # Path 3: Graph retrieval (query → match tags → expand → memories)
     # ------------------------------------------------------------------
 
-    async def _graph_search(self, query: str, top_k: int) -> list[tuple[Memory, float]]:
-        """Match query words against graph tags, expand 1 hop, collect memories."""
+    async def _graph_search(
+        self, query: str, top_k: int, partition_ids: list[str] | None = None
+    ) -> list[tuple[Memory, float]]:
+        """Match query words against graph tags, expand 1 hop, collect memories.
+
+        Args:
+            query: Raw user query; matched against graph tags.
+            top_k: Max memories to return.
+            partition_ids: When set, drop memories whose ``partition_id`` is not
+                in this set — mirroring the vector/keyword channel contract. The
+                graph index is global (no partition column), so we fetch then
+                filter; results outside the requested partitions are discarded.
+
+        Returns:
+            ``[(Memory, similarity)]`` for in-partition memories reachable from
+            tags matching the query.
+        """
         if not self.graph:
             return []
 
@@ -433,15 +538,26 @@ class MemorySearcher:
             for neighbor_node in neighbors.nodes:
                 memory_ids.update(neighbor_node.memory_ids)
 
+        # The graph is partition-agnostic, so honour the query's partition scope
+        # by filtering after fetch — same contract the vector/keyword channels
+        # enforce at the store layer. Without this the graph channel leaks
+        # cross-partition memories into a partition-scoped search.
+        partition_set = set(partition_ids) if partition_ids else None
+
         # Fetch actual memories and assign relevance based on tag match strength
         results: list[tuple[Memory, float]] = []
-        for mid in list(memory_ids)[:top_k]:
+        for mid in list(memory_ids):
             memory = await self.store.get(mid)
-            if memory:
-                # Score: matched tags with high weight get higher relevance
-                max_weight = max((t.weight for t in matched_tags), default=1.0)
-                similarity = min(0.5 + 0.5 * (max_weight / max(max_weight, 5.0)), 0.9)
-                results.append((memory, similarity))
+            if not memory:
+                continue
+            if partition_set is not None and memory.partition_id not in partition_set:
+                continue
+            # Score: matched tags with high weight get higher relevance
+            max_weight = max((t.weight for t in matched_tags), default=1.0)
+            similarity = min(0.5 + 0.5 * (max_weight / max(max_weight, 5.0)), 0.9)
+            results.append((memory, similarity))
+            if len(results) >= top_k:
+                break
 
         return results
 

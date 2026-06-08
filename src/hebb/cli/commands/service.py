@@ -23,11 +23,13 @@ from rich.console import Console
 
 from hebb.cli._url import resolve_server_url
 from hebb.utils.service_manager import (
+    HomeConflictError,
     ServiceError,
     ServiceManager,
     ServiceNotInstalledError,
     UnsupportedPlatformError,
     get_manager,
+    resolve_service_home,
 )
 
 console = Console()
@@ -83,22 +85,40 @@ def service_cmd() -> None:
 
 @service_cmd.command("install")
 @_scope_option()
-def service_install(scope: str) -> None:
+@click.option(
+    "--home",
+    type=click.Path(file_okay=False, dir_okay=True, path_type=str),
+    default=None,
+    help="Absolute workspace/home the service binds to. Defaults to $HEBB_HOME or ~/.hebb. "
+    "Pinned into the unit so the daemon's DB is independent of the install directory.",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    default=False,
+    help="Re-point the service even if it is already installed against a different home.",
+)
+def service_install(scope: str, home: str | None, force: bool) -> None:
     """Install Hebb Mind as a background service and start it."""
+    resolved_home = resolve_service_home(home)
     try:
-        manager = get_manager(scope=scope)  # type: ignore[arg-type]
+        manager = get_manager(scope=scope, home=resolved_home)  # type: ignore[arg-type]
     except UnsupportedPlatformError as exc:
         console.print(f"[red]{exc}[/]")
         raise SystemExit(1)
 
     console.print(f"[bold]Installing {manager.display_name} service...[/]")
+    console.print(f"  Workspace: [cyan]{resolved_home}[/]")
     if manager.install_path:
         console.print(f"  Artifact: [dim]{manager.install_path}[/]")
     if scope == "system":
         console.print("  [yellow]System scope requires admin/sudo — you may be prompted.[/]")
 
     try:
-        manager.install()
+        manager.install(force=force)
+    except HomeConflictError as exc:
+        console.print(f"[red]{exc}[/]")
+        raise SystemExit(1)
     except ServiceError as exc:
         _print_service_error(exc)
 

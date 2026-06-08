@@ -41,13 +41,13 @@ hebb model status
 | `pg_pool_min` | number | `2` | PostgreSQL 连接池最小连接数 |
 | `pg_pool_max` | number | `10` | PostgreSQL 连接池最大连接数 |
 | `embedding_enabled` | boolean | `true` | 是否启用向量搜索 |
-| `embedding_model` | string | setup-selected | Embedding 模型名称。英语默认 `BAAI/bge-large-en-v1.5`，中文/多语言默认 `BAAI/bge-m3`。切换流程见 [切换 Embedding 模型](./switch-embedding-model.md) |
-| `embedding_dim` | number | setup-selected | 向量维度。修改后启动时向量表会自动重建；重启后跑 `hebb memory reembed` 重新计算 |
+| `embedding_model` | string | setup 选定 | Embedding 模型名称。默认 profile 选小模型：英文 `all-MiniLM-L6-v2`（~90MB），中文/多语言 `intfloat/multilingual-e5-small`（~470MB）。`--profile best` 改选高质量档：英文 `BAAI/bge-large-en-v1.5`、中文/多语言 `BAAI/bge-m3`（1–2GB 以上）。切换流程见 [切换 Embedding 模型](./switch-embedding-model.md) |
+| `embedding_dim` | number | setup 选定 | 向量维度（须与模型一致；小模型默认 384）。修改后启动时向量表会自动重建；重启后跑 `hebb memory reembed` 重新计算 |
 | `hf_endpoint` | string | `null` | HuggingFace 镜像地址。`setup --region cn` 会设置 `https://hf-mirror.com` |
-| `llm_model` | string | `null` | LLM 模型标识（如 `openai/gpt-4o-mini`） |
-| `llm_base_url` | string | `null` | 自定义 LLM API 地址 |
-| `llm_api_key` | string | `null` | LLM 提供商 API 密钥 |
-| `host` | string | `"0.0.0.0"` | 服务监听地址 |
+| `llm_model` | string | `null` | LLM 模型标识（如 `openai/gpt-4o-mini`）。这是巩固功能的**开关门槛** —— 不设它，巩固/冲突解决/标签提取都静默跳过 |
+| `llm_base_url` | string | `null` | 自定义 LLM API 地址（通义千问、GLM、Kimi 等） |
+| `llm_api_key` | string | `null` | LLM 提供商 API 密钥（**托管厂商需要**；本地/代理模型可留空） |
+| `host` | string | `"127.0.0.1"` | 服务监听地址（仅本机回环）。注：`<=0.1.6` 版本默认为 `0.0.0.0` |
 | `port` | number | `8321` | 服务监听端口 |
 | `consolidation_time` | string | `"18:00"` | 每日巩固时间（`HH:MM`） |
 | `forget_interval_seconds` | number | `1800` | 遗忘任务执行间隔（秒） |
@@ -59,17 +59,19 @@ hebb model status
 
 ## 示例配置文件
 
+下面 `embedding_model` / `embedding_dim` 展示的是裸默认值（`hebb setup --profile default --language en`）。`hebb setup` 会按你的语言环境和 `--profile` 写入相应的值，详见上方字段表。
+
 ```json
 {
   "storage_type": "sqlite",
   "home": null,
   "embedding_enabled": true,
-  "embedding_model": "BAAI/bge-m3",
-  "embedding_dim": 1024,
-  "hf_endpoint": "https://hf-mirror.com",
+  "embedding_model": "all-MiniLM-L6-v2",
+  "embedding_dim": 384,
+  "hf_endpoint": null,
   "llm_model": null,
   "llm_api_key": null,
-  "host": "0.0.0.0",
+  "host": "127.0.0.1",
   "port": 8321,
   "consolidation_time": "18:00",
   "forget_interval_seconds": 1800,
@@ -93,15 +95,9 @@ Hebb Mind 的数据文件（`hebb.db`、`knowledge_graph.json`）始终存储在
 ```bash
 # 查看当前解析的工作目录
 hebb config get workspace
+# 输出示例：/home/user/.hebb
 
-# 也可通过 config get 查看
-hebb config get workspace
-```
-
-示例：
-
-```bash
-# 通过环境变量设置工作目录
+# 通过环境变量覆盖工作目录
 export HEBB_HOME=/data/hebb
 
 # 或在配置文件中设置

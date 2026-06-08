@@ -75,13 +75,13 @@ Below is a complete `hebb.json` with all available fields:
   "pg_pool_min": 2,
   "pg_pool_max": 10,
   "embedding_enabled": true,
-  "embedding_model": "BAAI/bge-large-en-v1.5",
-  "embedding_dim": 1024,
+  "embedding_model": "all-MiniLM-L6-v2",
+  "embedding_dim": 384,
   "hf_endpoint": null,
   "llm_model": null,
   "llm_base_url": null,
-  "llm_api_key": "sk-xxx",
-  "host": "0.0.0.0",
+  "llm_api_key": null,
+  "host": "127.0.0.1",
   "port": 8321,
   "consolidation_time": "18:00",
   "forget_interval_seconds": 1800,
@@ -93,6 +93,8 @@ Below is a complete `hebb.json` with all available fields:
 }
 ```
 
+`embedding_model` / `embedding_dim` above show the bare default (`hebb setup --profile default --language en`). `hebb setup` writes whatever your locale and `--profile` select — see the field table below.
+
 ## Field Reference
 
 | Field | Default | Description |
@@ -103,13 +105,13 @@ Below is a complete `hebb.json` with all available fields:
 | `pg_pool_min` | `2` | Minimum PostgreSQL connection pool size |
 | `pg_pool_max` | `10` | Maximum PostgreSQL connection pool size |
 | `embedding_enabled` | `true` | Enable vector embeddings for similarity search |
-| `embedding_model` | setup-selected | Sentence-transformers model for embeddings. English defaults to `BAAI/bge-large-en-v1.5`; Chinese/multilingual defaults to `BAAI/bge-m3`. Change via [Switch the Embedding Model](./switch-embedding-model.md). |
-| `embedding_dim` | setup-selected | Embedding vector dimension (must match model). Dimension changes auto-reset the vector table at next start; run `hebb memory reembed` after restart. |
+| `embedding_model` | setup-selected (bare default `all-MiniLM-L6-v2`) | Sentence-transformers model for embeddings. `--profile default` selects `all-MiniLM-L6-v2` (English, ~90MB) or `intfloat/multilingual-e5-small` (Chinese/multi, ~470MB); `--profile best` selects `BAAI/bge-large-en-v1.5` / `BAAI/bge-m3` (1–2GB). Change via [Switch the Embedding Model](./switch-embedding-model.md). |
+| `embedding_dim` | setup-selected (bare default `384`) | Embedding vector dimension (must match model — 384 for the default tier, 1024 for the bge tier). Dimension changes auto-reset the vector table at next start; run `hebb memory reembed` after restart. |
 | `hf_endpoint` | `null` | HuggingFace mirror endpoint. `setup --region cn` sets `https://hf-mirror.com`. |
-| `llm_model` | `null` | Optional LLM model identifier via LiteLLM |
+| `llm_model` | `null` | LLM model identifier via LiteLLM. **This is the gate for consolidation** — until it is set, consolidation processes zero memories. |
 | `llm_base_url` | `null` | Custom LLM API endpoint (for Qwen, GLM, Kimi) |
-| `llm_api_key` | `null` | LLM provider API key (required for consolidation) |
-| `host` | `0.0.0.0` | Server bind address |
+| `llm_api_key` | `null` | LLM provider API key. Required only for hosted providers; local/proxy models do not need it. |
+| `host` | `127.0.0.1` | Server bind address. Defaults to loopback for security (the server has no auth). Set to `0.0.0.0` only behind a firewall/reverse proxy. *(≤0.1.6 defaulted to `0.0.0.0`.)* |
 | `port` | `8321` | Server port |
 | `consolidation_time` | `18:00` | Daily consolidation clock time (`HH:MM`) |
 | `forget_interval_seconds` | `1800` | Forgetting job run interval (seconds) |
@@ -119,9 +121,20 @@ Below is a complete `hebb.json` with all available fields:
 | `weight_importance` | `1.0` | Weight for importance in search scoring |
 | `weight_relevance` | `1.0` | Weight for relevance in search scoring |
 
+## Which changes require a restart
+
+Most fields take effect on the next request. These take effect only after `hebb service restart`:
+
+- All `embedding_*` fields (`embedding_model`, `embedding_dim`, `embedding_enabled`, provider/API fields)
+- `storage_type` and the `pg_*` fields
+- `consolidation_time` and `forget_interval_seconds`
+- the retrieval-pipeline toggles (`keyword_search_enabled`, `graph_search_enabled`, `lexical_boost_enabled`, …)
+
+`llm_model`, `llm_api_key`, `llm_base_url`, `host`, `port`, and the scoring weights apply without a restart. (After an `embedding_dim` change, also run `hebb memory reembed` once the service has restarted.)
+
 ## Web Console Settings
 
-The Web Console at [http://localhost:8321/](http://localhost:8321/) includes a **Settings** page where you can view and edit all configuration values through a graphical interface. Changes made through the Web Console are saved to `hebb.json` immediately.
+The Web Console at [http://localhost:8321/](http://localhost:8321/) includes a **Settings** page where you can view and edit all configuration values through a graphical interface. Changes made through the Web Console are saved to `hebb.json` immediately. Fields that require a restart show a `restart required` badge.
 
 ## Configuration Precedence
 

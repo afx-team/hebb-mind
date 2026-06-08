@@ -24,15 +24,22 @@ Hebb Mind gives AI agents a neuroscience-inspired memory loop — **encode → r
 
 ## Quick Start
 
-### Try in 60 seconds — no API key needed
+### Try in ~60 seconds — no API key needed
 
-Ingest and hybrid search work fully offline with the bundled local embedding.
+Ingest and hybrid search work fully offline with a local embedding model.
 
 ```bash
 pipx install hebb-mind
-hebb setup              # picks an embedding model based on your OS locale
+hebb setup              # downloads a small embedding model based on your OS locale
 hebb service install    # registers a background service (launchd / systemd / Task Scheduler)
 ```
+
+`hebb setup` downloads a small embedding model only if it isn't already cached —
+~90MB for English (`all-MiniLM-L6-v2`), ~470MB for multilingual
+(`intfloat/multilingual-e5-small`). The ~60-second figure is for the English /
+`--profile fast` small-model path; the multilingual model is a larger download.
+Want the high-quality models? `hebb setup --profile best` pulls the BAAI `bge`
+family instead (1–2GB+) — opt-in, never downloaded by default.
 
 **Don't have `pipx`?** It's the recommended installer for Python CLI tools — isolated venv, automatic PATH, plays nice with PEP 668. Install it once:
 
@@ -76,11 +83,11 @@ Open <http://localhost:8321/> for the Web Console.
 
 ### Full experience (5 min) — enable LLM consolidation
 
-Consolidation, conflict resolution, and tag extraction need an LLM backend. **Without a key, those endpoints are a silent no-op** (a known v0.1.1 gap — see [#consolidation-no-op](https://afx-team.github.io/hebb-mind/troubleshooting.html)).
+Consolidation, conflict resolution, and tag extraction need an LLM backend. The gate is `llm_model` — until it's set, those endpoints are a no-op (see [#consolidation-no-op](https://afx-team.github.io/hebb-mind/troubleshooting.html)). A hosted provider also needs `llm_api_key`; a local model (e.g. Ollama via `llm_base_url`) does not.
 
 ```bash
-hebb config set llm_api_key sk-...
-hebb config set llm_model openai/gpt-4o-mini
+hebb config set llm_model openai/gpt-4o-mini   # required — enables consolidation
+hebb config set llm_api_key sk-...             # for hosted providers
 # For Qwen / GLM / Kimi via LiteLLM:
 hebb config set llm_base_url https://dashscope.aliyuncs.com/compatible-mode/v1
 ```
@@ -97,7 +104,7 @@ curl -X POST http://localhost:8321/api/v1/admin/consolidate
 pipx install hebb-mind                 # recommended (isolated CLI install)
 pipx install 'hebb-mind[pg]'           # + PostgreSQL/pgvector
 pipx upgrade hebb-mind                 # upgrade later
-hebb claude-code install --scope user  # Claude Code: hooks-based auto memory
+hebb claude-code install --scope user  # Claude Code: hooks-based recall + turn capture
 hebb codex install --scope user        # Codex: MCP memory tools
 ```
 
@@ -105,21 +112,21 @@ Docker, one-line install, and source build: [Installation Guide](https://afx-tea
 
 ## 30-second Python SDK
 
-<!-- requires v0.1.2 facade — see PR #N -->
-
 ```python
 from hebb import HebbMind
 
-mem = HebbMind()  # uses ~/.hebb/hebb.json
+mem = HebbMind()  # resolves hebb.json from cwd → $HEBB_HOME → ~/.hebb
 
 mem.add("User prefers dark mode", tags=["preference", "ui"], importance=7.5)
 mem.add("User uses VS Code with the One Dark theme", tags=["preference", "tools"])
 
 for hit in mem.search("UI preferences", top_k=5):
-    print(hit.score, hit.content)
+    print(hit.score, hit.memory.content)
 ```
 
-The `HebbMind()` facade wraps the REST endpoints above; when no daemon is running locally, it boots an in-process server automatically.
+The `HebbMind()` facade runs the memory engine in-process (storage + embedder +
+graph + hybrid search) — no HTTP server, no daemon required. It uses the same
+components the REST server builds, minus the network layer.
 
 ## The memory loop
 
@@ -167,7 +174,7 @@ REST docs at `http://localhost:8321/docs` once the server is running. Key endpoi
 |--------|----------|---------|
 | `POST` | `/api/v1/memories` | Store a memory |
 | `POST` | `/api/v1/search` | Hybrid search |
-| `POST` | `/api/v1/admin/consolidate` | Run consolidation now (requires `llm_api_key`) |
+| `POST` | `/api/v1/admin/consolidate` | Run consolidation now (requires `llm_model`) |
 | `GET`  | `/api/v1/graph/tags` | List knowledge-graph tags |
 | `GET`  | `/api/v1/graph/neighbors/{tag}?depth=2` | Walk the tag graph |
 
@@ -208,7 +215,7 @@ Retrieval R@5 = **99.0%**, tying MemPalace's best hybrid+rerank config (99.4%) a
 
 MiniLM-384 + bge-reranker-base. Hebb matches MemPalace on the easy categories (within ±4 pp) and wins decisively on all four hard ones — distractors, conditional reasoning, post-processing — exactly where verbatim-embedding retrieval collapses; the lever is the local cross-encoder rerank. Per-category k-curves on the docs site.
 
-Hebb Mind's eval calls the same Claude Code hook code paths (`integrations/claude_code/{write,stop}.py`) and `/api/v1/search` endpoint that the shipped product uses — the numbers above are what a user actually gets in production. Full methodology, per-category breakdowns, and prod-vs-eval-pipeline caveats: [hebb-mind.github.io/benchmarks](https://afx-team.github.io/hebb-mind/benchmarks/).
+Hebb Mind's eval calls the same Claude Code hook code paths (`integrations/claude_code/{recall,stop}.py`) and `/api/v1/search` endpoint that the shipped product uses — the numbers above are what a user actually gets in production. Full methodology, per-category breakdowns, and prod-vs-eval-pipeline caveats: [hebb-mind.github.io/benchmarks](https://afx-team.github.io/hebb-mind/benchmarks/).
 
 ## Why "Hebb Mind"?
 

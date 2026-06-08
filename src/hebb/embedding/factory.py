@@ -80,8 +80,18 @@ async def _create_api_embedder(settings: Settings) -> EmbeddingProvider:
         logger.warning("embedding_base_url is required for API embedding provider, vector search disabled")
         return NoopEmbedder(settings.embedding_dim)
 
-    # Detect dimension
-    dim = await _detect_api_dimension(model, api_key, base_url, settings.embedding_dim)
+    # Detect dimension. A None result means the model is unknown *and* the
+    # probe failed even after a retry — we must NOT guess a dimension, because
+    # a wrong vec0 width silently breaks every real write. Disable vector
+    # search instead (NoopEmbedder) so the failure is loud and recoverable.
+    dim = await _detect_api_dimension(model, api_key, base_url)
+    if dim is None:
+        logger.warning(
+            "Could not determine embedding dimension for %s after retry; vector search disabled "
+            "(refusing to guess a dimension)",
+            model,
+        )
+        return NoopEmbedder(settings.embedding_dim)
 
     return ApiEmbedder(model=model, api_key=api_key, base_url=base_url, dimension=dim)
 
@@ -112,44 +122,71 @@ async def _create_custom_http_embedder(settings: Settings) -> EmbeddingProvider:
         logger.warning("Invalid custom HTTP embedding configuration, vector search disabled", exc_info=True)
         return NoopEmbedder(settings.embedding_dim)
 
-    # Probe the endpoint once to detect the embedding dimension.
-    try:
-        vec = await embedder.embed("dimension probe")
-        embedder.set_dimension(len(vec))
-        logger.info("Custom HTTP embedding dimension detected via probe: %d", len(vec))
-    except Exception:
-        logger.warning(
-            "Could not probe custom HTTP embedding dimension, using fallback=%d",
-            settings.embedding_dim,
-            exc_info=True,
-        )
-    return embedder
+    # Probe the endpoint to detect the embedding dimension, retrying once on
+    # transient failure. On persistent failure we MUST NOT keep the guessed
+    # settings.embedding_dim — a wrong vec0 width silently breaks every write —
+    # so we close the throwaway client and disable vector search instead.
+    attempts = 2
+    for attempt in range(1, attempts + 1):
+        try:
+            vec = await embedder.embed("dimension probe")
+            embedder.set_dimension(len(vec))
+            logger.info("Custom HTTP embedding dimension detected via probe: %d", len(vec))
+            return embedder
+        except Exception:
+            if attempt < attempts:
+                logger.warning("Custom HTTP embedding dimension probe failed, retrying", exc_info=True)
+            else:
+                logger.warning(
+                    "Could not probe custom HTTP embedding dimension after %d attempts; vector search disabled "
+                    "(refusing to guess a dimension)",
+                    attempts,
+                )
+    # Probe failed: release the throwaway client and disable vector search.
+    await embedder.aclose()
+    return NoopEmbedder(settings.embedding_dim)
 
 
-async def _detect_api_dimension(model: str, api_key: str | None, base_url: str | None, fallback_dim: int) -> int:
-    """Detect embedding dimension: known table → probe API → fallback."""
+async def _detect_api_dimension(model: str, api_key: str | None, base_url: str | None) -> int | None:
+    """Detect embedding dimension: known table → probe API (one retry).
+
+    Args:
+        model: The embedding model identifier.
+        api_key: Optional API key passed through to litellm.
+        base_url: Optional API base URL passed through to litellm.
+
+    Returns:
+        The detected dimension, or ``None`` when the model is unknown and the
+        probe fails even after one retry. Callers MUST treat ``None`` as
+        "disable vector search" rather than guessing a width — a mismatched
+        vec0 dimension silently breaks every subsequent write.
+    """
     # 1. Check known models table
     if model in KNOWN_DIMS:
         dim = KNOWN_DIMS[model]
         logger.info("Embedding dimension from known models: %s → %d", model, dim)
         return dim
 
-    # 2. Probe with a test request
-    try:
-        from litellm import aembedding
+    # 2. Probe with a test request, retrying once on transient failure.
+    from litellm import aembedding
 
-        logger.info("Probing embedding dimension for model: %s", model)
-        kwargs: dict[str, Any] = {"model": model, "input": ["dimension probe"]}
-        if api_key:
-            kwargs["api_key"] = api_key
-        if base_url:
-            kwargs["api_base"] = base_url
-        response = await aembedding(**kwargs)
-        dim = len(response.data[0]["embedding"])
-        logger.info("Detected embedding dimension via probe: %d", dim)
-        return dim
-    except Exception:
-        logger.warning(
-            "Could not detect embedding dimension for %s, using fallback=%d", model, fallback_dim, exc_info=True
-        )
-        return fallback_dim
+    kwargs: dict[str, Any] = {"model": model, "input": ["dimension probe"]}
+    if api_key:
+        kwargs["api_key"] = api_key
+    if base_url:
+        kwargs["api_base"] = base_url
+
+    attempts = 2
+    for attempt in range(1, attempts + 1):
+        try:
+            logger.info("Probing embedding dimension for model: %s (attempt %d/%d)", model, attempt, attempts)
+            response = await aembedding(**kwargs)
+            dim = len(response.data[0]["embedding"])
+            logger.info("Detected embedding dimension via probe: %d", dim)
+            return dim
+        except Exception:
+            if attempt < attempts:
+                logger.warning("Embedding dimension probe for %s failed, retrying", model, exc_info=True)
+            else:
+                logger.warning("Could not detect embedding dimension for %s after %d attempts", model, attempts)
+    return None

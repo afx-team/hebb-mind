@@ -65,13 +65,20 @@ pip install -U hebb-mind           # `hebb` 自动在 venv 的 PATH 上
 hebb setup
 ```
 
-在 `~/.hebb/`（默认工作目录）生成 `hebb.json` 和 `hebb.db`，选择默认 Embedding 模型、选择下载源并验证模型。它不会启动后台服务。
+在工作目录下生成 `hebb.json` 和 `hebb.db`，按系统语言选择一个**小**的默认 Embedding 模型，选择下载源，并在该模型尚未缓存时下载它。裸默认是 `all-MiniLM-L6-v2`（英文，~90MB）或 `intfloat/multilingual-e5-small`（多语言，~470MB）；需要高质量的 bge 模型（1–2GB）时加 `--profile best`。它**不会**启动后台服务。
+
+默认工作目录是 `~/.hebb/`（全局回退）。如果你在一个已有、或将会有 `hebb.json` 的目录里运行 `hebb setup`，该目录就会成为工作目录。解析顺序：`$HEBB_HOME` → 最近的上级 `hebb.json` → `~/.hebb/`。运行 `hebb config get workspace` 查看解析出的位置。
 
 ## 验证
 
 ```bash
 hebb --version
 hebb model status
+```
+
+## 安装后台服务
+
+```bash
 hebb service install
 ```
 

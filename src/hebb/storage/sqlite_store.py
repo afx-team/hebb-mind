@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -13,9 +16,23 @@ import numpy as np
 from hebb.models.memory import Memory, MemoryCreate, MemoryMetadata, MemoryUpdate
 from hebb.retrieval.fts_query import build_fts_query
 
+logger = logging.getLogger(__name__)
+
 # See `hebb.storage.base` — alias the builtin so class-scope annotations
 # don't resolve to the `list` method defined below.
 _List = list
+
+# Matches the declared vec0 embedding width, e.g. ``embedding float[384]``,
+# inside the CREATE VIRTUAL TABLE SQL recorded in ``sqlite_master``.
+_VEC_DIM_RE = re.compile(r"embedding\s+float\[(\d+)\]", re.IGNORECASE)
+
+
+class EmbeddingDimensionError(ValueError):
+    """Raised when an embedding's length does not match the vec0 table width.
+
+    Surfaced before the vec0 INSERT so the whole ``create`` rolls back cleanly
+    instead of letting a raw vec0 error abort a partially-written row.
+    """
 
 
 def _now_iso() -> str:
@@ -44,41 +61,95 @@ class SQLiteMemoryStore:
 
     def __init__(self, db: aiosqlite.Connection) -> None:
         self.db = db
+        # All callers share one store instance and one connection. A single
+        # process-wide write lock serializes every multi-statement mutation so
+        # no coroutine can commit another coroutine's half-finished transaction
+        # (audit write F1/F2). Reads are not locked.
+        self._write_lock = asyncio.Lock()
+        # Declared vec0 embedding width, read lazily from the schema and cached.
+        # ``None`` means the dimension is unknown (e.g. the regular-table
+        # fallback when vec0 is unavailable), in which case the guard is skipped.
+        self._vec_dim: int | None = None
+        self._vec_dim_loaded = False
+
+    async def _begin(self) -> None:
+        """Open an explicit immediate transaction.
+
+        ``BEGIN IMMEDIATE`` takes the write lock up front so the multi-statement
+        body either commits as a unit or rolls back. aiosqlite runs in autocommit
+        (``isolation_level=None``) under the hood, so an explicit BEGIN is what
+        gives us a real transaction boundary.
+        """
+        await self.db.execute("BEGIN IMMEDIATE")
+
+    async def _get_vec_dim(self) -> int | None:
+        """Declared vec0 embedding width, or ``None`` if it can't be determined.
+
+        Returns:
+            The integer dimension parsed from the ``memory_embeddings`` CREATE
+            statement, or ``None`` when the table is absent or is the
+            regular-BLOB fallback (which has no fixed width).
+        """
+        if self._vec_dim_loaded:
+            return self._vec_dim
+        try:
+            cursor = await self.db.execute("SELECT sql FROM sqlite_master WHERE name = 'memory_embeddings'")
+            row = await cursor.fetchone()
+        except Exception:  # pragma: no cover - sqlite_master is always present
+            row = None
+        if row and row[0]:
+            match = _VEC_DIM_RE.search(row[0])
+            if match:
+                self._vec_dim = int(match.group(1))
+        self._vec_dim_loaded = True
+        return self._vec_dim
 
     async def create(self, data: MemoryCreate, embedding: _List[float] | None = None) -> Memory:
         memory_id = str(uuid.uuid4())
         now = _now_iso()
-        await self.db.execute(
-            """INSERT INTO memories
-               (id, partition_id, content, importance_score, tags, metadata, source,
-                created_at, updated_at, last_accessed_at, access_count)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)""",
-            (
-                memory_id,
-                data.partition_id,
-                data.content,
-                data.importance_score,
-                json.dumps(data.tags),
-                json.dumps(data.metadata.model_dump(exclude_none=True)),
-                data.source,
-                now,
-                now,
-                now,
-            ),
-        )
+        vec_bytes: bytes | None = None
         if embedding:
+            expected = await self._get_vec_dim()
+            if expected is not None and len(embedding) != expected:
+                raise EmbeddingDimensionError(f"embedding length {len(embedding)} does not match vec0 width {expected}")
             vec_bytes = np.array(embedding, dtype=np.float32).tobytes()
-            await self.db.execute(
-                "INSERT INTO memory_embeddings (memory_id, partition_id, embedding) VALUES (?, ?, ?)",
-                (memory_id, data.partition_id, vec_bytes),
-            )
-        # FTS5 index for keyword search — partition_id is UNINDEXED but
-        # carried so retrieval can filter by partition inside MATCH.
-        await self.db.execute(
-            "INSERT INTO memory_fts (memory_id, partition_id, content) VALUES (?, ?, ?)",
-            (memory_id, data.partition_id, data.content),
-        )
-        await self.db.commit()
+
+        async with self._write_lock:
+            await self._begin()
+            try:
+                await self.db.execute(
+                    """INSERT INTO memories
+                       (id, partition_id, content, importance_score, tags, metadata, source,
+                        created_at, updated_at, last_accessed_at, access_count)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)""",
+                    (
+                        memory_id,
+                        data.partition_id,
+                        data.content,
+                        data.importance_score,
+                        json.dumps(data.tags),
+                        json.dumps(data.metadata.model_dump(exclude_none=True)),
+                        data.source,
+                        now,
+                        now,
+                        now,
+                    ),
+                )
+                if vec_bytes is not None:
+                    await self.db.execute(
+                        "INSERT INTO memory_embeddings (memory_id, partition_id, embedding) VALUES (?, ?, ?)",
+                        (memory_id, data.partition_id, vec_bytes),
+                    )
+                # FTS5 index for keyword search — partition_id is UNINDEXED but
+                # carried so retrieval can filter by partition inside MATCH.
+                await self.db.execute(
+                    "INSERT INTO memory_fts (memory_id, partition_id, content) VALUES (?, ?, ?)",
+                    (memory_id, data.partition_id, data.content),
+                )
+                await self.db.commit()
+            except BaseException:
+                await self.db.rollback()
+                raise
         return await self.get(memory_id)  # type: ignore[return-value]
 
     async def get(self, memory_id: str) -> Memory | None:
@@ -153,29 +224,42 @@ class SQLiteMemoryStore:
         params.append(_now_iso())
         params.append(memory_id)
 
-        await self.db.execute(
-            f"UPDATE memories SET {', '.join(updates)} WHERE id = ?",
-            params,
-        )
-        # Sync FTS5 if content changed
-        if data.content is not None:
-            await self.db.execute("DELETE FROM memory_fts WHERE memory_id = ?", (memory_id,))
-            await self.db.execute(
-                "INSERT INTO memory_fts (memory_id, partition_id, content) VALUES (?, ?, ?)",
-                (memory_id, existing.partition_id, data.content),
-            )
-        await self.db.commit()
+        async with self._write_lock:
+            await self._begin()
+            try:
+                await self.db.execute(
+                    f"UPDATE memories SET {', '.join(updates)} WHERE id = ?",
+                    params,
+                )
+                # Sync FTS5 if content changed
+                if data.content is not None:
+                    await self.db.execute("DELETE FROM memory_fts WHERE memory_id = ?", (memory_id,))
+                    await self.db.execute(
+                        "INSERT INTO memory_fts (memory_id, partition_id, content) VALUES (?, ?, ?)",
+                        (memory_id, existing.partition_id, data.content),
+                    )
+                await self.db.commit()
+            except BaseException:
+                await self.db.rollback()
+                raise
         return await self.get(memory_id)
 
     async def delete(self, memory_id: str) -> bool:
-        cursor = await self.db.execute(
-            "DELETE FROM memories WHERE id = ?",
-            (memory_id,),
-        )
-        await self.db.execute("DELETE FROM memory_embeddings WHERE memory_id = ?", (memory_id,))
-        await self.db.execute("DELETE FROM memory_fts WHERE memory_id = ?", (memory_id,))
-        await self.db.commit()
-        return cursor.rowcount > 0
+        async with self._write_lock:
+            await self._begin()
+            try:
+                cursor = await self.db.execute(
+                    "DELETE FROM memories WHERE id = ?",
+                    (memory_id,),
+                )
+                deleted = cursor.rowcount > 0
+                await self.db.execute("DELETE FROM memory_embeddings WHERE memory_id = ?", (memory_id,))
+                await self.db.execute("DELETE FROM memory_fts WHERE memory_id = ?", (memory_id,))
+                await self.db.commit()
+            except BaseException:
+                await self.db.rollback()
+                raise
+        return deleted
 
     async def search_by_vector(
         self,
@@ -216,8 +300,14 @@ class SQLiteMemoryStore:
                        ORDER BY me.distance""",
                     (vec_bytes, k),
                 )
+        except aiosqlite.OperationalError:
+            # Expected fallback: vec0 unavailable or the regular-table fallback
+            # doesn't support MATCH. Recall degrades gracefully to other channels.
+            return []
         except Exception:
-            # vec0 unavailable or fallback table doesn't support MATCH
+            # Unexpected (e.g. a corrupted connection after a failed delete) —
+            # log loudly so a silent recall collapse is observable (forgetting F9).
+            logger.error("search_by_vector failed unexpectedly", exc_info=True)
             return []
 
         rows = list(await cursor.fetchall())
@@ -284,7 +374,13 @@ class SQLiteMemoryStore:
                        LIMIT ?""",
                     (match_expr, top_k * 3),
                 )
+        except aiosqlite.OperationalError:
+            # Expected: a malformed MATCH expression FTS5 can't parse.
+            return []
         except Exception:
+            # Unexpected (e.g. a corrupted connection after a failed delete) —
+            # log loudly so a silent recall collapse is observable (forgetting F9).
+            logger.error("search_by_keyword failed unexpectedly", exc_info=True)
             return []
 
         rows = list(await cursor.fetchall())
@@ -447,39 +543,52 @@ class SQLiteMemoryStore:
 
     async def delete_expired(self) -> _List[str]:
         now = _now_iso()
-        # Get expired memory IDs first (for embedding/fts cleanup)
-        cursor = await self.db.execute(
-            "SELECT id FROM memories WHERE expires_at IS NOT NULL AND expires_at < ?",
-            (now,),
-        )
-        rows = await cursor.fetchall()
-        expired_ids = [row["id"] for row in rows]
+        async with self._write_lock:
+            await self._begin()
+            try:
+                # Get expired memory IDs first (for embedding/fts cleanup)
+                cursor = await self.db.execute(
+                    "SELECT id FROM memories WHERE expires_at IS NOT NULL AND expires_at < ?",
+                    (now,),
+                )
+                rows = await cursor.fetchall()
+                expired_ids = [row["id"] for row in rows]
 
-        if not expired_ids:
-            return []
+                if not expired_ids:
+                    await self.db.commit()
+                    return []
 
-        placeholders = ",".join("?" * len(expired_ids))
-        await self.db.execute(
-            f"DELETE FROM memory_embeddings WHERE memory_id IN ({placeholders})",
-            expired_ids,
-        )
-        await self.db.execute(
-            f"DELETE FROM memory_fts WHERE memory_id IN ({placeholders})",
-            expired_ids,
-        )
-        await self.db.execute(
-            f"DELETE FROM memories WHERE id IN ({placeholders})",
-            expired_ids,
-        )
-        await self.db.commit()
+                placeholders = ",".join("?" * len(expired_ids))
+                await self.db.execute(
+                    f"DELETE FROM memory_embeddings WHERE memory_id IN ({placeholders})",
+                    expired_ids,
+                )
+                await self.db.execute(
+                    f"DELETE FROM memory_fts WHERE memory_id IN ({placeholders})",
+                    expired_ids,
+                )
+                await self.db.execute(
+                    f"DELETE FROM memories WHERE id IN ({placeholders})",
+                    expired_ids,
+                )
+                await self.db.commit()
+            except BaseException:
+                await self.db.rollback()
+                raise
         return expired_ids
 
     async def update_access(self, memory_id: str) -> None:
-        await self.db.execute(
-            "UPDATE memories SET access_count = access_count + 1, last_accessed_at = ? WHERE id = ?",
-            (_now_iso(), memory_id),
-        )
-        await self.db.commit()
+        async with self._write_lock:
+            await self._begin()
+            try:
+                await self.db.execute(
+                    "UPDATE memories SET access_count = access_count + 1, last_accessed_at = ? WHERE id = ?",
+                    (_now_iso(), memory_id),
+                )
+                await self.db.commit()
+            except BaseException:
+                await self.db.rollback()
+                raise
 
     async def update_access_batch(self, memory_ids: _List[str]) -> None:
         """Bump access_count + last_accessed_at for several memories in one
@@ -490,33 +599,86 @@ class SQLiteMemoryStore:
         if not memory_ids:
             return
         placeholders = ",".join("?" * len(memory_ids))
-        await self.db.execute(
-            f"UPDATE memories SET access_count = access_count + 1, last_accessed_at = ? WHERE id IN ({placeholders})",
-            (_now_iso(), *memory_ids),
-        )
-        await self.db.commit()
+        async with self._write_lock:
+            await self._begin()
+            try:
+                await self.db.execute(
+                    f"UPDATE memories SET access_count = access_count + 1, last_accessed_at = ? WHERE id IN ({placeholders})",
+                    (_now_iso(), *memory_ids),
+                )
+                await self.db.commit()
+            except BaseException:
+                await self.db.rollback()
+                raise
 
     async def update_embedding(self, memory_id: str, embedding: _List[float]) -> None:
         if not embedding:
             return
-        # Read partition_id from the memories row so the vec0 index keeps
-        # the metadata column in sync with the parent record.
-        cursor = await self.db.execute("SELECT partition_id FROM memories WHERE id = ?", (memory_id,))
-        row = await cursor.fetchone()
-        if row is None:
-            return
-        partition_id = row["partition_id"]
+        expected = await self._get_vec_dim()
+        if expected is not None and len(embedding) != expected:
+            raise EmbeddingDimensionError(f"embedding length {len(embedding)} does not match vec0 width {expected}")
         vec_bytes = np.array(embedding, dtype=np.float32).tobytes()
-        await self.db.execute("DELETE FROM memory_embeddings WHERE memory_id = ?", (memory_id,))
-        await self.db.execute(
-            "INSERT INTO memory_embeddings (memory_id, partition_id, embedding) VALUES (?, ?, ?)",
-            (memory_id, partition_id, vec_bytes),
-        )
-        await self.db.commit()
+        async with self._write_lock:
+            await self._begin()
+            try:
+                # Read partition_id from the memories row so the vec0 index keeps
+                # the metadata column in sync with the parent record.
+                cursor = await self.db.execute("SELECT partition_id FROM memories WHERE id = ?", (memory_id,))
+                row = await cursor.fetchone()
+                if row is None:
+                    await self.db.commit()
+                    return
+                partition_id = row["partition_id"]
+                await self.db.execute("DELETE FROM memory_embeddings WHERE memory_id = ?", (memory_id,))
+                await self.db.execute(
+                    "INSERT INTO memory_embeddings (memory_id, partition_id, embedding) VALUES (?, ?, ?)",
+                    (memory_id, partition_id, vec_bytes),
+                )
+                await self.db.commit()
+            except BaseException:
+                await self.db.rollback()
+                raise
 
     async def update_expiry(self, memory_id: str, expires_at: str) -> None:
-        await self.db.execute(
-            "UPDATE memories SET expires_at = ? WHERE id = ?",
-            (expires_at, memory_id),
-        )
-        await self.db.commit()
+        async with self._write_lock:
+            await self._begin()
+            try:
+                await self.db.execute(
+                    "UPDATE memories SET expires_at = ? WHERE id = ?",
+                    (expires_at, memory_id),
+                )
+                await self.db.commit()
+            except BaseException:
+                await self.db.rollback()
+                raise
+
+    async def update_expiry_batch(self, items: _List[tuple[str, str]]) -> None:
+        """Set ``expires_at`` for several memories under one lock + transaction.
+
+        The forgetting sweep recomputes a TTL for every surviving memory each
+        pass; per-row ``update_expiry`` commits would be a commit storm and
+        leave the sweep non-atomic. This applies all updates as a single
+        ``executemany`` inside one transaction (INT-6).
+
+        Args:
+            items: ``(memory_id, expires_at_iso)`` pairs. ``expires_at_iso`` is
+                an ISO-8601 timestamp string (the same form ``update_expiry``
+                accepts).
+
+        Returns:
+            None.
+        """
+        if not items:
+            return
+        params = [(expires_at, memory_id) for memory_id, expires_at in items]
+        async with self._write_lock:
+            await self._begin()
+            try:
+                await self.db.executemany(
+                    "UPDATE memories SET expires_at = ? WHERE id = ?",
+                    params,
+                )
+                await self.db.commit()
+            except BaseException:
+                await self.db.rollback()
+                raise

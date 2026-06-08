@@ -30,7 +30,7 @@ curl http://localhost:8321/api/v1/admin/config
   "llm_model": null,
   "llm_base_url": null,
   "llm_api_key": "sk-x****ykey",
-  "host": "0.0.0.0",
+  "host": "127.0.0.1",
   "port": 8321,
   "consolidation_time": "18:00",
   "forget_interval_seconds": 1800,
@@ -41,6 +41,8 @@ curl http://localhost:8321/api/v1/admin/config
   "weight_relevance": 1.0
 }
 ```
+
+> `host` 默认绑定回环地址 `127.0.0.1`（仅本机可访问）。服务本身没有鉴权，对外暴露（如 `0.0.0.0`）属于显式选择，应配合防火墙或反向代理。`<=0.1.6` 版本默认为 `0.0.0.0`。
 
 ## 更新配置
 

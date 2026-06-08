@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from hebb.config.settings import Settings
+from hebb.constants import PartitionType
 from hebb.embedding.base import EmbeddingProvider
 from hebb.graph.knowledge_graph import KnowledgeGraph
 from hebb.scheduler.consolidation_job import run_consolidation
+from hebb.scheduler.forgetting_job import compute_expires_at
 from hebb.scheduler.manager import SchedulerManager
 from hebb.server.dependencies import (
     get_embedder,
@@ -22,6 +25,7 @@ from hebb.server.dependencies import (
     get_settings,
 )
 from hebb.storage.base import MemoryStore, PartitionStore
+from hebb.storage.purge import purge_memory
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +40,7 @@ async def trigger_consolidation(
     kg: KnowledgeGraph = Depends(get_knowledge_graph),
     embedder: EmbeddingProvider = Depends(get_embedder),
     settings: Settings = Depends(get_settings),
+    scheduler: SchedulerManager = Depends(get_scheduler),
 ) -> dict[str, Any]:
     # Optional body: {"partition_ids": [...], "keep_partition": bool}.
     # When ``partition_ids`` is given, each is consolidated in turn; with
@@ -45,15 +50,27 @@ async def trigger_consolidation(
     body = body or {}
     partition_ids = body.get("partition_ids") or None
     keep_partition = bool(body.get("keep_partition", False))
-    results = await run_consolidation(
-        memory_store=memory_store,
-        partition_store=partition_store,
-        knowledge_graph=kg,
-        embedder=embedder,
-        settings=settings,
-        source_partitions=partition_ids,
-        keep_partition=keep_partition,
-    )
+    # Route through the scheduler's locked run_consolidation (INT-7) so a manual
+    # /consolidate cannot overlap the daily cron job (concurrent consolidation
+    # double-deletes / double-graphs the source memories). Lane E owns the lock
+    # + public method on SchedulerManager; fall back to the direct call if it is
+    # not present yet so this lane stays buildable in isolation.
+    run = getattr(scheduler, "run_consolidation", None)
+    if callable(run):
+        results = await run(
+            source_partitions=partition_ids,
+            keep_partition=keep_partition,
+        )
+    else:
+        results = await run_consolidation(
+            memory_store=memory_store,
+            partition_store=partition_store,
+            knowledge_graph=kg,
+            embedder=embedder,
+            settings=settings,
+            source_partitions=partition_ids,
+            keep_partition=keep_partition,
+        )
     failures = [
         {"memory_id": r.original_memory_id, "error": r.error or "unknown error"} for r in results if not r.success
     ]
@@ -69,13 +86,49 @@ async def trigger_consolidation(
 async def trigger_forgetting(
     memory_store: MemoryStore = Depends(get_memory_store),
     kg: KnowledgeGraph = Depends(get_knowledge_graph),
+    settings: Settings = Depends(get_settings),
+    partition_store: PartitionStore = Depends(get_partition_store),
 ) -> dict[str, int]:
-    deleted_ids = await memory_store.delete_expired()
-    for mid in deleted_ids:
-        kg.remove_memory_from_tags(mid)
-    if deleted_ids:
+    """Manually run the forgetting sweep.
+
+    Mirrors the scheduled forgetting job rather than a raw ``delete_expired()``:
+    each candidate's ``expires_at`` is recomputed from its *current* access state
+    (access_count / last_accessed_at / importance) before the cutoff test, so a
+    memory that was recently strengthened by recall is not deleted on a stale
+    ``expires_at``. The HIPPOCAMPUS working-memory inbox is never swept — it is
+    drained by consolidation, not by TTL — matching the scheduler.
+
+    Args:
+        memory_store: Backing memory store.
+        kg: Knowledge graph kept in sync via :func:`purge_memory`.
+        settings: TTL parameters (base_ttl_hours, decay_factor).
+        partition_store: Source of the partition list to iterate.
+
+    Returns:
+        ``{"deleted": <count>}`` — number of memories purged.
+    """
+    now = datetime.now(timezone.utc)
+    deleted = 0
+    partitions = await partition_store.list()
+    for partition in partitions:
+        if partition.id == PartitionType.HIPPOCAMPUS.value:
+            continue
+        memories = await memory_store.get_by_partition(partition.id)
+        for memory in memories:
+            # Recompute expiry from current access state so strengthened
+            # (recently recalled) memories survive, then persist for visibility.
+            expires_at = compute_expires_at(
+                memory,
+                base_ttl_hours=settings.base_ttl_hours,
+                decay_factor=settings.decay_factor,
+            )
+            await memory_store.update_expiry(memory.id, expires_at.isoformat())
+            if expires_at < now:
+                await purge_memory(memory_store, kg, memory.id, save=False)
+                deleted += 1
+    if deleted > 0:
         kg.save()
-    return {"deleted": len(deleted_ids)}
+    return {"deleted": deleted}
 
 
 @router.post("/restart")

@@ -162,6 +162,10 @@ class LocalEmbedder:
         results = await loop.run_in_executor(None, partial(self._model.encode, texts, normalize_embeddings=True))
         return cast("list[list[float]]", results.tolist())
 
+    async def aclose(self) -> None:
+        """Release provider resources. No-op — the model holds no network handles."""
+        return None
+
 
 class NoopEmbedder:
     """Fallback embedder when no model is available. Vector search will be disabled."""
@@ -179,3 +183,7 @@ class NoopEmbedder:
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         return [[] for _ in texts]
+
+    async def aclose(self) -> None:
+        """Release provider resources. No-op — nothing is held."""
+        return None

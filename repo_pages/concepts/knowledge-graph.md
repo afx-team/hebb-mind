@@ -68,13 +68,15 @@ curl http://localhost:8321/api/v1/graph/export
 
 The knowledge graph plays two roles during memory retrieval:
 
-### 1. Parallel Recall
+### 1. Tag-match channel
 
-During search, three retrieval paths run in parallel:
+During search, three retrieval paths run concurrently and are fused with reciprocal-rank fusion:
 
 - Vector similarity search
 - Keyword (full-text) search
-- **Graph-based retrieval** -- the query's tags are used to traverse the knowledge graph and find related memories
+- **Graph tag-match** -- the query is tokenized and each token is matched against existing tag ids/labels (exact or short-substring match); memories carrying a matched tag, plus their 1-hop tag neighbors, are collected.
+
+The graph channel is a lexical tag matcher, not a semantic traversal: it cannot find a memory whose tags share no token with the query. Vector and keyword search (plus the cross-encoder rerank) carry the bulk of recall quality; the graph channel mainly adds tag-linked siblings.
 
 ### 2. Post-Expansion
 

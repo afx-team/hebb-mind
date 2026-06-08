@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      3. Merge to main — publish.yml ships to PyPI on the pyproject.toml change
         and tags the release. -->
 
-## [0.1.7] - 2026-06-07
+## [0.1.7] - 2026-06-08
 
 ### Added
 
@@ -23,9 +23,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Evaluation harness**: official LongMemEval QA (per-type `get_anscheck_prompt`
   judge + neutral official reader) and a full MemBench 11-category sweep with
   per-category Hit@k.
+- **`hebb setup` wizard**: interactive first-run setup with embedding model
+  selection (small/base/large) and optional LLM key input; defaults to
+  `all-MiniLM-L6-v2` for low-resource environments.
+- **`hebb doctor` health-check**: validates config, embedding model readiness,
+  and service connectivity in one command.
 
 ### Fixed
 
+- **Security: bind `127.0.0.1` by default**, remove wildcard CORS, strip the
+  `/api/v1/config/reveal` endpoint, and redact secrets from all config surfaces.
+- **Security: path traversal guard** on partition/namespace parameters across
+  all storage backends.
+- **Atomic writes**: memory creation wraps vector insert + FTS index + graph
+  update in a single transaction; partial failures roll back cleanly.
+- **Embedding dimension migration** no longer drops the vector table — uses
+  `ALTER` or safe rebuild with data preservation.
+- **Service install pins `HEBB_HOME`** so background daemons are independent of
+  the working directory at install time.
+- **Consolidation agent** validates LLM output schema before deleting source
+  memories, preventing zero-replacement data loss on malformed responses.
+- **Knowledge graph**: entity extraction uses overlap-chunked queries (no more
+  whole-query substring matching), and graph recall respects partition filters.
+- **Forgetting scheduler**: `importance=0` no longer yields `TTL=0` (instant
+  delete); minimum TTL floor enforced.
+- **Retrieval**: strict-mode threshold comparison is scale-aware (normalized
+  before gating); IDF calibration activated on startup instead of dead code path.
 - **Claude Code Stop hook no longer ingests subagent content.** The transcript
   parser now drops `isSidechain` (Task tool) lines, so a subagent's task prompt
   can no longer be stored as the user's turn and its tool calls no longer leak
@@ -38,10 +61,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its source memories when the LLM returns no usable output — preventing
   zero-replacement data loss.
 
+### Changed
+
+- Default embedding model changed from `all-mpnet-base-v2` (420 MB) to
+  `all-MiniLM-L6-v2` (90 MB) — halves first-run download time with <2%
+  retrieval quality loss on LoCoMo/MemBench.
+- Docker image uses `hebb service start` (not removed `hebb start`).
+- Web console settings page redacts API keys (shows last 4 chars only).
+
 ### Documentation
 
 - Refreshed benchmark pages (LongMemEval, MemBench) and framework comparisons,
   EN + `zh/` mirrors.
+- New-user experience audit report and core system audit report (internal,
+  `reports/audit/`).
 
 ## [0.1.6] - 2026-06-01
 

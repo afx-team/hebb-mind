@@ -2,6 +2,10 @@
 
 Memory consolidation is the process by which raw memories in the working inbox (`mem_hippocampus`) are analyzed, classified, and moved into long-term partitions. This mirrors how the biological hippocampus consolidates short-term memories during sleep.
 
+::: tip Consolidation requires an LLM
+Consolidation is the only feature that needs a language model. The on/off gate is `llm_model` — set it and consolidation runs; leave it unset and the pipeline is a no-op (writes, search, and forgetting all work without it). A hosted provider additionally needs `llm_api_key`, but a local or proxy model needs only `llm_model`. `hebb doctor` reports consolidation as enabled based on `llm_model`.
+:::
+
 ## How It Works
 
 The consolidation agent performs five steps for each unprocessed memory:

@@ -4,7 +4,7 @@
 
 我们以 **session 级 Recall@10** 报告 LoCoMo —— 这与 MemPalace 公布的指标一致，因此数字可以直接对比。
 
-> **生产环境一致性。** 数据写入调用的正是真实使用中触发的同一套 Claude Code hook 代码路径（`src/hebb/integrations/claude_code/write.py` + `stop.py`），检索也走与 MCP server、CLI 和 Web 控制台相同的 `/api/v1/search` 端点。下文的数字就是用户在生产环境中实际得到的结果 —— 而非仅用于评测的理想化配置。关于这与那些「评测流程偏离自身生产管线」的设置有何不同，参见 [vs MemPalace](./vs-mempalace)。
+> **生产环境一致性。** 数据写入调用的正是真实使用中触发的同一套 Claude Code hook 代码路径（`src/hebb/integrations/claude_code/stop.py`，逐轮捕获 hook），检索也走与 MCP server、CLI 和 Web 控制台相同的 `/api/v1/search` 端点。下文的数字就是用户在生产环境中实际得到的结果 —— 而非仅用于评测的理想化配置。关于这与那些「评测流程偏离自身生产管线」的设置有何不同，参见 [vs MemPalace](./vs-mempalace)。
 
 ## Session 级 Recall@10
 

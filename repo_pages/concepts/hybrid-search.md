@@ -24,23 +24,28 @@ Full-text search with BM25-style ranking.
 
 ### 3. Graph Path
 
-Knowledge graph neighbor traversal.
+Lexical tag match against the knowledge graph.
 
-- Query tags are looked up in the knowledge graph
-- Connected tags (within configurable depth) are used to find related memories
-- Captures conceptual relationships that may not appear in text similarity
+- The query is tokenized; each token is matched against existing tag ids/labels (exact or short-substring match)
+- Memories carrying a matched tag, plus their 1-hop tag neighbors, are collected
+- This is a lexical tag matcher, not a semantic traversal — it cannot reach a memory whose tags share no token with the query
 - See [Knowledge Graph](./knowledge-graph.md) for details
 
-## Merging Results
+## Merging and Reranking Results
 
-Results from all three paths are merged by memory ID. When the same memory appears in multiple paths, the **maximum relevance score** across paths is used.
+Results from the three paths are fused with **reciprocal-rank fusion (RRF)** into a single candidate list. For the displayed `relevance_score`, the **maximum relevance** across the paths that surfaced a memory is used.
+
+By default a **cross-encoder reranker** (`rerank_enabled: true`, model `BAAI/bge-reranker-base`) then re-scores the top candidates by reading each `(query, content)` pair jointly. This is the single highest-impact retrieval-quality lever measured across LoCoMo / LongMemEval / MemBench. It degrades gracefully: if the reranker model cannot load, the searcher falls back to the calibrated hybrid score with no error. Set `rerank_enabled` to `false` to skip the model download and per-query rerank latency.
 
 ## Composite Scoring
 
-Each retrieved memory receives a final composite score based on three weighted signals:
+Each retrieved memory receives a final composite score based on three weighted signals, normalized to `[0, 1]`:
 
 ```
-score = weight_recency * recency + weight_importance * importance + weight_relevance * relevance
+score = (weight_recency * recency
+       + weight_importance * importance
+       + weight_relevance * relevance)
+       / (weight_recency + weight_importance + weight_relevance)
 ```
 
 ### Recency
@@ -53,7 +58,7 @@ The LLM-rated importance score (0-10), normalized for scoring.
 
 ### Relevance
 
-The search relevance score from the retrieval path (vector similarity, keyword match, or graph proximity).
+The search relevance score, taken as the maximum across the retrieval paths that surfaced the memory (vector cosine similarity, keyword match, or graph tag match).
 
 ## Configuring Weights
 

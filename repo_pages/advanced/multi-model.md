@@ -60,7 +60,12 @@ For Chinese model providers (Qwen, GLM, Kimi), the `openai/` prefix tells LiteLL
 
 ## Embedding Model
 
-The embedding model runs **locally** via sentence-transformers. No external API calls are needed for generating embeddings. `hebb setup` selects the default model by content language:
+The embedding model runs **locally** via sentence-transformers. No external API calls are needed for generating embeddings. By default, `hebb setup` selects a **small** model by content language:
+
+- English: `all-MiniLM-L6-v2` (~90 MB)
+- Chinese or multilingual: `intfloat/multilingual-e5-small` (~470 MB)
+
+For the high-quality tier (1–2 GB), opt in with `hebb setup --profile best`:
 
 - English: `BAAI/bge-large-en-v1.5`
 - Chinese or multilingual: `BAAI/bge-m3`
@@ -94,10 +99,12 @@ The embedding model is separate from the LLM model. You can use any LLM provider
 After configuring a model, test the connection:
 
 ```bash
-curl -X POST http://localhost:8321/api/v1/config/test-llm
+curl -X POST http://localhost:8321/api/v1/admin/config/test-llm \
+  -H 'Content-Type: application/json' \
+  -d '{"model": "openai/gpt-4o-mini", "api_key": "sk-..."}'
 ```
 
-This sends a simple test request to verify that the API key and endpoint are working correctly.
+This sends a simple test request to verify that the model, API key, and endpoint are working correctly. Add `"base_url": "https://..."` for OpenAI-compatible providers (Qwen, GLM, Kimi).
 
 ## Choosing a Model
 

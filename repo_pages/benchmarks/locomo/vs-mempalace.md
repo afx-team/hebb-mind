@@ -4,7 +4,7 @@ MemPalace publishes session-level Recall@k on the full 1,986 LoCoMo questions. T
 
 ## Production parity — the most important caveat
 
-**Hebb Mind benchmarks call the same code paths as the shipped product.** The eval harness ingests every LoCoMo turn through the production Claude Code hooks (`src/hebb/integrations/claude_code/write.py` on each user prompt, `stop.py` on each turn round-trip): per-utterance memories with the same min-length filter and session-scoped dedupe; per-turn-pair summaries with the same `[<timestamp>] [<role>] …` formatting. Retrieval goes through the same `/api/v1/search` that Claude Code, the MCP server, and the Web Console all hit. **The 91.4% / 94.1% R@10 you see here is the R@10 a user actually gets in production** (94.1% on the shipped bge-large default, rerank off).
+**Hebb Mind benchmarks call the same code paths as the shipped product.** The eval harness ingests every LoCoMo turn through the production Claude Code capture hook (`src/hebb/integrations/claude_code/stop.py`, which fires on each turn round-trip): per-utterance memories with the same min-length filter and session-scoped dedupe; per-turn-pair summaries with the same `[<timestamp>] [<role>] …` formatting. Retrieval goes through the same `/api/v1/search` that Claude Code, the MCP server, and the Web Console all hit. **The 91.4% / 94.1% R@10 you see here is the R@10 a user actually gets in production** (94.1% with the `--profile best` bge tier, rerank off).
 
 **MemPalace's benchmark does not call their production pipeline.** Our [source-level audit](https://github.com/afx-team/hebb-mind/blob/main/docs/analysis/mempalace-benchmark-deep-dive.md) of their repo finds three concrete divergences:
 
