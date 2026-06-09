@@ -13,6 +13,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      3. Merge to main — publish.yml ships to PyPI on the pyproject.toml change
         and tags the release. -->
 
+## [0.1.8] - 2026-06-09
+
+### Added
+
+- **Consolidation run tracking**: every consolidation run now writes a dedicated
+  log file plus a JSON manifest, surfaced as a "Recent runs" history panel in the
+  dashboard with live log streaming and per-run status.
+- **Interruption recovery**: consolidation runs carry a heartbeat, so a run that
+  stalls or is cut off (network loss, shutdown, system sleep) is detected and
+  marked `interrupted` instead of getting stuck `running` forever. On the next
+  start, if working memories are still pending, a one-shot catch-up consolidation
+  is scheduled so the inbox resumes rather than waiting for the daily cron.
+- **`consolidation_drain_empty_sources` setting** (Lifecycle tab, default on):
+  working memories the consolidator judges low-value (a well-formed empty result)
+  are drained from the inbox instead of being re-checked on every run.
+- **Virtualenv guard for `hebb service install`**: warns when installing the
+  background service from inside a virtualenv (which breaks if the venv is
+  removed) and makes the OS service PATH venv-aware.
+
+### Fixed
+
+- **Consolidation no longer loops on empty output**: a robust JSON parser
+  (backed by the `json-repair` library) recovers responses some models emit with
+  doubled braces (`{{ … }}` under `json_object` mode), truncated at `max_tokens`,
+  or with trailing commas — these were previously dropped, silently losing
+  consolidated memories and degrading recall query/tag extraction. Genuine
+  low-value content is drained; only unparseable/transient failures are kept for
+  retry, so the working inbox finally empties.
+- **Consolidation race-tightening**: the cron sweep, manual `/consolidate`, and
+  the MCP tool now serialize through a single "working" state — duplicate runs
+  are deduplicated and the cron skips a tick when a run is already in progress.
+
+### Changed
+
+- Add `json-repair` runtime dependency (MIT, pure-Python, no mandatory
+  transitive dependencies).
+- Evaluation reports are now pathed under `{benchmark}/{hebb_version}/run-N/`
+  (the shipped version that produced a number is legible at a glance); the eval
+  methodology version is recorded in the report body instead of the path.
+
 ## [0.1.7] - 2026-06-08
 
 ### Added
