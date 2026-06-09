@@ -62,6 +62,24 @@ def hebb_command() -> list[str]:
     return _hebb_argv()
 
 
+_DEFAULT_PATH = "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin"
+
+
+def _service_path() -> str:
+    """Return the PATH string for service templates.
+
+    When hebb is installed inside a virtualenv, prepend the venv's bin
+    directory so the OS service manager can resolve the Python that the
+    ``hebb`` entry-point script's shebang points to.
+    """
+    import sys
+
+    if sys.prefix != sys.base_prefix:
+        venv_bin = os.path.join(sys.prefix, "bin")
+        return f"{venv_bin}:{_DEFAULT_PATH}"
+    return _DEFAULT_PATH
+
+
 def workspace_dir() -> str:
     """Return the workspace root that services run in.
 
@@ -268,6 +286,7 @@ class LaunchdManager(ServiceManager):
         # XML-escape every interpolated value before embedding in <string>.
         args_xml = "\n".join(f"    <string>{_xml_escape(a)}</string>" for a in program_args)
         home = _xml_escape(self.home_dir())
+        path = _xml_escape(_service_path())
         return f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -297,7 +316,7 @@ class LaunchdManager(ServiceManager):
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
+    <string>{path}</string>
     <key>HEBB_HOME</key>
     <string>{home}</string>
   </dict>
@@ -456,6 +475,7 @@ class SystemdManager(ServiceManager):
         install_target = "default.target" if self.scope == "user" else "multi-user.target"
         # Optional User= field — only on system scope.
         user_line = f"User={os.environ.get('USER', SERVICE_NAME)}\n" if self.scope == "system" else ""
+        path = _service_path()
         return f"""[Unit]
 Description=Hebb Mind Memory Server
 After=network.target
@@ -464,6 +484,7 @@ After=network.target
 Type=simple
 {user_line}WorkingDirectory={home}
 Environment=HEBB_HOME={home}
+Environment=PATH={path}
 ExecStart={cmd}
 Restart=on-failure
 RestartSec=5
@@ -602,8 +623,16 @@ class WindowsTaskManager(ServiceManager):
         # Quote each arg for cmd.exe — paths may contain spaces.
         quoted = " ".join(f'"{a}"' if " " in a else a for a in cmd_argv)
         home = self.home_dir()
+        # If installed inside a virtualenv, prepend its Scripts dir so the
+        # Python that the hebb entry-point relies on is always reachable.
+        path_line = ""
+        import sys
+
+        if sys.prefix != sys.base_prefix:
+            venv_scripts = os.path.join(sys.prefix, "Scripts")
+            path_line = f'set "PATH={venv_scripts};%PATH%"\r\n'
         wrapper.write_text(
-            f'@echo off\r\nset "HEBB_HOME={home}"\r\ncd /d "{home}"\r\n'
+            f'@echo off\r\nset "HEBB_HOME={home}"\r\n{path_line}cd /d "{home}"\r\n'
             f'{quoted} 1>"%TEMP%\\hebb.log" 2>"%TEMP%\\hebb.err"\r\n'
         )
         return wrapper

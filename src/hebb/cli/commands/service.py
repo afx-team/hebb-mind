@@ -83,6 +83,24 @@ def service_cmd() -> None:
     """Install and control the Hebb Mind background service."""
 
 
+def _warn_if_venv() -> None:
+    """Warn if hebb is installed inside a virtualenv and ask to proceed."""
+    import sys
+
+    if sys.prefix == sys.base_prefix:
+        return
+    console.print(
+        "[yellow]Warning:[/] hebb-mind is installed in a virtualenv:\n"
+        f"  [dim]{sys.prefix}[/]\n\n"
+        "  The background service will stop working if this virtualenv is\n"
+        "  deleted or recreated. For a reliable setup, install globally:\n\n"
+        "    [cmd]pip install hebb-mind[/]          (system Python)\n"
+        "    [cmd]pipx install hebb-mind[/]         (isolated, recommended)\n"
+    )
+    if not click.confirm("Continue with virtualenv install?", default=False):
+        raise SystemExit(0)
+
+
 @service_cmd.command("install")
 @_scope_option()
 @click.option(
@@ -100,6 +118,8 @@ def service_cmd() -> None:
 )
 def service_install(scope: str, home: str | None, force: bool) -> None:
     """Install Hebb Mind as a background service and start it."""
+    _warn_if_venv()
+
     resolved_home = resolve_service_home(home)
     try:
         manager = get_manager(scope=scope, home=resolved_home)  # type: ignore[arg-type]

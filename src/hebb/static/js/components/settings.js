@@ -163,7 +163,10 @@ const GROUP_WEIGHTS = {
 const GROUP_LIFECYCLE = {
   titleKey: 'settings.group.lifecycle',
   icon: '&#128260;',
-  keys: ['consolidation_time', 'consolidation_concurrency', 'consolidation_max_tokens', 'forget_interval_seconds', 'base_ttl_hours', 'decay_factor'],
+  keys: ['consolidation_time', 'consolidation_concurrency', 'consolidation_max_tokens', 'consolidation_drain_empty_sources', 'forget_interval_seconds', 'base_ttl_hours', 'decay_factor'],
+  hints: {
+    consolidation_drain_empty_sources: 'Drop working memories the consolidator judged low-value (small talk) so the inbox empties, instead of re-checking them every run. Garbled/failed responses are always kept. Applies on the next run — no restart.',
+  },
 };
 const GROUP_STORAGE = {
   titleKey: 'settings.group.storage',

@@ -4,7 +4,7 @@ name = "hebb-mind"
 # with src/hebb/__init__.py, .release-please-manifest.json, and
 # .claude-plugin/plugin.json. publish.yml ships to PyPI when this version
 # changes on main.
-version = "0.1.7"
+version = "0.1.8"
 description = "Hebb Mind — neuroscience-inspired long-term memory framework for AI agents (neurons that fire together, wire together)"
 readme = "README.md"
 license = {text = "MIT"}
@@ -42,6 +42,9 @@ dependencies = [
     "PyJWT>=2.8.0",
     "networkx>=3.1",
     "mcp>=1.0.0",
+    # Repairs malformed LLM JSON (doubled braces, truncation, trailing commas).
+    # Pure-Python, MIT, no mandatory transitive deps.
+    "json-repair>=0.30.0",
 ]
 
 [project.optional-dependencies]

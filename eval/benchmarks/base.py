@@ -77,10 +77,11 @@ class BaseBenchmark:
     benchmark_name: str = ""
     dataset_name: str = ""
     # Bumped when the evaluation methodology changes (ingest format,
-    # scoring metric, etc.) — NOT when system/model code changes. Reports
-    # are stored under {benchmark}/{eval_version}/run-N/ so numbers from
-    # different methodologies never accidentally compare against each
-    # other.
+    # scoring metric, etc.) — NOT when system/model code changes. Recorded
+    # as the "Methodology" field in every report (config['eval_version']);
+    # reports are pathed under {benchmark}/{hebb_version}/run-N/ so the
+    # shipped version that produced a number is legible at a glance, while
+    # the methodology stays alongside it in the report body.
     eval_version: str = "v1"
 
     def __init__(self, settings: EvalSettings):

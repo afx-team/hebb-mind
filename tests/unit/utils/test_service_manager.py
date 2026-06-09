@@ -281,6 +281,9 @@ def test_service_install_command_invokes_manager(monkeypatch: pytest.MonkeyPatch
     fake = _FakeManager()
     monkeypatch.setattr(service_cli, "get_manager", lambda scope, home=None: fake)
     monkeypatch.setattr(service_cli, "_wait_until_healthy", lambda url, **_: True)
+    # The venv guard prompts when tests run inside a virtualenv; bypass it here
+    # so this test stays focused on the manager invocation path.
+    monkeypatch.setattr(service_cli, "_warn_if_venv", lambda: None)
 
     runner = CliRunner()
     result = runner.invoke(service_cli.service_cmd, ["install"])

@@ -6,6 +6,9 @@ import * as api from '../api.js';
 import { t, getLang } from '../i18n.js';
 import { success, error, info } from './toast.js';
 
+let pollTimer = null;
+const logCache = {};
+
 function fmtTime(iso) {
   try {
     const locale = getLang() === 'zh' ? 'zh-CN' : 'en-US';
@@ -15,6 +18,11 @@ function fmtTime(iso) {
   } catch {
     return iso;
   }
+}
+
+function fmtEpoch(ts) {
+  if (!ts) return '';
+  return fmtTime(new Date(ts * 1000).toISOString());
 }
 
 function confirmDialog({ title, body, okLabel, danger = false }) {
@@ -42,7 +50,107 @@ function confirmDialog({ title, body, okLabel, danger = false }) {
   });
 }
 
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
+async function toggleRunLog(runId) {
+  const row = document.querySelector(`.history-row[data-run-id="${runId}"]`);
+  if (!row) return;
+  const logDiv = row.querySelector('.history-log');
+  const isExpanded = row.classList.contains('expanded');
+  if (isExpanded) {
+    row.classList.remove('expanded');
+    logDiv.classList.add('hidden');
+    return;
+  }
+  row.classList.add('expanded');
+  logDiv.classList.remove('hidden');
+  // Don't cache running runs — log is still growing
+  const isRunning = row.querySelector('.history-status.running');
+  if (!isRunning && logCache[runId] !== undefined) {
+    logDiv.innerHTML = `<pre class="history-log-pre">${logCache[runId] || t('maint.consolidate.log_empty')}</pre>`;
+    return;
+  }
+  logDiv.innerHTML = `<pre class="history-log-pre" style="color:var(--text-muted)">${t('common.loading')}</pre>`;
+  try {
+    const res = await api.getConsolidationLog(runId);
+    if (!isRunning) logCache[runId] = res.log;
+    logDiv.innerHTML = `<pre class="history-log-pre">${res.log || t('maint.consolidate.log_empty')}</pre>`;
+  } catch {
+    logDiv.innerHTML = `<pre class="history-log-pre" style="color:var(--accent-red)">Failed to load log</pre>`;
+  }
+}
+
+function renderHistory(runs) {
+  const list = document.getElementById('history-list');
+  if (!list) return;
+  if (!runs.length) {
+    list.innerHTML = `<div class="text-sm text-muted" style="padding:4px 0">${t('maint.consolidate.no_history')}</div>`;
+    return;
+  }
+  list.innerHTML = runs.map(r => {
+    const triggerLabel = r.trigger === 'scheduled'
+      ? t('maint.consolidate.trigger_scheduled')
+      : r.trigger === 'catchup'
+        ? t('maint.consolidate.trigger_catchup')
+        : t('maint.consolidate.trigger_manual');
+    const resultText = r.status === 'running'
+      ? t('maint.running')
+      : r.status === 'interrupted'
+        ? t('maint.consolidate.interrupted')
+        : r.status === 'failed'
+          ? (r.errors?.[0]?.error || 'failed')
+          : `${r.succeeded} ok${r.failed ? ', ' + r.failed + ' fail' : ''}`;
+    return `
+      <div class="history-row" data-run-id="${r.run_id}">
+        <div class="history-summary">
+          <span class="history-status ${r.status}"></span>
+          <span class="history-trigger">${triggerLabel}</span>
+          <span class="history-time">${fmtEpoch(r.started_at)}</span>
+          <span class="history-result text-sm">${resultText}</span>
+          <span class="history-chevron">&#9656;</span>
+        </div>
+        <div class="history-log hidden"></div>
+      </div>
+    `;
+  }).join('');
+  list.querySelectorAll('.history-summary').forEach(el => {
+    el.onclick = () => toggleRunLog(el.parentElement.dataset.runId);
+  });
+}
+
+function renderInterruptedNote(runs) {
+  const note = document.getElementById('consolidate-note');
+  if (!note) return;
+  const latest = runs[0];
+  if (latest && latest.status === 'interrupted') {
+    note.textContent = t('maint.consolidate.interrupted_note');
+    note.classList.remove('hidden');
+  } else {
+    note.classList.add('hidden');
+  }
+}
+
+async function loadHistory() {
+  try {
+    const res = await api.listConsolidationRuns();
+    const runs = res.runs || [];
+    renderHistory(runs);
+    renderInterruptedNote(runs);
+    return runs;
+  } catch {
+    renderHistory([]);
+    return [];
+  }
+}
+
 export async function renderDashboard(root) {
+  stopPolling();
+
   root.innerHTML = `
     <div class="page-header">
       <h1 class="page-title">${t('dashboard.title')}</h1>
@@ -66,12 +174,19 @@ export async function renderDashboard(root) {
         <p class="text-sm text-muted mt-1">${t('maint.subtitle')}</p>
       </div>
       <div class="maint-list">
-        <div class="maint-card">
+        <div class="maint-card maint-card--expandable">
           <div class="maint-icon">🗂️</div>
           <div class="maint-body">
             <div class="maint-title">${t('maint.consolidate.title')}<span class="maint-term">${t('maint.consolidate.term')}</span></div>
             <div class="maint-desc">${t('maint.consolidate.desc')}</div>
             <div class="maint-meta" id="consolidate-meta"></div>
+            <div class="maint-note hidden" id="consolidate-note"></div>
+            <div class="consolidation-history">
+              <div class="history-header">${t('maint.consolidate.history')}</div>
+              <div class="history-list" id="history-list">
+                <div class="text-sm text-muted">${t('common.loading')}</div>
+              </div>
+            </div>
           </div>
           <div class="maint-action">
             <button class="btn btn-primary" id="btn-consolidate">${t('maint.consolidate.btn')}</button>
@@ -123,7 +238,7 @@ export async function renderDashboard(root) {
         ? t('maint.consolidate.pending', { n: pending })
         : t('maint.consolidate.none_pending');
       document.getElementById('consolidate-meta').textContent = `${consAuto} · ${pendText}`;
-      btnConsolidate.disabled = pending === 0;
+      if (!pollTimer) btnConsolidate.disabled = pending === 0;
 
       const forgetNext = jobs.forgetting_job?.next_run_time;
       document.getElementById('forget-meta').textContent =
@@ -134,25 +249,86 @@ export async function renderDashboard(root) {
     }
   }
 
-  await loadStats();
+  function startPolling(runId) {
+    btnConsolidate.disabled = true;
+    btnConsolidate.textContent = t('maint.running');
+    stopPolling();
+
+    // Auto-expand the running row's log panel
+    requestAnimationFrame(() => {
+      const row = document.querySelector(`.history-row[data-run-id="${runId}"]`);
+      if (row && !row.classList.contains('expanded')) {
+        row.classList.add('expanded');
+        const logDiv = row.querySelector('.history-log');
+        if (logDiv) logDiv.classList.remove('hidden');
+      }
+    });
+
+    pollTimer = setInterval(async () => {
+      try {
+        const run = await api.getConsolidationRun(runId);
+
+        // Live-stream log into the expanded panel
+        const row = document.querySelector(`.history-row[data-run-id="${runId}"]`);
+        if (row && row.classList.contains('expanded')) {
+          const logDiv = row.querySelector('.history-log');
+          if (logDiv) {
+            try {
+              const res = await api.getConsolidationLog(runId);
+              const pre = logDiv.querySelector('.history-log-pre');
+              const wasAtBottom = pre
+                ? logDiv.scrollTop + logDiv.clientHeight >= logDiv.scrollHeight - 20
+                : true;
+              logDiv.innerHTML = `<pre class="history-log-pre">${res.log || t('maint.consolidate.log_empty')}</pre>`;
+              if (wasAtBottom) logDiv.scrollTop = logDiv.scrollHeight;
+            } catch { /* ignore log fetch errors during polling */ }
+          }
+        }
+
+        if (run.status === 'done' || run.status === 'failed') {
+          stopPolling();
+          delete logCache[runId];
+          if (run.status === 'failed') {
+            error(run.errors?.[0]?.error || 'Consolidation failed');
+          } else if (!run.processed) {
+            info(t('maint.consolidate.nothing'));
+          } else if (run.failed > 0) {
+            error(t('maint.consolidate.done_fail', { ok: run.succeeded, fail: run.failed }));
+          } else {
+            success(t('maint.consolidate.done', { ok: run.succeeded }));
+          }
+          btnConsolidate.textContent = t('maint.consolidate.btn');
+          await loadStats();
+          await loadHistory();
+        }
+      } catch {
+        stopPolling();
+        btnConsolidate.textContent = t('maint.consolidate.btn');
+        btnConsolidate.disabled = false;
+      }
+    }, 2000);
+  }
+
+  await Promise.all([loadStats(), loadHistory()]);
+
+  // Detect in-progress run on page load
+  try {
+    const res = await api.listConsolidationRuns();
+    const running = (res.runs || []).find(r => r.status === 'running');
+    if (running) startPolling(running.run_id);
+  } catch { /* ignore */ }
 
   btnConsolidate.onclick = async () => {
     btnConsolidate.disabled = true;
     btnConsolidate.textContent = t('maint.running');
     try {
-      const r = await api.triggerConsolidate();
-      if (!r.processed) {
-        info(t('maint.consolidate.nothing'));
-      } else if (r.failed > 0) {
-        error(t('maint.consolidate.done_fail', { ok: r.succeeded, fail: r.failed }));
-      } else {
-        success(t('maint.consolidate.done', { ok: r.succeeded }));
-      }
+      const r = await api.startConsolidate();
+      startPolling(r.run_id);
+      await loadHistory();
     } catch (e) {
       error(e.message);
-    } finally {
       btnConsolidate.textContent = t('maint.consolidate.btn');
-      await loadStats();
+      btnConsolidate.disabled = false;
     }
   };
 

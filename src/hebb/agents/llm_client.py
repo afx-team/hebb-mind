@@ -6,6 +6,7 @@ import json
 import logging
 from typing import Any, cast
 
+from json_repair import repair_json
 from litellm import acompletion
 
 from hebb.config.settings import Settings
@@ -68,34 +69,33 @@ class LLMClient:
 
     @staticmethod
     def _parse_json(text: str) -> dict[str, Any]:
-        """Robust JSON parsing — handles markdown fences, single quotes, etc."""
-        # Strip markdown code fences
+        """Parse an LLM JSON response, repairing the malformations LLMs emit.
+
+        Strict ``json.loads`` is tried first so a valid response is never
+        altered (and never routed through the repairer's lenient typing). On
+        failure it falls back to ``json_repair``, which fixes what models
+        actually produce: doubled braces (``{{ ... }}`` — observed with GLM-5.1
+        under ``response_format=json_object``), truncated/unclosed output
+        (``max_tokens`` cutoff), trailing commas, single quotes, and markdown
+        fences. Only a ``dict`` result is accepted — a repaired scalar/list
+        (e.g. from pure prose) collapses to ``{}`` so a parse failure is never
+        confused with a valid empty object by callers that key off
+        ``"memories" in decision``.
+
+        Returns:
+            The parsed object, or ``{}`` when nothing usable is recovered.
+        """
         cleaned = text.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
-            if cleaned.endswith("```"):
-                cleaned = cleaned[:-3]
-            cleaned = cleaned.strip()
-
-        # Try direct parse first
         try:
-            return cast("dict[str, Any]", json.loads(cleaned))
+            result: Any = json.loads(cleaned)
         except json.JSONDecodeError:
-            pass
-
-        # Try extracting JSON object from text
-        start = cleaned.find("{")
-        end = cleaned.rfind("}") + 1
-        if start >= 0 and end > start:
-            fragment = cleaned[start:end]
             try:
-                return cast("dict[str, Any]", json.loads(fragment))
-            except json.JSONDecodeError:
-                # Try fixing single quotes → double quotes
-                try:
-                    return cast("dict[str, Any]", json.loads(fragment.replace("'", '"')))
-                except json.JSONDecodeError:
-                    pass
+                result = repair_json(cleaned, return_objects=True)
+            except Exception:  # json_repair is defensive, but never let it raise here
+                result = None
+
+        if isinstance(result, dict):
+            return cast("dict[str, Any]", result)
 
         logger.error("Failed to parse LLM response as JSON: %s", text[:300])
         return {}

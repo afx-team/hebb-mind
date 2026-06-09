@@ -485,6 +485,56 @@ tr:hover td { background: var(--bg-tertiary); }
   .maint-action .btn { width: 100%; justify-content: center; }
 }
 
+/* --- Consolidation History --- */
+.maint-card--expandable { align-items: flex-start; }
+.maint-card--expandable .maint-action { margin-top: 2px; }
+.maint-note {
+  margin-top: 6px; font-size: 12px; line-height: 1.5;
+  color: var(--accent-orange);
+}
+.maint-note.hidden { display: none; }
+.consolidation-history { margin-top: 12px; }
+.history-header { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+.history-list { display: flex; flex-direction: column; gap: 4px; }
+.history-row { border: 1px solid var(--border-light); border-radius: var(--radius-sm); overflow: hidden; }
+.history-summary {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 12px; cursor: pointer; font-size: 12px;
+  transition: background var(--transition);
+}
+.history-summary:hover { background: var(--bg-hover); }
+.history-status { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.history-status.done { background: var(--accent-green); }
+.history-status.failed { background: var(--accent-red); }
+.history-status.interrupted { background: var(--accent-orange); }
+.history-status.running { background: var(--accent-yellow); animation: pulse-dot 1.5s infinite; }
+.history-trigger {
+  font-size: 10px; padding: 1px 6px;
+  border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text-muted);
+}
+.history-time { flex: 1; font-family: var(--font-mono); color: var(--text-secondary); }
+.history-result { color: var(--text-muted); }
+.history-chevron {
+  font-size: 10px; color: var(--text-muted);
+  transition: transform var(--transition);
+}
+.history-row.expanded .history-chevron { transform: rotate(90deg); }
+.history-log {
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-primary);
+  max-height: 300px; overflow-y: auto;
+}
+.history-log-pre {
+  font-family: var(--font-mono); font-size: 11px; line-height: 1.5;
+  padding: 12px; margin: 0; white-space: pre-wrap; word-break: break-all;
+  color: var(--text-secondary);
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
 /* ============================================================
    Utilities
    ============================================================ */

@@ -26,6 +26,11 @@ from eval.datasets import ADAPTERS
 from eval.judge import LLMJudge
 from eval.reporting.renderer import render_json, render_markdown, render_summary_table
 
+try:
+    from hebb import __version__ as HEBB_VERSION
+except Exception:  # pragma: no cover - hebb is always importable in-repo
+    HEBB_VERSION = "unknown"
+
 logger = logging.getLogger(__name__)
 
 DATASET_NAMES = list(ADAPTERS.keys())
@@ -38,10 +43,12 @@ _RUN_DIR_RE = re.compile(r"^run-(\d+)$")
 def _next_run_dir(version_dir: Path) -> Path:
     """Return ``{version_dir}/run-{N+1}`` where N is the highest existing run.
 
-    Reports are layered as ``{reports_dir}/{benchmark}/{eval_version}/run-N/``
-    so dataset and methodology versions stay sticky while multiple runs of the
-    same protocol pile up as ``run-1``, ``run-2``, ... — no calendar dates in
-    the path. Cleanup is the operator's call.
+    Reports are layered as ``{reports_dir}/{benchmark}/{hebb_version}/run-N/``
+    so the shipped Hebb Mind version that produced a number is legible from the
+    path, while multiple runs on the same version pile up as ``run-1``,
+    ``run-2``, ... — no calendar dates in the path. The eval methodology version
+    (``eval_version``) is recorded in the report body, not the path. Cleanup is
+    the operator's call.
     """
     version_dir.mkdir(parents=True, exist_ok=True)
     used: list[int] = []
@@ -394,11 +401,14 @@ def run(
 
                 adapter = adapter_cls()
                 benchmark = bench_cls(settings)
-                version_dir = settings.reports_dir / name / benchmark.eval_version
+                version_dir = settings.reports_dir / name / HEBB_VERSION
                 run_dir = _next_run_dir(version_dir)
                 run_dir.mkdir(parents=True, exist_ok=True)
                 run_dirs.append(run_dir)
-                click.echo(f"Eval version: {benchmark.eval_version}  ->  {run_dir}")
+                click.echo(
+                    f"Hebb Mind {HEBB_VERSION} "
+                    f"(methodology {benchmark.eval_version})  ->  {run_dir}"
+                )
 
                 # 2. Download
                 click.echo("Downloading dataset...")
@@ -468,6 +478,7 @@ def run(
                     # 6. Run evaluation
                     click.echo("Running evaluation...")
                     result = await benchmark.run(client, scenarios, judge)
+                    result.config["hebb_version"] = HEBB_VERSION
                     if consolidation_stats:
                         result.config["consolidation"] = consolidation_stats
                     all_results.append(result)
