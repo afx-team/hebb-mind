@@ -61,6 +61,11 @@ class ConsolidationAgent:
         max_tokens = settings.consolidation_max_tokens if settings else 16000
         # Convert token budget to char budget: ~4 chars/token, minus overhead
         self._max_chunk_chars = (max_tokens - self._PROMPT_OVERHEAD_TOKENS) * 4
+        # Drain working memories the LLM judged low-value (well-formed empty
+        # output) instead of keeping them forever — otherwise the inbox never
+        # empties and the same small talk is re-sent to the LLM every run.
+        # Defaults to True (also when settings is None, e.g. in tests).
+        self._drain_empty = settings.consolidation_drain_empty_sources if settings else True
         # In-partition consolidation mode (set per consolidate_batch call).
         # ``_write_override``: force all consolidated writes into this
         # partition instead of the LLM-decided long-term partition.
@@ -403,6 +408,39 @@ class ConsolidationAgent:
                     # end-of-batch save() is now a redundant safety net rather
                     # than the only persistence point.
                     self.kg.save()
+            elif self._drain_empty and "memories" in decision and not decision.get("memories"):
+                # Well-formed empty result: the model read the whole conversation
+                # and deliberately returned an empty "memories" list — i.e. it
+                # judged the turns low-value (small talk, greetings; see the
+                # prompt's "discard ... no long-term value" guideline). Drain
+                # these sources so the inbox empties instead of re-sending the
+                # same content to the LLM on every run forever.
+                #
+                # Safety: a garbled/unparseable response makes complete_json
+                # return {} (no "memories" key), so it falls through to the keep
+                # branch below — a transient/parse failure never deletes data.
+                preview = " | ".join(m.content[:60].replace("\n", " ") for m in memories[:3])
+                logger.info(
+                    "Session %s: LLM found nothing worth keeping; draining %d low-value source memories [%s]",
+                    session_id,
+                    len(memories),
+                    preview,
+                )
+                async with kg_lock:
+                    for m in memories:
+                        await self.memory_store.delete(m.id)
+                        self.kg.remove_memory_from_tags(m.id)
+                    self.kg.save()
+                # Report the drained sources so the run summary counts them as
+                # processed (progress) rather than reporting "0 ok" every pass.
+                results = [
+                    ConsolidationResult(
+                        original_memory_id=f"session:{session_id}",
+                        target_partition="discarded",
+                        success=True,
+                    )
+                    for _ in memories
+                ]
             else:
                 logger.warning(
                     "Session %s: consolidation produced no output memories; "

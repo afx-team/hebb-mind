@@ -147,6 +147,16 @@ class Settings(BaseModel):
     consolidation_max_tokens: int = Field(
         default=16000, description="Max tokens per consolidation LLM call (session chunk size)"
     )
+    consolidation_drain_empty_sources: bool = Field(
+        default=True,
+        description=(
+            "When a session consolidation returns no memories (the LLM judged the "
+            "content low-value, e.g. small talk), drain those working memories from "
+            "the inbox instead of keeping them forever. Disable to keep all sources "
+            "(legacy behavior). A garbled/unparseable LLM response is always kept, "
+            "never drained."
+        ),
+    )
     forget_interval_seconds: int = Field(default=1800)
 
     # Forgetting

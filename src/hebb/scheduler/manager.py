@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -19,6 +22,15 @@ from hebb.embedding.base import EmbeddingProvider
 from hebb.graph.knowledge_graph import KnowledgeGraph
 from hebb.scheduler.consolidation_job import run_consolidation
 from hebb.scheduler.forgetting_job import compute_expires_at
+from hebb.server.consolidation_tracker import (
+    HEARTBEAT_INTERVAL_SECONDS,
+    create_run,
+    fail_run,
+    finish_run,
+    get_current_run,
+    get_or_create_run,
+    heartbeat,
+)
 from hebb.storage.base import MemoryStore, PartitionStore
 from hebb.storage.purge import purge_memory
 from hebb.upgrade.checker import run_check as run_upgrade_check
@@ -91,24 +103,54 @@ class SchedulerManager:
         self.scheduler.shutdown(wait=False)
         logger.info("Scheduler stopped")
 
+    @asynccontextmanager
+    async def _heartbeat(self, run_id: str) -> AsyncIterator[None]:
+        """Keep ``run_id`` marked alive for the duration of the wrapped work.
+
+        A run that stalls or is interrupted (network loss, system sleep, hard
+        kill) without raising would otherwise sit ``running`` forever. The
+        independent heartbeat task bumps ``last_heartbeat`` every
+        ``HEARTBEAT_INTERVAL_SECONDS`` so the tracker can distinguish a live run
+        from an abandoned one and reap the latter (see ``consolidation_tracker``).
+        """
+        task = asyncio.create_task(self._heartbeat_loop(run_id))
+        try:
+            yield
+        finally:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+    @staticmethod
+    async def _heartbeat_loop(run_id: str) -> None:
+        while True:
+            await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
+            heartbeat(run_id)
+
     async def run_consolidation(
         self,
         source_partitions: list[str] | None = None,
         keep_partition: bool = False,
+        trigger: str = "manual",
     ) -> list[ConsolidationResult]:
         """Run consolidation under the shared consolidation lock (INT-7).
 
         Serialises against the cron job so the daily sweep and an admin-
         triggered ``/consolidate`` can never overlap on the shared store +
-        graph. Skips cleanly (returning ``[]``) when no ``llm_model`` is
-        configured, so the out-of-the-box install does not emit a daily
-        ``model=None`` traceback.
+        graph. The tracked run record is created *inside* the lock so there is
+        never more than one ``running`` run for this (synchronous) path — the
+        single "working" state. A heartbeat keeps the run identifiable as alive
+        so an interruption is reaped instead of getting stuck. Skips cleanly
+        (returning ``[]``) when no ``llm_model`` is configured, so the
+        out-of-the-box install does not emit a daily ``model=None`` traceback.
 
         Args:
             source_partitions: Optional explicit partitions to consolidate in
                 turn (per-scenario benches); defaults to global HIPPOCAMPUS.
             keep_partition: Write consolidated memories back into their source
                 partition instead of a long-term partition.
+            trigger: ``"manual"`` for admin/API calls, ``"scheduled"`` for cron,
+                ``"catchup"`` for the boot resume of an interrupted run.
 
         Returns:
             One ``ConsolidationResult`` per processed (or failed) memory; ``[]``
@@ -118,20 +160,110 @@ class SchedulerManager:
             logger.info("Skipping consolidation: no llm_model configured")
             return []
         async with self._consolidation_lock:
-            return await run_consolidation(
-                memory_store=self.memory_store,
-                partition_store=self.partition_store,
-                knowledge_graph=self.knowledge_graph,
-                embedder=self.embedder,
-                settings=self.settings,
-                source_partitions=source_partitions,
-                keep_partition=keep_partition,
-            )
+            tracked = create_run(trigger)
+            try:
+                async with self._heartbeat(tracked.run_id):
+                    results = await run_consolidation(
+                        memory_store=self.memory_store,
+                        partition_store=self.partition_store,
+                        knowledge_graph=self.knowledge_graph,
+                        embedder=self.embedder,
+                        settings=self.settings,
+                        source_partitions=source_partitions,
+                        keep_partition=keep_partition,
+                    )
+                finish_run(tracked.run_id, results)
+                return results
+            except Exception as exc:
+                fail_run(tracked.run_id, str(exc))
+                raise
+
+    async def start_consolidation_async(
+        self,
+        source_partitions: list[str] | None = None,
+        keep_partition: bool = False,
+    ) -> str:
+        """Fire-and-forget consolidation, returns run_id for polling.
+
+        Deduplicates against an already-live run (UI double-click, page reload,
+        or a manual trigger landing on top of the daily cron): if one is in
+        progress its id is returned so the console attaches to it instead of
+        starting a competing run.
+        """
+        if not self.settings.llm_model:
+            logger.info("Skipping consolidation: no llm_model configured")
+            tracked = create_run("manual")
+            finish_run(tracked.run_id, [])
+            return tracked.run_id
+        run, created = get_or_create_run("manual")
+        if not created:
+            return run.run_id
+
+        async def _bg() -> None:
+            try:
+                # Heartbeat spans the lock wait too: a run that is queued behind
+                # a long-running consolidation is still alive and must not be
+                # reaped as stale while it waits its turn.
+                async with self._heartbeat(run.run_id):
+                    async with self._consolidation_lock:
+                        results = await run_consolidation(
+                            memory_store=self.memory_store,
+                            partition_store=self.partition_store,
+                            knowledge_graph=self.knowledge_graph,
+                            embedder=self.embedder,
+                            settings=self.settings,
+                            source_partitions=source_partitions,
+                            keep_partition=keep_partition,
+                        )
+                finish_run(run.run_id, results)
+            except Exception as exc:
+                fail_run(run.run_id, str(exc))
+                logger.error("Background consolidation failed", exc_info=True)
+
+        asyncio.create_task(_bg())
+        return run.run_id
+
+    def schedule_catchup(self, delay_seconds: float = 60.0) -> None:
+        """Schedule a one-shot consolidation to resume after an interrupted run.
+
+        Called at startup when the tracker reaped a run that did not finish
+        (system stopped/slept/lost network mid-consolidation). Because the
+        consolidation batch drains the working inbox, simply re-running it
+        processes whatever the interrupted run left behind — "下次继续". A short
+        delay lets the service finish coming up (and a transient outage settle)
+        first; if it still fails, the daily cron remains the backstop.
+        """
+        self.scheduler.add_job(
+            func=self._run_catchup,
+            trigger=DateTrigger(run_date=datetime.now() + timedelta(seconds=delay_seconds)),
+            id="consolidation_catchup",
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info(
+            "Scheduled consolidation catch-up in %ds to resume an interrupted run",
+            int(delay_seconds),
+        )
+
+    async def _run_catchup(self) -> None:
+        if get_current_run() is not None:
+            logger.info("Consolidation already running; catch-up not needed")
+            return
+        logger.info("Running consolidation catch-up to resume interrupted run")
+        try:
+            await self.run_consolidation(trigger="catchup")
+        except Exception:
+            logger.error("Catch-up consolidation failed", exc_info=True)
 
     async def _run_consolidation(self) -> None:
+        # Skip this scheduled tick if a run is already in progress so the cron
+        # never stacks a second run on top of a long manual/catch-up run.
+        if get_current_run() is not None:
+            logger.info("Consolidation already in progress; skipping scheduled tick")
+            return
         logger.info("Starting consolidation job")
         try:
-            await self.run_consolidation()
+            await self.run_consolidation(trigger="scheduled")
         except Exception:
             logger.error("Consolidation job failed", exc_info=True)
 
@@ -215,7 +347,7 @@ class SchedulerManager:
         jobs: dict[str, Any] = {}
         for job in self.scheduler.get_jobs():
             jobs[job.id] = {
-                "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,
+                "next_run_time": (job.next_run_time.isoformat() if job.next_run_time else None),
             }
         return {
             "running": self.scheduler.running,

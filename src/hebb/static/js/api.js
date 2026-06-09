@@ -57,6 +57,10 @@ export const exportGraph = () => request('GET', '/api/v1/graph/export');
 
 /* Admin */
 export const triggerConsolidate = () => request('POST', '/api/v1/admin/consolidate');
+export const startConsolidate = () => request('POST', '/api/v1/admin/consolidate/start');
+export const listConsolidationRuns = () => request('GET', '/api/v1/admin/consolidate/runs');
+export const getConsolidationRun = (runId) => request('GET', `/api/v1/admin/consolidate/runs/${runId}`);
+export const getConsolidationLog = (runId) => request('GET', `/api/v1/admin/consolidate/runs/${runId}/log`);
 export const triggerForget = () => request('POST', '/api/v1/admin/forget');
 export const getStats = () => request('GET', '/api/v1/admin/stats');
 export const restartService = () => request('POST', '/api/v1/admin/restart');

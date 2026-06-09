@@ -135,14 +135,7 @@ class TestConsolidationAgent:
         assert meta["turn_pair"] == [0, 1]
         assert meta["timestamp"] == "2023-08-01T10:00:00+00:00"
 
-    @pytest.mark.asyncio
-    async def test_session_consolidation_empty_output_keeps_sources(
-        self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path
-    ):
-        """A successful-but-empty LLM response must NOT delete the source
-        memories — wiping them with no replacement is silent data loss."""
-        kg = KnowledgeGraph(tmp_path / "kg.json")
-
+    async def _session_pair(self, memory_store):
         m1 = await memory_store.create(
             MemoryCreate(
                 content="turn one",
@@ -157,30 +150,91 @@ class TestConsolidationAgent:
                 metadata=MemoryMetadata.model_validate({"session_id": "s9", "turn": 1}),
             )
         )
+        return m1, m2
 
-        mock_llm.complete_json.side_effect = [
-            {"queries": []},  # RecallAgent
-            {"memories": []},  # consolidation returns nothing usable
-        ]
-
+    def _agent(self, mock_llm, memory_store, partition_store, noop_embedder, kg, settings=None):
         recall_agent = RecallAgent(
             llm=mock_llm,
             searcher=MemorySearcher(store=memory_store, embedder=noop_embedder),
         )
-        agent = ConsolidationAgent(
+        return ConsolidationAgent(
             llm=mock_llm,
             recall_agent=recall_agent,
             memory_store=memory_store,
             partition_store=partition_store,
             knowledge_graph=kg,
             embedder=noop_embedder,
+            settings=settings,
+        )
+
+    @pytest.mark.asyncio
+    async def test_session_wellformed_empty_drains_sources(
+        self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path
+    ):
+        """A well-formed empty result ({"memories": []}) = the LLM deliberately
+        judged the turns low-value, so the sources are drained from the inbox
+        (default behavior) — otherwise they replay to the LLM forever."""
+        kg = KnowledgeGraph(tmp_path / "kg.json")
+        m1, m2 = await self._session_pair(memory_store)
+        mock_llm.complete_json.side_effect = [
+            {"queries": []},  # RecallAgent
+            {"memories": []},  # well-formed empty: nothing worth keeping
+        ]
+        agent = self._agent(mock_llm, memory_store, partition_store, noop_embedder, kg)
+
+        results = await agent.consolidate_session([m1, m2])
+
+        # Both low-value sources are drained...
+        assert await memory_store.get(m1.id) is None
+        assert await memory_store.get(m2.id) is None
+        assert await memory_store.get_by_partition("mem_hippocampus") == []
+        # ...and reported as processed (discarded), not silently dropped.
+        assert len(results) == 2
+        assert all(r.success and r.target_partition == "discarded" for r in results)
+
+    @pytest.mark.asyncio
+    async def test_session_wellformed_empty_kept_when_flag_off(
+        self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path
+    ):
+        """With consolidation_drain_empty_sources=False, a well-formed empty
+        result keeps the sources (legacy behavior, opt-out)."""
+        from hebb.config.settings import Settings
+
+        kg = KnowledgeGraph(tmp_path / "kg.json")
+        m1, m2 = await self._session_pair(memory_store)
+        mock_llm.complete_json.side_effect = [
+            {"queries": []},
+            {"memories": []},
+        ]
+        agent = self._agent(
+            mock_llm, memory_store, partition_store, noop_embedder, kg,
+            settings=Settings(consolidation_drain_empty_sources=False),
         )
 
         results = await agent.consolidate_session([m1, m2])
 
-        # No consolidated output...
         assert results == []
-        # ...so both sources must still exist (not wiped).
+        assert await memory_store.get(m1.id) is not None
+        assert await memory_store.get(m2.id) is not None
+
+    @pytest.mark.asyncio
+    async def test_session_parse_failure_keeps_sources(
+        self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path
+    ):
+        """A garbled/unparseable LLM response (complete_json -> {}) must NEVER
+        drain — it has no "memories" key, so the sources are kept for retry.
+        Guards against deleting data on a transient/parse failure (F4)."""
+        kg = KnowledgeGraph(tmp_path / "kg.json")
+        m1, m2 = await self._session_pair(memory_store)
+        mock_llm.complete_json.side_effect = [
+            {"queries": []},
+            {},  # parse failure: _parse_json returns {} on unparseable output
+        ]
+        agent = self._agent(mock_llm, memory_store, partition_store, noop_embedder, kg)
+
+        results = await agent.consolidate_session([m1, m2])
+
+        assert results == []
         assert await memory_store.get(m1.id) is not None
         assert await memory_store.get(m2.id) is not None
 

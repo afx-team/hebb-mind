@@ -16,6 +16,11 @@ from hebb.graph.knowledge_graph import KnowledgeGraph
 from hebb.scheduler.consolidation_job import run_consolidation
 from hebb.scheduler.forgetting_job import compute_expires_at
 from hebb.scheduler.manager import SchedulerManager
+from hebb.server.consolidation_tracker import (
+    get_run,
+    get_run_log,
+    list_runs,
+)
 from hebb.server.dependencies import (
     get_embedder,
     get_knowledge_graph,
@@ -80,6 +85,47 @@ async def trigger_consolidation(
         "failed": len(failures),
         "errors": failures,
     }
+
+
+@router.post("/consolidate/start")
+async def start_consolidation(
+    body: dict[str, Any] | None = Body(default=None),
+    scheduler: SchedulerManager = Depends(get_scheduler),
+) -> dict[str, Any]:
+    """Start consolidation asynchronously, return run_id for polling."""
+    body = body or {}
+    partition_ids = body.get("partition_ids") or None
+    keep_partition = bool(body.get("keep_partition", False))
+    run_id = await scheduler.start_consolidation_async(
+        source_partitions=partition_ids,
+        keep_partition=keep_partition,
+    )
+    return {"run_id": run_id}
+
+
+@router.get("/consolidate/runs")
+async def list_consolidation_runs() -> dict[str, Any]:
+    """Return recent consolidation run history."""
+    return {"runs": [r.to_dict() for r in list_runs()]}
+
+
+@router.get("/consolidate/runs/{run_id}")
+async def get_consolidation_run(run_id: str) -> dict[str, Any]:
+    """Return status and summary for a single run."""
+    run = get_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return run.to_dict()
+
+
+@router.get("/consolidate/runs/{run_id}/log")
+async def get_consolidation_log(run_id: str) -> dict[str, Any]:
+    """Return log content for a run."""
+    run = get_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    log = get_run_log(run_id)
+    return {"run_id": run_id, "log": log or ""}
 
 
 @router.post("/forget")

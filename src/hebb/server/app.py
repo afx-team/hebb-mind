@@ -28,6 +28,9 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Startup: load config, storage, embedder, graph, scheduler. Shutdown: cleanup."""
     settings = load_settings()
+    # load_settings() always resolves the workspace root (loader.py), so
+    # home_dir is non-None here even though the field type allows None.
+    assert settings.home_dir is not None
     app.state.settings = settings
 
     # Embedder FIRST — the vec0 virtual table is created with a fixed
@@ -84,6 +87,32 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     app.state.scheduler = scheduler
     scheduler.start()
+
+    # Consolidation run tracker (per-run log files + manifest). Reaps any run
+    # left ``running`` by a previous process (crash / shutdown / sleep) to
+    # ``interrupted``; a non-zero count means a run did not finish.
+    from hebb.constants import PartitionType
+    from hebb.server.consolidation_tracker import init_tracker
+
+    interrupted = init_tracker(Path(settings.home_dir) / "logs" / "consolidation")
+
+    # Resume an interrupted run: if there are still working memories waiting and
+    # an LLM is configured, schedule a catch-up so the inbox is consolidated on
+    # the next boot rather than waiting for the daily cron ("下次继续").
+    if interrupted and settings.llm_model:
+        partitions = await ctx.partition_store.list()
+        hippo = next(
+            (p for p in partitions if p.id == PartitionType.HIPPOCAMPUS.value),
+            None,
+        )
+        pending = hippo.memory_count if hippo else 0
+        if pending > 0:
+            logger.info(
+                "Detected %d interrupted consolidation run(s) with %d pending memories; scheduling catch-up",
+                interrupted,
+                pending,
+            )
+            scheduler.schedule_catchup()
 
     logger.info(
         "Hebb Mind v%s started on %s:%d [%s] workspace=%s",
