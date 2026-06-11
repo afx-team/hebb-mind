@@ -1,3 +1,7 @@
+---
+description: "Hebb Mind vs MemPalace on LongMemEval-S: same-metric session Recall@5 retrieval, same MiniLM-384 embedding. Hebb hits 99.0% R@5, 99.4% R@10, untuned."
+---
+
 # LongMemEval — Hebb Mind vs MemPalace
 
 MemPalace and Hebb Mind both report **session-level Recall@5** on the full 500-question LongMemEval-S, computed the same way (does the top-k contain a memory from an evidence session?). MemPalace's benchmark is retrieval-only, so this is a clean, apples-to-apples retrieval comparison — same metric, same question set, same MiniLM-384 embedding.

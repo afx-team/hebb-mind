@@ -1,3 +1,7 @@
+---
+description: "How Hebb Mind's dynamic forgetting decays AI agent memory using an Ebbinghaus-inspired TTL of access count, importance, and time decay for automatic cleanup."
+---
+
 # Dynamic Forgetting
 
 Hebb Mind implements a dynamic forgetting mechanism inspired by the **Ebbinghaus forgetting curve**. Memories that are rarely accessed and low in importance gradually decay and are removed, while frequently accessed, high-importance memories persist.

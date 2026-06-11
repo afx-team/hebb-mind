@@ -1,3 +1,7 @@
+---
+description: "POST /api/v1/search reference for AI agent memory: hybrid vector + keyword (BM25) + knowledge-graph retrieval with tunable recency and relevance weights."
+---
+
 # Search API
 
 The search API provides hybrid memory retrieval combining vector similarity, keyword matching, and knowledge graph traversal.

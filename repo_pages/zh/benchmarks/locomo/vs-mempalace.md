@@ -1,3 +1,7 @@
+---
+description: "LoCoMo 基准上 Hebb Mind 与 MemPalace 的 session 级 hit@10 对比：贴近生产的混合检索达到 94.1% R@10，加本地 cross-encoder 重排升至 95.8%。"
+---
+
 # LoCoMo —— Hebb Mind vs MemPalace
 
 MemPalace 在全量 1,986 个 LoCoMo 问题上公布 session 级 Recall@k。他们的指标与我们的（见 [LoCoMo](./)）计算方式相同：把 ground-truth 的 `evidence` 解析为一组 session_id，当任一 GT session 出现在检索结果集中时，该问题即记为正确（session 级 **hit@10**）。

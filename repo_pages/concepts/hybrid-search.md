@@ -1,3 +1,7 @@
+---
+description: "How Hebb Mind's hybrid search for AI agent memory fuses vector, keyword (BM25/FTS5), and knowledge-graph retrieval via RRF, then re-scores with a cross-encoder reranker."
+---
+
 # Hybrid Search
 
 Hebb Mind uses a hybrid search strategy that combines three retrieval paths in parallel, then merges and scores results using a composite formula.

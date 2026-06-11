@@ -1,3 +1,7 @@
+---
+description: "AI agent memory FAQ: LLM API key needs, supported LLMs and embedding models, data storage, mem0 comparison, MCP, PostgreSQL, and Docker."
+---
+
 # FAQ
 
 Short answers to questions that come up before reading the docs in depth. For symptom-driven help see [Troubleshooting](./troubleshooting.md).

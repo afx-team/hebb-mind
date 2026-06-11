@@ -1,3 +1,7 @@
+---
+description: "Hebb Mind 在 Salesforce ConvoMem 基准上的结果：6 个类别端到端 QA 准确率 73.5%，由 LLM 判分，含分类别明细及与 MemPalace 的对比。"
+---
+
 # ConvoMem
 
 [Salesforce/ConvoMem](https://huggingface.co/datasets/Salesforce/ConvoMem) —— 6 个类别共 75,336 条证据项（user facts、assistant facts、changing facts、abstention、preferences、implicit connections）。每一项都提供一个多对话「干草堆」、一个问题、一个自由文本标准答案，以及可推导出该答案的具体证据消息。

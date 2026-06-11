@@ -1,3 +1,7 @@
+---
+description: "MemBench (ACL 2025) results for Hebb Mind AI agent memory: turn-level Hit@k across 11 categories, +14.3pp over MemPalace, cross-encoder rerank on hybrid retrieval."
+---
+
 # MemBench
 
 [import-myself/Membench](https://github.com/import-myself/Membench) (ACL 2025) — multi-turn conversations across **11 categories** (simple, highlevel, knowledge_update, comparative, conditional, noisy, aggregative, highlevel_rec, lowlevel_rec, RecMultiSession, post_processing). Each conversation comes with 4-choice QA pairs whose `target_step_id` points at the specific turn(s) carrying the answer. We run the **full 11-category sweep** (all topics, 11,996 questions). MemPalace's hardest slice is `noisy` at 43.4 % Hit@5 — the most informative reverse window on the public leaderboard, and the one where our gap over them is largest.

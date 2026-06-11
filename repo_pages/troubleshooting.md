@@ -1,3 +1,7 @@
+---
+description: "Fixes for common AI agent memory issues: consolidate returns 0 (no LLM model), port 8321 in use, SQLite locked, slow embedding download, and MCP failing."
+---
+
 # Troubleshooting
 
 Symptom → cause → fix for the issues that bite first-time users most often. If something here doesn't match what you're seeing, `hebb doctor` is the next-best one-shot diagnostic, and the [FAQ](./faq.md) covers conceptual questions.

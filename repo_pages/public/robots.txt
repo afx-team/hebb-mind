@@ -1,0 +1,51 @@
+# robots.txt — Hebb Mind (https://afx-team.github.io/hebb-mind/)
+#
+# Policy: this is an open-source project. We WANT to be crawled, indexed,
+# cited, and surfaced everywhere — traditional search AND AI answer engines.
+# Nothing is disallowed. AI training crawlers are intentionally permitted.
+#
+# NOTE: this file sits at the project sub-path, so it is NOT the authoritative
+# robots.txt for the host (that must live at afx-team.github.io/robots.txt).
+# It documents intent and is honored by tools that probe sub-path robots files.
+# Sitemap discovery for this sub-path is done via Google Search Console.
+
+# Default: allow every crawler full access.
+User-agent: *
+Disallow:
+
+# Search engines (never block — these gate all search visibility)
+User-agent: Googlebot
+User-agent: GoogleOther
+User-agent: Bingbot
+User-agent: Applebot
+User-agent: DuckDuckBot
+User-agent: YandexBot
+Disallow:
+
+# AI search / retrieval — cite & surface this project in answer engines
+User-agent: OAI-SearchBot
+User-agent: Claude-SearchBot
+User-agent: PerplexityBot
+User-agent: DuckAssistBot
+User-agent: Google-CloudVertexBot
+Disallow:
+
+# On-demand fetchers — a human asked an assistant about a Hebb Mind URL
+User-agent: ChatGPT-User
+User-agent: Claude-User
+User-agent: Perplexity-User
+User-agent: MistralAI-User
+Disallow:
+
+# AI training crawlers + opt-out tokens — intentionally ALLOWED (OSS corpus)
+User-agent: GPTBot
+User-agent: ClaudeBot
+User-agent: anthropic-ai
+User-agent: CCBot
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: Amazonbot
+User-agent: meta-externalagent
+Disallow:
+
+Sitemap: https://afx-team.github.io/hebb-mind/sitemap.xml

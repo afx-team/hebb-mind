@@ -104,15 +104,63 @@ jobs:
           path: ${{ env.HF_HOME }}
           key: hf-${{ runner.os }}-minilm-msmarco-reranker
           restore-keys: hf-${{ runner.os }}-
+      # On a cache miss the warm step hits HF anonymously from a shared CI IP
+      # and routinely gets 429 Too Many Requests — snapshot_download's repo_info
+      # call does not retry on 429, so one rate-limit killed the whole job.
+      # Retry with backoff (honoring Retry-After) and authenticate when an
+      # optional HF_TOKEN secret is configured (far higher per-token limit).
       - name: Warm model cache
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_HUB_ETAG_TIMEOUT: "60"
         run: |
           python - <<'PY'
+          import os
+          import sys
+          import time
+
           from huggingface_hub import snapshot_download
-          for repo in (
+
+          try:  # moved to huggingface_hub.errors in newer releases
+              from huggingface_hub.errors import HfHubHTTPError
+          except ImportError:  # pragma: no cover - older huggingface_hub
+              from huggingface_hub.utils import HfHubHTTPError
+
+          REPOS = (
               "sentence-transformers/all-MiniLM-L6-v2",
               "cross-encoder/ms-marco-MiniLM-L-6-v2",
-          ):
-              snapshot_download(repo)
+          )
+          TOKEN = os.environ.get("HF_TOKEN") or None
+          MAX_ATTEMPTS = 6
+          # Back off on rate-limit / transient server errors only; a 401/404 is
+          # a real config error and should fail fast.
+          RETRY_STATUS = {429, 500, 502, 503, 504}
+
+          def warm(repo: str) -> None:
+              delay = 10.0
+              for attempt in range(1, MAX_ATTEMPTS + 1):
+                  try:
+                      snapshot_download(repo, token=TOKEN, etag_timeout=60)
+                      print(f"[warm] {repo}: ok (attempt {attempt})", flush=True)
+                      return
+                  except HfHubHTTPError as err:
+                      resp = getattr(err, "response", None)
+                      status = getattr(resp, "status_code", None)
+                      if status not in RETRY_STATUS or attempt == MAX_ATTEMPTS:
+                          raise
+                      retry_after = resp.headers.get("Retry-After") if resp is not None else None
+                      wait = float(retry_after) if retry_after and retry_after.isdigit() else delay
+                      wait += (attempt * 1.7) % 5  # deterministic jitter, no RNG
+                      print(
+                          f"[warm] {repo}: HTTP {status}, retry {attempt}/{MAX_ATTEMPTS} in {wait:.0f}s",
+                          file=sys.stderr,
+                          flush=True,
+                      )
+                      time.sleep(wait)
+                      delay = min(delay * 2, 120)
+
+          for repo in REPOS:
+              warm(repo)
           PY
       - name: Model-dependent tests (real vector path, offline read from cache)
         env:

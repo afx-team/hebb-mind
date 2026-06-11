@@ -1,3 +1,7 @@
+---
+description: "通过 LiteLLM 为 AI 智能体记忆配置任意大模型：OpenAI、Anthropic Claude、通义千问、智谱 GLM、Kimi 均可一键切换，Embedding 本地运行无需 API 费用。"
+---
+
 # 多模型支持
 
 Hebb Mind 通过 [LiteLLM](https://github.com/BerriAI/litellm) 支持多种 LLM 提供商，只需修改配置即可切换模型。

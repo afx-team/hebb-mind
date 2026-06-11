@@ -1,3 +1,7 @@
+---
+description: "Connect Claude Code, Codex, Cursor, and Claude Desktop to long-term AI agent memory over MCP — write, recall via hybrid vector+keyword search, and consolidate."
+---
+
 # MCP Integration
 
 Hebb Mind provides an MCP (Model Context Protocol) server that exposes memory operations as tools. Claude Code, Codex, Cursor, and other MCP-compatible clients can use it directly.

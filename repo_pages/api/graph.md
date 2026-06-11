@@ -1,3 +1,7 @@
+---
+description: "REST API for the tag relationship graph built during AI agent memory consolidation: list and inspect tags, query neighbors by depth, find shortest paths, and export nodes and edges."
+---
+
 # Knowledge Graph API
 
 The knowledge graph API provides access to the tag-based relationship graph built during memory consolidation.

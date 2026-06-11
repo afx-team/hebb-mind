@@ -1,3 +1,7 @@
+---
+description: "REST API to organize AI agent memory into partitions: list, create, update, and delete custom categories plus five built-in semantic and episodic stores."
+---
+
 # Partitions API
 
 Partitions organize memories into logical categories. Hebb Mind ships with five built-in partitions and supports custom user-defined partitions.

@@ -1,3 +1,7 @@
+---
+description: "Hebb Mind 全部配置集中在 hebb.json 一个文件：CLI 命令、工作目录解析、Embedding 模型、LLM 与巩固开关，以及完整字段参考与重启生效规则。"
+---
+
 # 配置
 
 Hebb Mind 的所有配置集中在项目目录下的 `hebb.json` 文件中，无需设置环境变量。

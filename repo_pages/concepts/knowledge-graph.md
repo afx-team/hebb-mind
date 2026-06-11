@@ -1,3 +1,7 @@
+---
+description: "How Hebb Mind builds a tag-based knowledge graph (NetworkX) that links AI agent memories, powering graph tag-match in hybrid search alongside vector and keyword retrieval."
+---
+
 # Knowledge Graph
 
 Hebb Mind maintains a tag-based knowledge graph that captures relationships between concepts across all memories. The graph is backed by **NetworkX** and persisted as a JSON file.

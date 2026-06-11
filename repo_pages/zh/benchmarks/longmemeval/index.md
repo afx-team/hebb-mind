@@ -1,3 +1,7 @@
+---
+description: "Hebb Mind 在 LongMemEval 上的实测：检索 recall@10 达 99.4%，官方判分下端到端 QA 准确率 79.0%，与 Zep、Mem0、MemPalace 同口径对比 AI 智能体记忆。"
+---
+
 # LongMemEval
 
 [xiaowu0162/longmemeval](https://huggingface.co/datasets/xiaowu0162/longmemeval) —— 500 个问题，覆盖六类：知识更新、多 session 推理、时序推理、单 session（用户 / 助手 / 偏好）。每个问题都附带一大段历史 session 构成的「干草堆」，数据集明确标注了哪几个 session 含有答案证据。

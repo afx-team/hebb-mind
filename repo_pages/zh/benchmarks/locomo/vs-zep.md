@@ -1,3 +1,7 @@
+---
+description: "Hebb Mind 与 Zep 在 LoCoMo 记忆基准上的对比：端到端 QA 准确率约 74–78%，与 Zep 的 75.14% 持平，检索 Recall@10 达 95.75%。"
+---
+
 # LoCoMo —— Hebb Mind vs Zep
 
 | 系统 | LoCoMo 得分 | 指标 | 来源 |

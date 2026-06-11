@@ -1,5 +1,8 @@
 ---
 layout: home
+title: Hebb Mind — Memory framework for AI agents
+titleTemplate: false
+description: "Hebb Mind is an open-source, neuroscience-inspired long-term memory framework for AI agents — consolidation, dynamic forgetting, and three-path hybrid search (vector + keyword + graph). Local-first, MCP-ready, install in 60s."
 
 hero:
   name: Hebb Mind

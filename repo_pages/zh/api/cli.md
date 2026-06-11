@@ -1,3 +1,7 @@
+---
+description: "hebb 命令行完整参考：初始化 AI 智能体记忆、下载 embedding 模型、运行系统托管的后台服务，并配置 MCP、Claude Code 集成与各项参数。"
+---
+
 # CLI 命令参考
 
 Hebb Mind 提供单一的 `hebb` 命令，覆盖 setup、模型管理、集成、服务和配置等场景。

@@ -1,3 +1,7 @@
+---
+description: "Get AI agent memory running in 60 seconds with no API key: install via pipx, run offline hybrid vector + keyword search, then add LLM consolidation and MCP."
+---
+
 # Quick Start
 
 Two paths. The 60-second path needs **no API key**. The 5-minute path adds LLM-powered consolidation.

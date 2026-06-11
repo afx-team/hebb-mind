@@ -1,3 +1,7 @@
+---
+description: "PersonaMem 偏好追踪基准：考察 AI 智能体记忆能否跨会话推断用户偏好变化。Hebb Mind 以 mode=raw 纯检索（向量+关键词混合）取得 67.6% QA 准确率。"
+---
+
 # PersonaMem
 
 PersonaMem 是一个偏好追踪基准，系统必须推断用户在多个会话之间*为何*改变了想法。我们以 `mode=raw`（不做巩固）运行，以隔离出检索层本身的表现。

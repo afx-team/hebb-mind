@@ -1,3 +1,7 @@
+---
+description: "PersonaMem benchmark for AI agent memory: preference-tracking QA across sessions. Hebb Mind scores 67.6% in raw hybrid retrieval (vector + keyword), no consolidation."
+---
+
 # PersonaMem
 
 PersonaMem is a preference-tracking benchmark where the system must reason about *why* a user changed their mind across sessions. We run it in `mode=raw` (no consolidation) to isolate the retrieval layer.

@@ -1,3 +1,7 @@
+---
+description: "REST API to read and update AI agent memory config at runtime: LLM and embedding settings, masked secrets, LLM/embedding connectivity tests, field metadata"
+---
+
 # Config API
 
 The config API allows reading and updating Hebb Mind configuration at runtime. Changes are persisted to `hebb.json`.

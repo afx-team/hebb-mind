@@ -1,3 +1,7 @@
+---
+description: "Consolidate an AI agent's raw memories into semantic, episodic, preference, and procedural partitions via LLM classification and conflict resolution."
+---
+
 # Memory Consolidation
 
 Memory consolidation is the process by which raw memories in the working inbox (`mem_hippocampus`) are analyzed, classified, and moved into long-term partitions. This mirrors how the biological hippocampus consolidates short-term memories during sleep.

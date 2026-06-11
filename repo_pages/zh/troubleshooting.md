@@ -1,3 +1,7 @@
+---
+description: "按「症状 → 原因 → 解决」排查 Hebb Mind 常见问题：consolidate 返回 0（未配置 LLM 模型）、8321 端口占用、SQLite database locked、Embedding 模型下载卡住、Web 控制台空白、Claude Code 里 MCP 服务起不来。"
+---
+
 # 故障排查
 
 针对新用户最容易先撞上的问题，给出「症状 → 原因 → 解决」。如果这里没有对上你看到的现象，下一步首选诊断是 `hebb doctor`，概念性问题则可参考 [FAQ](./faq.md)。

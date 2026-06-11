@@ -1,3 +1,7 @@
+---
+description: "REST API to create, read, update, delete, batch-write, and ingest conversation memories for AI agents over HTTP, with partitions, tags, and importance scoring."
+---
+
 # Memories API
 
 The memories API provides full CRUD operations for managing memories in Hebb Mind.

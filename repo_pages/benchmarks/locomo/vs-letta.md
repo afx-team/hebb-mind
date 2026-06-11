@@ -1,3 +1,7 @@
+---
+description: "LoCoMo AI agent memory benchmark: Hebb Mind hits 95.75% R@10 with hybrid vector + keyword recall; Letta (MemGPT) row is TBD, no first-party result."
+---
+
 # LoCoMo — Hebb Mind vs Letta
 
 | System | Score | Source |
