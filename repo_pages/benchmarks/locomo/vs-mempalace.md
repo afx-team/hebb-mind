@@ -1,3 +1,7 @@
+---
+description: "LoCoMo benchmark: Hebb Mind vs MemPalace AI agent memory at session-level hit@10. Hybrid retrieval hits 94.1% R@10, 95.8% with local cross-encoder rerank."
+---
+
 # LoCoMo — Hebb Mind vs MemPalace
 
 MemPalace publishes session-level Recall@k on the full 1,986 LoCoMo questions. Their metric and ours (see [LoCoMo](./)) are computed the same way: ground-truth `evidence` is parsed into a set of session_ids, the question counts as correct iff any GT session appears in the retrieved set (session-level **hit@10**).

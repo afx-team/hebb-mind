@@ -1,3 +1,7 @@
+---
+description: "Hebb Mind 混合检索：向量语义、关键词（FTS5/BM25）与知识图谱三路并行召回，经 RRF 融合排名与三维评分，再用 cross-encoder 重排序提升 AI 智能体记忆的召回精度。"
+---
+
 # 混合检索
 
 Hebb Mind 采用三路并行检索策略，综合向量语义、关键词匹配和知识图谱三种信号，通过 Reciprocal Rank Fusion（RRF）融合排名，再做三维综合评分，最后可选地用 cross-encoder 重排序提升 top-k 精度。

@@ -1,3 +1,7 @@
+---
+description: "Migrate AI agent memory from mem0, Letta, or Zep to Hebb Mind: concept and API mapping, before/after code, data import, and an honest gap analysis."
+---
+
 # Migration from mem0 / Letta / Zep
 
 This page maps the concepts and APIs of the three most-asked-about agent-memory frameworks onto Hebb Mind, plus shows how to move data over. Hebb Mind is younger than all three; we call out the gaps honestly so you can decide whether the move makes sense for your use case today.

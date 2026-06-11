@@ -1,3 +1,7 @@
+---
+description: "LoCoMo 基准测试 AI 智能体记忆的跨会话召回能力：在 1,978 道多轮问答上取得 session 级 Recall@10 95.75%，采用与 MemPalace 一致的指标，基于向量与关键词混合检索加 cross-encoder 重排。"
+---
+
 # LoCoMo
 
 [snap-research/locomo](https://github.com/snap-research/locomo) —— 两个人设角色之间的多轮会话，涵盖单跳、多跳、时序、开放式与对抗性五类共 1,986 个问题。每段会话跨越 19–32 个 session；问题用于检验记忆系统能否召回若干 session 之前建立的事实。

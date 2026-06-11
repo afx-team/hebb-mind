@@ -1,3 +1,7 @@
+---
+description: "Browse, search, and edit your AI agent memory in the browser: the Hebb Mind Web Console bundles hybrid retrieval, a knowledge graph view, and live config on port 8321."
+---
+
 # Web Console
 
 The Web Console is a single-page app that ships inside the Hebb Mind binary. It gives you a browseable view of your memories, a search box wired to the same hybrid retrieval that powers the API, a graph view of your knowledge graph, and a settings panel for changing config without touching JSON.

@@ -1,3 +1,7 @@
+---
+description: "LongMemEval-S 基准上 Hebb Mind 全面领先 Zep / Graphiti：端到端 QA 准确率 79.0% 对 71.2%，检索召回 recall@1 达 93.4% 对 75.9%，同一份 500 题、同一套官方评测协议。"
+---
+
 # LongMemEval —— Hebb Mind vs Zep / Graphiti
 
 LongMemEval 是 Zep 主推的公开基准。Zep **两个指标都报** —— 检索召回和端到端 QA 准确率；在同一份 LongMemEval-S 500 题上，Hebb Mind 两项都领先。

@@ -1,3 +1,7 @@
+---
+description: "把 mem0、Letta、Zep 的 Agent 记忆迁移到 Hebb Mind：概念与 API 映射、迁移前后代码对照、数据导入步骤，并如实标注能力差距。"
+---
+
 # 从 mem0 / Letta / Zep 迁移
 
 本页把三个最常被问到的 Agent 记忆框架的概念和 API 映射到 Hebb Mind 上，并演示如何把数据搬过来。Hebb Mind 比这三者都年轻；我们如实指出差距，方便你判断今天这一搬是否划算。

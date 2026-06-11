@@ -1,3 +1,7 @@
+---
+description: "Hebb Mind vs mem0 on LoCoMo: 95.75% retrieval Recall@10, and on mem0's own verbatim judge prompt our QA beats mem0's paper by +11pp on the same cat 1-4 set"
+---
+
 # LoCoMo — Hebb Mind vs mem0
 
 Our headline LoCoMo metric is **session-level retrieval Recall@10** (no judge in the loop):

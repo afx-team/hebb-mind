@@ -1,3 +1,7 @@
+---
+description: "Hebb Mind on the Salesforce ConvoMem benchmark: 73.5% end-to-end QA accuracy across 6 categories, scored by an LLM judge, with per-category and MemPalace comparison."
+---
+
 # ConvoMem
 
 [Salesforce/ConvoMem](https://huggingface.co/datasets/Salesforce/ConvoMem) — 75,336 evidence items across 6 categories (user facts, assistant facts, changing facts, abstention, preferences, implicit connections). Each item provides a multi-conversation haystack, a question, a free-text ground-truth answer, and the specific evidence messages from which the answer can be derived.

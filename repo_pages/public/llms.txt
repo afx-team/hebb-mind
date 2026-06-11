@@ -1,0 +1,69 @@
+# Hebb Mind
+
+> Neuroscience-inspired long-term memory framework for AI agents — write, consolidate, recall, and forget. Open source (MIT), distributed on PyPI as `hebb-mind`. Ships as a Python package, a Click CLI (`hebb`), a FastAPI server, an MCP server (stdio), a built-in web console, and Claude Code / Codex integrations.
+
+Hebb Mind gives LLM agents durable memory through a four-stage lifecycle: **write → consolidate → recall → forget**. New memories enter a working-memory inbox (`mem_hippocampus`); an LLM consolidation agent merges duplicates, resolves conflicts, classifies them into semantic / episodic / preference / procedural partitions, and tags them into a NetworkX knowledge graph. Retrieval is three-path hybrid search — vector (sentence-transformers / sqlite-vec) + keyword (SQLite FTS5 / BM25) + tag-graph — fused with Reciprocal Rank Fusion and re-scored by a cross-encoder reranker. Dynamic forgetting uses an Ebbinghaus-style TTL: `base × (1 + log(access)) × importance × exp(-decay × days)`. Local-first: SQLite + a local embedding model, no API key needed for ingest and hybrid search; consolidation is the only feature that needs an LLM (any provider via LiteLLM). Default service runs on port 8321.
+
+Headline benchmark results (reproducible via the `eval/` harness): LongMemEval recall_any@10 = 0.994, end-to-end QA = 0.790 with the official judge (beats Zep 0.712); LoCoMo session Recall@10 = 0.958; MemBench Hit@1 = 0.490 / Hit@10 = 0.893.
+
+## Getting Started
+
+- [Quick Start](https://afx-team.github.io/hebb-mind/quick-start.html): Get AI agent memory running in 60 seconds with no API key — pipx install, offline hybrid search, then optional LLM consolidation and MCP.
+- [Installation](https://afx-team.github.io/hebb-mind/guide/installation.html): Install `hebb-mind` via pipx or pip. Built-in SQLite (no external DB), optional PostgreSQL/pgvector, Docker, and an OS-managed background service.
+- [FAQ](https://afx-team.github.io/hebb-mind/faq.html): API-key needs, supported LLMs and embedding models, where data is stored, mem0 comparison, MCP, PostgreSQL, and Docker.
+- [Troubleshooting](https://afx-team.github.io/hebb-mind/troubleshooting.html): Fixes for consolidate-returns-0, port 8321 in use, SQLite locked, slow embedding download, and MCP startup failures.
+
+## Guides
+
+- [Configuration](https://afx-team.github.io/hebb-mind/guide/configuration.html): One `hebb.json` controls everything — CLI config commands, workspace resolution, embedding model, and LLM/consolidation setup.
+- [Switch the Embedding Model](https://afx-team.github.io/hebb-mind/guide/switch-embedding-model.html): Use local sentence-transformers or a LiteLLM API embedding provider, handle dimension changes, and re-embed with resume.
+- [Claude Code Integration](https://afx-team.github.io/hebb-mind/guide/claude-code.html): Give Claude Code cross-session memory via the MCP server plus session hooks for automatic recall, turn capture, and consolidation.
+- [Codex Integration](https://afx-team.github.io/hebb-mind/guide/codex.html): Give the Codex CLI persistent memory over MCP via the `hebb-mcp` server.
+- [MCP Integration](https://afx-team.github.io/hebb-mind/guide/mcp-integration.html): Connect Claude Code, Codex, Cursor, and Claude Desktop to long-term memory over MCP — write, recall, and consolidate.
+- [Web Console](https://afx-team.github.io/hebb-mind/guide/web-console.html): Browser UI bundled with the service (port 8321) — memory CRUD, hybrid search, partitions, a knowledge-graph view, and live config.
+- [Migration from mem0 / Letta / Zep](https://afx-team.github.io/hebb-mind/guide/migration.html): Concept and API mapping, before/after code, data import, and an honest gap analysis.
+
+## Concepts
+
+- [Memory Lifecycle](https://afx-team.github.io/hebb-mind/concepts/memory-lifecycle.html): The four stages — ingest, consolidate, retrieve, forget — with hybrid search and dynamic-TTL forgetting.
+- [Memory Consolidation](https://afx-team.github.io/hebb-mind/concepts/consolidation.html): LLM classification + conflict resolution moves working memories into semantic, episodic, preference, and procedural partitions.
+- [Dynamic Forgetting](https://afx-team.github.io/hebb-mind/concepts/forgetting.html): Ebbinghaus-inspired TTL of access count, importance, and time decay — frequently used memories survive, neglected ones fade.
+- [Knowledge Graph](https://afx-team.github.io/hebb-mind/concepts/knowledge-graph.html): A tag-based NetworkX graph links memories and powers the graph channel of hybrid retrieval.
+- [Hybrid Search](https://afx-team.github.io/hebb-mind/concepts/hybrid-search.html): Fuses vector, keyword (BM25/FTS5), and graph retrieval via RRF, then re-scores with a cross-encoder reranker.
+
+## API Reference
+
+- [Memories API](https://afx-team.github.io/hebb-mind/api/memories.html): CRUD, batch-write, and conversation ingest over HTTP, with partitions, tags, and importance scoring.
+- [Search API](https://afx-team.github.io/hebb-mind/api/search.html): `POST /api/v1/search` — hybrid vector + keyword (BM25) + graph retrieval with tunable recency and relevance weights.
+- [Partitions API](https://afx-team.github.io/hebb-mind/api/partitions.html): Organize memory into five built-in partitions plus custom categories.
+- [Knowledge Graph API](https://afx-team.github.io/hebb-mind/api/graph.html): Inspect tags, query neighbors by depth, find shortest paths, and export nodes and edges.
+- [Admin API](https://afx-team.github.io/hebb-mind/api/admin.html): Trigger consolidation/forgetting, read stats, restart, and poll health/status.
+- [Config API](https://afx-team.github.io/hebb-mind/api/config.html): Read and update config at runtime — LLM and embedding settings, masked secrets, connectivity tests.
+- [CLI Reference](https://afx-team.github.io/hebb-mind/api/cli.html): The `hebb` command — setup, model download, background service, MCP/Claude Code wiring, and config.
+
+## Advanced
+
+- [Storage Backends](https://afx-team.github.io/hebb-mind/advanced/storage-backends.html): SQLite (sqlite-vec + FTS5) for local dev or PostgreSQL + pgvector for production.
+- [Multi-Model Support](https://afx-team.github.io/hebb-mind/advanced/multi-model.html): Any LLM provider via LiteLLM (OpenAI, Claude, Qwen, GLM, Kimi); local embeddings with no API cost.
+
+## Benchmarks
+
+- [Benchmarks Overview](https://afx-team.github.io/hebb-mind/benchmarks/): Reproducible eval harness driving the same ingest + retrieval code paths that ship to production.
+- [LongMemEval](https://afx-team.github.io/hebb-mind/benchmarks/longmemeval/): recall@10 = 0.994, end-to-end QA = 0.790 with the official judge + reader.
+- [LoCoMo](https://afx-team.github.io/hebb-mind/benchmarks/locomo/): session Recall@10 = 0.958 on 1,978 multi-session QA.
+- [MemBench](https://afx-team.github.io/hebb-mind/benchmarks/membench/): ACL 2025; turn-level Hit@k across 11 categories, +14.3pp over MemPalace.
+- [ConvoMem](https://afx-team.github.io/hebb-mind/benchmarks/convomem/): Salesforce ConvoMem; 73.5% end-to-end QA across 6 categories.
+- [PersonaMem](https://afx-team.github.io/hebb-mind/benchmarks/personamem/): preference-tracking QA; 67.6% in raw hybrid retrieval (small-sample, flagged).
+
+## Optional
+
+- [LongMemEval vs Zep / Graphiti](https://afx-team.github.io/hebb-mind/benchmarks/longmemeval/vs-zep.html): 79.0% QA vs 71.2%, recall@1 0.934 vs 0.759, same official protocol.
+- [LongMemEval vs Mem0](https://afx-team.github.io/hebb-mind/benchmarks/longmemeval/vs-mem0.html): 79.0% QA with the untuned official reader; Mem0's edge is reader-prompt engineering, not memory.
+- [LongMemEval vs MemPalace](https://afx-team.github.io/hebb-mind/benchmarks/longmemeval/vs-mempalace.html): same-metric, same MiniLM-384 embedding; 0.990 R@5, 0.994 R@10, untuned.
+- [LoCoMo vs mem0](https://afx-team.github.io/hebb-mind/benchmarks/locomo/vs-mem0.html): 0.958 Recall@10; on mem0's own judge prompt, +11pp on the same cat 1-4 set.
+- [LoCoMo vs Zep](https://afx-team.github.io/hebb-mind/benchmarks/locomo/vs-zep.html): ~74-78% end-to-end QA (tied with Zep's 75.14%) and 0.958 session Recall@10.
+- [LoCoMo vs MemPalace](https://afx-team.github.io/hebb-mind/benchmarks/locomo/vs-mempalace.html): 0.941 R@10 hybrid retrieval, 0.958 with local cross-encoder rerank.
+- [LoCoMo vs Letta](https://afx-team.github.io/hebb-mind/benchmarks/locomo/vs-letta.html): 0.958 R@10 hybrid recall; Letta (MemGPT) row is TBD.
+- [GitHub repository](https://github.com/afx-team/hebb-mind): source code, issues, and releases.
+- [PyPI package](https://pypi.org/project/hebb-mind/): `pip install hebb-mind`.
+- [中文文档 (Chinese docs)](https://afx-team.github.io/hebb-mind/zh/): the full documentation mirrored in Simplified Chinese.

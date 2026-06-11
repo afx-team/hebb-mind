@@ -1,3 +1,7 @@
+---
+description: "Give Claude Code long-term memory: install the Hebb Mind MCP server plus session hooks for automatic cross-session recall, turn capture, and consolidation."
+---
+
 # Claude Code Integration
 
 Hebb Mind integrates with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) as both an **MCP server** (manual memory tools) and a **hooks-based auto-memory layer** (automatic recall and turn capture across sessions).

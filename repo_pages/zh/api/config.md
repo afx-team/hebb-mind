@@ -1,3 +1,7 @@
+---
+description: "通过 HTTP 接口在运行时读取和修改 Hebb Mind 配置：LLM 与 embedding 参数、敏感字段脱敏、连通性测试、字段元数据，修改直接写入 hebb.json。"
+---
+
 # 配置 API
 
 通过 HTTP 接口读取和修改 `hebb.json` 配置。

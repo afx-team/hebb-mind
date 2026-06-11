@@ -1,3 +1,7 @@
+---
+description: "为 AI 智能体记忆库切换 Embedding 模型：本地 sentence-transformers 或 LiteLLM 云端 API，处理 384/1024 维度变化，并支持断点续跑的 reembed 重算向量。"
+---
+
 # 切换 Embedding 模型
 
 `hebb setup` 第一次运行时会根据系统语言挑一个**小**的 Embedding 模型，且仅在尚未缓存时下载。默认（`--profile default`）是 `all-MiniLM-L6-v2`（384 维，英文）或 `intfloat/multilingual-e5-small`（384 维，多语言）；高质量的 bge 档 —— `BAAI/bge-large-en-v1.5` / `BAAI/bge-m3`（均 1024 维）—— 需通过 `hebb setup --profile best` 主动选用。之后任何时候 —— 即便服务已经在跑、已经写了一堆记忆 —— 都可以切到任何 [sentence-transformers](https://www.sbert.net/docs/pretrained_models.html) 兼容模型，或任何 LiteLLM 兼容的云端 Embedding API。已缓存的模型会直接复用，只有缺失的才下载。

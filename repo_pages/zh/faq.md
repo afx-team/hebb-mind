@@ -1,3 +1,7 @@
+---
+description: "Hebb Mind 常见问题：是否需要 LLM API Key、支持哪些 LLM 与 embedding 模型、数据存在哪里、与 mem0 对比、PostgreSQL 与 Docker 部署，以及本地 AI Agent 记忆。"
+---
+
 # 常见问题
 
 回答那些在深入读文档之前就会冒出来的问题。基于症状的求助请看 [故障排查](./troubleshooting.md)。

@@ -1,3 +1,7 @@
+---
+description: "LongMemEval 上 Hebb Mind 与 Mem0 的客观对照：未调优官方 reader 下 QA 准确率 79.0%、检索 recall@10 高达 99.4%，说明 Mem0 的优势源自作答 prompt 工程而非记忆质量。"
+---
+
 # LongMemEval —— Hebb Mind vs Mem0
 
 Mem0 在 LongMemEval 上的头条指标是**端到端 QA 准确率**（官方的「检索 → 生成 → LLM 判分」协议）。Mem0 不公布 session 级检索召回，所以这场正面对照只能在 QA 上进行。

@@ -1,3 +1,7 @@
+---
+description: "Configure Hebb Mind AI agent memory via a single hebb.json: CLI config commands, workspace resolution, embedding model, LLM/consolidation setup, and the full field reference."
+---
+
 # Configuration
 
 All configuration lives in a single file: **`hebb.json`**. No environment variables are required for local use.

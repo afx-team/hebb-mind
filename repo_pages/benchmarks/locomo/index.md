@@ -1,3 +1,7 @@
+---
+description: "LoCoMo results for AI agent memory: 95.75% session Recall@10 on 1,978 multi-session QA, MemPalace metric, via hybrid vector + keyword search and rerank."
+---
+
 # LoCoMo
 
 [snap-research/locomo](https://github.com/snap-research/locomo) — multi-session conversations between two personas, 1,986 questions across single-hop, multi-hop, temporal, open-ended, and adversarial categories. Each conversation spans 19–32 sessions; questions test whether a memory system can surface facts that were established sessions earlier.

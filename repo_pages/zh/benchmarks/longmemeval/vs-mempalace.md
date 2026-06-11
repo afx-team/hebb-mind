@@ -1,3 +1,7 @@
+---
+description: "Hebb Mind 与 MemPalace 在 LongMemEval-S 上的同口径检索对比：同题集、同 MiniLM-384 embedding 的 session 级 Recall@5。Hebb 出厂默认即达 99.0% R@5、99.4% R@10，未调参。"
+---
+
 # LongMemEval —— Hebb Mind vs MemPalace
 
 MemPalace 与 Hebb Mind 都在全量 500 题的 LongMemEval-S 上报告 **session 级 Recall@5**，算法一致（top-k 里是否含有某个证据 session 的记忆？）。MemPalace 的基准只做检索，所以这是一次干净、同口径的检索对比 —— 同指标、同题集、同样的 MiniLM-384 embedding。

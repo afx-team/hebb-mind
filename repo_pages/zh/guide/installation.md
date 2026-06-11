@@ -1,3 +1,7 @@
+---
+description: "用 pipx 或 pip 几秒装好 AI 智能体记忆框架 hebb-mind，内置 SQLite 免外部数据库，可选 PostgreSQL/pgvector 与 Docker，一键启动后台服务、Web 控制台与 MCP 工具。"
+---
+
 # 安装
 
 ## 安装（推荐：`pipx`）

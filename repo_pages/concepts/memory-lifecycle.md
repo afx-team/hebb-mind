@@ -1,3 +1,7 @@
+---
+description: "How AI agent memory flows through four stages -- ingest, consolidate, retrieve, forget -- with hybrid vector + keyword + knowledge-graph search and dynamic TTL forgetting."
+---
+
 # Memory Lifecycle
 
 Hebb Mind processes memories through four stages, inspired by how the human hippocampus consolidates short-term experiences into long-term knowledge.

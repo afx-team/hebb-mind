@@ -1,3 +1,7 @@
+---
+description: "Hebb Mind vs Mem0 on LongMemEval: 79.0% QA with the untuned official reader plus 99.4% recall@10 shows Mem0's edge is reader-prompt engineering, not memory"
+---
+
 # LongMemEval — Hebb Mind vs Mem0
 
 Mem0's headline LongMemEval metric is **end-to-end QA accuracy** (the official retrieve → generate → LLM-judge protocol). Mem0 does not publish session-level retrieval recall, so the head-to-head is on QA.

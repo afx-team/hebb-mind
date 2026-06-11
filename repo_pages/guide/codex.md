@@ -1,3 +1,7 @@
+---
+description: "Give the Codex CLI persistent AI agent memory via MCP: install the hebb-mcp server so Codex can write, search, and consolidate memories across coding sessions."
+---
+
 # Codex Integration
 
 Hebb Mind integrates with Codex through MCP tools. Codex can call `write_memory`, `search_memory`, `consolidate`, and `ingest_conversation` when useful.

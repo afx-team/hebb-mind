@@ -1,3 +1,7 @@
+---
+description: "Hebb Mind AI 智能体记忆框架的可复现基准评测：覆盖 LoCoMo、LongMemEval、ConvoMem、MemBench、PersonaMem，混合检索召回，并对比 mem0、Zep、MemPalace，附复现 CLI。"
+---
+
 # 基准测试
 
 > **状态：** v0.1.2，进行中。LoCoMo、LongMemEval、ConvoMem 与 MemBench（11 类全量）已全量覆盖；PersonaMem 仍是小样本切片，并在其页面上明确标注。请把 PersonaMem 当作冒烟测试，其余四个当作我们承诺会公开持续改进的真实基线。

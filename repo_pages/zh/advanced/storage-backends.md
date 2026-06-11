@@ -1,3 +1,7 @@
+---
+description: "为 AI agent 记忆配置存储后端：SQLite（sqlite-vec + FTS5）开箱即用适合本地开发，PostgreSQL + pgvector 支撑生产高并发，含 Docker 部署与后台服务安装。"
+---
+
 # 存储后端
 
 Hebb Mind 支持两种存储后端：SQLite（默认）和 PostgreSQL。

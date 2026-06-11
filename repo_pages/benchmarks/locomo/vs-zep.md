@@ -1,3 +1,7 @@
+---
+description: "Hebb Mind vs Zep on the LoCoMo AI agent memory benchmark: ~74-78% end-to-end QA accuracy (tied with Zep's 75.14%) and 95.75% session Recall@10."
+---
+
 # LoCoMo — Hebb Mind vs Zep
 
 | System | LoCoMo score | Metric | Source |

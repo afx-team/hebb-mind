@@ -1,3 +1,7 @@
+---
+description: "Reproducible AI agent memory benchmarks for Hebb Mind on LoCoMo, LongMemEval, ConvoMem, MemBench and PersonaMem, with hybrid retrieval, vs mem0/Zep/MemPalace, and CLI to re-run."
+---
+
 # Benchmarks
 
 > **Status:** v0.1.2, work in progress. LoCoMo, LongMemEval, ConvoMem, and MemBench (all 11 categories) are full-coverage; PersonaMem is still a small-sample slice and clearly flagged on its page. Treat PersonaMem as smoke, the other four as real baselines we are committing to improve in the open.

@@ -1,3 +1,7 @@
+---
+description: "Hebb Mind on LongMemEval: 99.4% retrieval recall@10 and 79.0% end-to-end QA with the official judge, vs Zep, Mem0 and MemPalace for AI agent memory."
+---
+
 # LongMemEval
 
 [xiaowu0162/longmemeval](https://huggingface.co/datasets/xiaowu0162/longmemeval) — 500 questions across six categories (knowledge updates, multi-session reasoning, temporal reasoning, single-session user / assistant / preference). Each question carries a long haystack of prior sessions; the dataset names the specific session(s) that contain evidence for the answer.

@@ -1,3 +1,7 @@
+---
+description: "Hebb Mind 与 mem0 的 LoCoMo 对比：检索 Recall@10 达 95.75%；在同口径 cat 1-4 子集、逐字复用 mem0 判分 prompt 下，端到端 QA 比 mem0 论文高 11pp。"
+---
+
 # LoCoMo —— Hebb Mind vs mem0
 
 我们的头条 LoCoMo 指标是 **session 级检索 Recall@10**（评分回路中无判分器）：

@@ -1,3 +1,7 @@
+---
+description: "通过 MCP 把 Claude Code、Codex、Cursor、Claude Desktop 接入 AI 智能体长期记忆：写入、向量加关键词混合检索召回，并触发记忆巩固。"
+---
+
 # MCP 集成
 
 Hebb Mind 提供 MCP (Model Context Protocol) 服务，将记忆操作暴露为工具。Claude Code、Codex、Cursor 等 MCP 客户端可以直接使用。

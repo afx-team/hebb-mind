@@ -1,3 +1,7 @@
+---
+description: "Choose AI agent memory storage: SQLite (sqlite-vec + FTS5) for local dev or PostgreSQL with pgvector for production, with Docker and service setup."
+---
+
 # Storage Backends
 
 Hebb Mind supports two storage backends: SQLite (default) and PostgreSQL with pgvector.

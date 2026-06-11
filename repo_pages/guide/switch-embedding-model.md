@@ -1,3 +1,7 @@
+---
+description: "Switch the embedding model behind your AI agent memory: local sentence-transformers or LiteLLM API, handle dimension changes, and re-embed with resume."
+---
+
 # Switch the Embedding Model
 
 `hebb setup` picks a **small** embedding model from your OS locale on first run, and downloads it only if it isn't already cached. By default (`--profile default`) that is `all-MiniLM-L6-v2` (384-d, English) or `intfloat/multilingual-e5-small` (384-d, multilingual); the high-quality bge tier — `BAAI/bge-large-en-v1.5` / `BAAI/bge-m3` (both 1024-d) — is opt-in via `hebb setup --profile best`. You can switch to any other [sentence-transformers](https://www.sbert.net/docs/pretrained_models.html)-compatible model — or any LiteLLM-compatible cloud embedding API — at any time, even after the service has been running and storing memories. A model that is already cached is reused; only missing models are downloaded.

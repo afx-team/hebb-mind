@@ -1,3 +1,7 @@
+---
+description: "Hebb Mind 在 MemBench（ACL 2025）上的实测：11 类全量轮次级 Hit@k 评测，总体领先 MemPalace 14.3pp，cross-encoder 重排是混合检索的关键杠杆。"
+---
+
 # MemBench
 
 [import-myself/Membench](https://github.com/import-myself/Membench)（ACL 2025）—— 覆盖 **11 个类别**（simple、highlevel、knowledge_update、comparative、conditional、noisy、aggregative、highlevel_rec、lowlevel_rec、RecMultiSession、post_processing）的多轮对话。每段对话都配有 4 选 1 的 QA，其 `target_step_id` 指向承载答案的那一轮（或几轮）。我们跑的是 **完整 11 类全量评测**（所有 topic，共 11,996 题）。MemPalace 最难的切片是 `noisy`，仅 43.4 % Hit@5 —— 这是公开榜单上最有信息量的「反向窗口」，也是我们领先幅度最大的一类。

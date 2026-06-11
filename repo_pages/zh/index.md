@@ -1,5 +1,8 @@
 ---
 layout: home
+title: Hebb Mind — 受神经科学启发的 AI Agent 记忆框架
+titleTemplate: false
+description: "Hebb Mind 是一套开源、受神经科学启发的 AI Agent 长期记忆框架：自动巩固、动态遗忘，以及向量 + 关键词 + 知识图谱三路混合检索。本地优先、内置 MCP，60 秒即可上手。"
 
 hero:
   name: Hebb Mind

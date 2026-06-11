@@ -1,3 +1,7 @@
+---
+description: "Install hebb-mind, the AI agent memory framework, via pipx or pip in seconds. Built-in SQLite (no external DB), optional PostgreSQL/pgvector, Docker, and a background service with Web Console and MCP."
+---
+
 # Installation
 
 ## Install (recommended: `pipx`)

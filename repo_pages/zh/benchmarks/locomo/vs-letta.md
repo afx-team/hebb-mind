@@ -1,3 +1,7 @@
+---
+description: "LoCoMo 长期记忆基准对比：Hebb Mind 在全量 1,978 题上 R@10 最高 95.75%，采用向量加关键词混合召回；Letta（MemGPT）暂无第一方结果，故该行待定。"
+---
+
 # LoCoMo —— Hebb Mind vs Letta
 
 | 系统 | 得分 | 来源 |

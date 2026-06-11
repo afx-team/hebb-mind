@@ -1,3 +1,7 @@
+---
+description: "Admin REST API for the AI agent memory server: trigger consolidation and forgetting, read partition stats and graph size, restart, poll health/status."
+---
+
 # Admin API
 
 The admin API provides endpoints for triggering background jobs and monitoring system health.

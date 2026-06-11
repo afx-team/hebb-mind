@@ -1,3 +1,7 @@
+---
+description: "Reference for the hebb CLI: set up AI agent memory, download embedding models, run the OS-managed background server, wire up MCP and Claude Code integrations, and manage config."
+---
+
 # CLI Reference
 
 Hebb Mind ships a single `hebb` command exposing all setup, server, integration, model, and configuration tasks.

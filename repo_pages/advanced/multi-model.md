@@ -1,3 +1,7 @@
+---
+description: "Configure any LLM provider for AI agent memory consolidation via LiteLLM: OpenAI, Anthropic Claude, Qwen, GLM, Kimi. Local sentence-transformers embeddings, no API cost."
+---
+
 # Multi-Model Support
 
 Hebb Mind supports multiple LLM providers through [LiteLLM](https://github.com/BerriAI/litellm). This enables memory consolidation with any major language model.

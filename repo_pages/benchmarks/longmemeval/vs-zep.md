@@ -1,3 +1,7 @@
+---
+description: "LongMemEval-S: Hebb Mind beats Zep/Graphiti on AI agent memory — 79.0% QA accuracy vs 71.2%, 93.4% retrieval recall@1 vs 75.9%, same official protocol."
+---
+
 # LongMemEval — Hebb Mind vs Zep / Graphiti
 
 LongMemEval is Zep's headline public benchmark. Zep reports **both** retrieval recall and end-to-end QA accuracy; Hebb Mind leads on both, on the same LongMemEval-S 500-question set.

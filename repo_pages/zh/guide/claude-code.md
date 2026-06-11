@@ -1,3 +1,7 @@
+---
+description: "为 Claude Code 接入长期记忆：一条命令安装 MCP 工具与会话 Hooks，实现跨会话自动召回、按回合写入与定时巩固。"
+---
+
 # Claude Code 集成
 
 Hebb Mind 与 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 深度集成，提供 **MCP 工具**（手动记忆操作）和 **Hooks 自动记忆层**（跨会话自动召回 + 按回合写入）。

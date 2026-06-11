@@ -1,3 +1,7 @@
+---
+description: "通过 MCP 为 Codex CLI 接入持久记忆：注册 hebb-mcp 服务后，Codex 可在编码会话中自动存储、召回与巩固记忆，跨会话保留偏好与项目事实。"
+---
+
 # Codex 集成
 
 Hebb Mind 通过 MCP 工具集成 Codex。Codex 可以在需要时调用 `write_memory`、`search_memory`、`consolidate` 和 `ingest_conversation`。
