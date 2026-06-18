@@ -10,20 +10,73 @@ Data structure:
 - shared_contexts_32k.jsonl: one JSON object per line, key=shared_context_id,
   value=list of {role, content} conversation turns
 
+PersonaMem is a **multiple-choice** benchmark: ``correct_answer`` is a letter
+like ``(c)`` and ``all_options`` is a list of four lettered candidate
+responses. The benchmark scores exact-match on the chosen letter (see
+``eval/benchmarks/personamem_bench.py``), so the adapter must surface the
+options and the gold letter on each question, not just a free-text string.
+
+Two data quirks the adapter handles:
+
+1. ``all_options`` is serialized inconsistently — valid JSON
+   (double-quoted) for ~286 rows and a Python ``repr`` (single-quoted) for
+   ~303. ``json.loads`` silently fails on the repr rows; we fall back to
+   ``ast.literal_eval`` so all 589 rows parse to four lettered options.
+2. Each question is asked at a specific point in its conversation
+   (``end_index_in_shared_context``). To stay faithful to the official
+   protocol and avoid leaking *future* turns of the same persona into
+   retrieval, questions are grouped into one scenario per
+   ``(shared_context_id, end_index)`` bucket — the scenario's conversation
+   is exactly ``turns[:end_index]``. The benchmark gives each scenario its
+   own partition and retrieves partition-scoped, so a question never sees
+   another bucket's (or another persona's) turns.
+
 Source: https://github.com/bowen-upenn/PersonaMem
 HuggingFace: bowen-upenn/PersonaMem
 """
 
 from __future__ import annotations
 
+import ast
 import json
 import logging
+import re
 import shutil
 from pathlib import Path
 
 from eval.datasets.base import ConversationTurn, EvalQuestion, EvalScenario
 
 logger = logging.getLogger(__name__)
+
+# Leading "(a)" / "(b)" / ... label on an option or the correct_answer.
+_LETTER_RE = re.compile(r"^\s*\(([a-zA-Z])\)")
+
+
+def _parse_options(raw: object) -> list[str]:
+    """Parse ``all_options`` into a list of option strings.
+
+    The field is sometimes valid JSON (double-quoted) and sometimes a
+    Python ``repr`` (single-quoted). Try JSON first, then
+    ``ast.literal_eval``; return ``[]`` if neither yields a list.
+    """
+    if isinstance(raw, list):
+        return [str(o) for o in raw]
+    if not isinstance(raw, str):
+        return []
+    for parse in (json.loads, ast.literal_eval):
+        try:
+            value = parse(raw)
+        except (ValueError, SyntaxError):
+            continue
+        if isinstance(value, list):
+            return [str(o) for o in value]
+    return []
+
+
+def _option_letter(text: str) -> str | None:
+    """Extract the leading option letter (lowercased), e.g. "(c)" -> "c"."""
+    m = _LETTER_RE.match(text or "")
+    return m.group(1).lower() if m else None
 
 
 class PersonaMemAdapter:
@@ -80,10 +133,12 @@ class PersonaMemAdapter:
         return out_dir
 
     def load(self, data_path: Path) -> list[EvalScenario]:
-        """Parse PersonaMem data into EvalScenarios.
+        """Parse PersonaMem data into MCQ EvalScenarios.
 
-        Each shared_context_id maps to a conversation history. Questions
-        reference a context and ask about user preferences/facts.
+        One scenario per ``(shared_context_id, end_index)`` bucket so each
+        question's haystack is exactly the conversation prefix it was asked
+        after. Questions carry their lettered options and gold letter in
+        ``metadata`` for the MCQ scorer.
         """
         # data_path is the directory
         if data_path.is_dir():
@@ -105,72 +160,94 @@ class PersonaMemAdapter:
                     for ctx_id, turns in obj.items():
                         contexts[ctx_id] = turns
 
-        # Group questions by shared_context_id
-        ctx_groups: dict[str, list[dict]] = {}
+        # Group questions into (context_id, end_index) buckets. Each bucket
+        # becomes one scenario whose conversation is turns[:end_index] — so
+        # retrieval for a question never sees future turns of the persona.
+        buckets: dict[tuple[str, int], list[dict]] = {}
+        ctx_order: dict[str, int] = {}
         for q in questions_data:
             ctx_id = q.get("shared_context_id", "")
-            if ctx_id:
-                ctx_groups.setdefault(ctx_id, []).append(q)
+            if not ctx_id:
+                continue
+            ctx_turns = contexts.get(ctx_id, [])
+            end_idx = q.get("end_index_in_shared_context", len(ctx_turns))
+            try:
+                end_idx = int(end_idx)
+            except (TypeError, ValueError):
+                end_idx = len(ctx_turns)
+            end_idx = max(0, min(end_idx, len(ctx_turns)))
+            ctx_order.setdefault(ctx_id, len(ctx_order))
+            buckets.setdefault((ctx_id, end_idx), []).append(q)
 
         scenarios: list[EvalScenario] = []
-        for ctx_id, q_items in ctx_groups.items():
-            scenario_id = f"personamem_{ctx_id[:12]}"
+        skipped_no_options = 0
+        for (ctx_id, end_idx), q_items in buckets.items():
+            cidx = ctx_order[ctx_id]
+            # Partition ids must match ^mem_[a-z0-9_]+$ (enforced by the
+            # partitions API), so the scenario id — which doubles as its
+            # partition — carries the mem_ prefix.
+            scenario_id = f"mem_personamem_c{cidx}_e{end_idx}"
+
+            # Build conversation = raw turns[:end_index], skipping system
+            # messages (persona descriptions). end_index indexes into the
+            # raw turn list, so slice first, then drop system turns.
             turns: list[ConversationTurn] = []
-            questions: list[EvalQuestion] = []
-
-            # Build conversation from shared context
-            ctx_turns = contexts.get(ctx_id, [])
-            # Use end_index from first question to trim context
-            end_idx = max(q.get("end_index_in_shared_context", len(ctx_turns)) for q in q_items)
             actual_idx = 0
-            for turn in ctx_turns[:end_idx]:
-                if isinstance(turn, dict):
-                    role = turn.get("role", "user")
-                    content = turn.get("content", "")
-                    # Skip system messages (persona descriptions)
-                    if role == "system":
-                        continue
-                    turns.append(
-                        ConversationTurn(
-                            role=role,
-                            content=content,
-                            session_id="0",
-                            turn_index=actual_idx,
-                        )
+            for turn in contexts.get(ctx_id, [])[:end_idx]:
+                if not isinstance(turn, dict):
+                    continue
+                role = turn.get("role", "user")
+                if role == "system":
+                    continue
+                turns.append(
+                    ConversationTurn(
+                        role=role,
+                        content=turn.get("content", ""),
+                        session_id=None,
+                        turn_index=actual_idx,
                     )
-                    actual_idx += 1
+                )
+                actual_idx += 1
 
-            # Build questions
+            questions: list[EvalQuestion] = []
             for q_idx, q in enumerate(q_items):
                 q_text = q.get("user_question_or_message", "")
-                correct = q.get("correct_answer", "")
-                # Parse all_options to find the correct answer text
-                options_raw = q.get("all_options", "[]")
-                try:
-                    options = json.loads(options_raw) if isinstance(options_raw, str) else options_raw
-                except json.JSONDecodeError:
-                    options = []
+                if not q_text:
+                    continue
 
-                # Find the correct option text
-                answer_text = correct
+                options = _parse_options(q.get("all_options", "[]"))
+                gold_letter = _option_letter(q.get("correct_answer", ""))
+                if not options or gold_letter is None:
+                    skipped_no_options += 1
+                    continue
+
+                # Gold option text (for reporting / error analysis).
+                answer_text = q.get("correct_answer", "")
                 for opt in options:
-                    if isinstance(opt, str) and opt.startswith(correct):
+                    if _option_letter(opt) == gold_letter:
                         answer_text = opt
                         break
 
-                category = q.get("question_type", "personalization")
-                category = str(category).lower().replace(" ", "_")
-
-                if q_text:
-                    questions.append(
-                        EvalQuestion(
-                            question_id=f"{scenario_id}_q{q_idx}",
-                            question=q_text,
-                            ground_truth=answer_text,
-                            category=category,
-                            metadata={"persona_id": str(q.get("persona_id", "")), "topic": q.get("topic", "")},
-                        )
+                category = str(q.get("question_type", "personalization")).lower().replace(" ", "_")
+                questions.append(
+                    EvalQuestion(
+                        question_id=f"{scenario_id}_q{q_idx}",
+                        question=q_text,
+                        ground_truth=answer_text,
+                        category=category,
+                        metadata={
+                            "options": options,
+                            "answer_letter": gold_letter,
+                            "persona_id": str(q.get("persona_id", "")),
+                            "topic": q.get("topic", ""),
+                            "question_type": category,
+                            "end_index": end_idx,
+                            "distance_to_ref_proportion": q.get(
+                                "distance_to_ref_proportion_in_context", ""
+                            ),
+                        },
                     )
+                )
 
             if turns and questions:
                 scenarios.append(
@@ -181,8 +258,13 @@ class PersonaMemAdapter:
                     )
                 )
 
+        if skipped_no_options:
+            logger.warning(
+                "PersonaMem: skipped %d questions with unparseable options/letter",
+                skipped_no_options,
+            )
         logger.info(
-            "Loaded %d PersonaMem scenarios with %d total questions",
+            "Loaded %d PersonaMem scenarios (one per context×cut-point) with %d total questions",
             len(scenarios),
             sum(len(s.questions) for s in scenarios),
         )

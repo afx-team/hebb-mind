@@ -17,7 +17,7 @@ Pick the metric that matches each dataset's ground truth — don't default to LL
 | ConvoMem | `convomem` | end-to-end **QA** judge | v3 | free-text answers; we deliberately skip the noisy substring metric |
 | ConvoMem (substring) | `convomem-substring` | substring match | v1 | the dataset's own (noisy) metric, for reference |
 | MemBench | `membench` | turn-level **Hit@k** | v1 | ground truth is a turn pointer (`target_step_id`); MCQ → no LLM judge |
-| PersonaMem | `personamem` | end-to-end **QA** judge | — | preference rewrite; no clean retrieval id |
+| PersonaMem | `personamem` | end-to-end **MCQ accuracy** | v1 | 589 q, 4-option (chance 25%); one partition per `(context, end_index)` cut point; exact-match on the chosen letter, **no LLM judge** |
 | MemoryArena | `memoryarena` | — | — | dataset adapter only; not in the runnable set |
 
 `eval_version` is **sticky per methodology** and lives on the benchmark class. Bump it only when the protocol changes (chunking, scoring metric, ingest mirror) — never per run.

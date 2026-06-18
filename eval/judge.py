@@ -71,6 +71,37 @@ _OFFICIAL_READER_PROMPT = (
     "{question}\nAnswer:"
 )
 
+# PersonaMem multiple-choice reader. The model sees the user's latest message,
+# the conversation history retrieved from memory, and the lettered candidate
+# responses, and must return the single best option. Neutral framing (no
+# benchmark-specific hints) so the number reflects retrieval + a generic
+# personalization reader, not prompt tuning. Graded by exact-match on the
+# chosen letter, so it is deterministic (temperature 0).
+_MCQ_PROMPT = """\
+You are a personalized AI assistant. Below is the relevant history of your
+past conversations with this user, retrieved from memory. Each memory is a
+dialogue turn.
+
+Use ONLY this history to decide which candidate response best fits the user —
+their stated preferences, facts they shared, and how those evolved over time.
+If options conflict, prefer the one consistent with the user's MOST RECENT
+stated position.
+
+Conversation history (retrieved from memory):
+{context}
+
+Current date: {current_date}
+
+The user now says:
+{question}
+
+Candidate responses:
+{options}
+
+Choose the single best option. Reply with ONLY its letter in parentheses,
+e.g. "(a)". Do not explain.
+Answer:"""
+
 _JUDGE_PROMPT = """\
 You are evaluating whether a candidate answer is correct given a ground
 truth. Use **semantic equivalence**, never exact string matching. When in
@@ -356,6 +387,38 @@ class LLMJudge:
             [{"role": "user", "content": prompt}],
             temperature=0.2,
             record_label=f"gen-official: {question[:80]}",
+        )
+
+    async def select_choice(
+        self,
+        question: str,
+        retrieved_memories: list[str],
+        options: list[str],
+        question_date: str | None = None,
+    ) -> str:
+        """Pick the best multiple-choice option using retrieved memory only.
+
+        PersonaMem is a multiple-choice benchmark: the model is shown the
+        user's latest message, the relevant conversation history retrieved
+        from memory, and a set of lettered candidate responses, and must
+        return the single best option. The answer is graded by exact-match
+        on the chosen letter, so this reader is deterministic (temperature
+        0) and only the LLM's raw text is returned — the benchmark parses
+        the letter so it owns the scoring rule.
+        """
+        context = "\n---\n".join(retrieved_memories) if retrieved_memories else "(none)"
+        options_block = "\n".join(options)
+        prompt = _MCQ_PROMPT.format(
+            context=context,
+            question=question,
+            options=options_block,
+            current_date=question_date or "not specified",
+        )
+        return await self._complete(
+            [{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=256,
+            record_label=f"mcq: {question[:80]}",
         )
 
     async def judge_correctness(
