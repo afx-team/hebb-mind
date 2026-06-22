@@ -21,7 +21,7 @@ jobs:
       version: ${{ steps.extract.outputs.version }}
       should_publish: ${{ steps.check.outputs.should_publish }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Extract version from pyproject.toml
         id: extract
@@ -58,7 +58,7 @@ jobs:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
       fail-fast: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v6
         with:
@@ -83,7 +83,7 @@ jobs:
     if: needs.check-version.outputs.should_publish == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v6
         with:
@@ -125,7 +125,7 @@ jobs:
     needs: [check-version, publish]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Create git tag
         run: |
