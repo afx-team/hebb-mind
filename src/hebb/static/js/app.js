@@ -4,13 +4,13 @@
 
 import * as api from './api.js';
 import { t, getLang, setLang } from './i18n.js';
-import { renderDashboard } from './components/dashboard.js';
-import { renderMemories } from './components/memories.js';
-import { renderSearch } from './components/search.js';
-import { renderPartitions } from './components/partitions.js';
-import { renderGraph } from './components/graph.js';
+import { runCleanups } from './lifecycle.js';
+import { renderManage } from './components/manage.js';
+import { renderActivate } from './components/activate.js';
+import { renderConsolidate } from './components/consolidate.js';
+import { renderForget } from './components/forget.js';
 import { renderCCMemory } from './components/cc-memory.js';
-import { renderSettings } from './components/settings.js';
+import { renderSystem } from './components/system.js';
 import { mountUpgradeBanner } from './components/upgrade-banner.js';
 
 const content = document.getElementById('page-content');
@@ -21,16 +21,18 @@ const statusDot = document.querySelector('.status-dot');
 const statusText = document.querySelector('.status-text');
 
 const pages = {
-  dashboard: renderDashboard,
-  memories: renderMemories,
-  search: renderSearch,
-  partitions: renderPartitions,
-  graph: renderGraph,
+  manage: renderManage,
+  activate: renderActivate,
+  consolidate: renderConsolidate,
+  forget: renderForget,
   'cc-memory': renderCCMemory,
-  settings: renderSettings,
+  system: renderSystem,
 };
 
+const DEFAULT_PAGE = 'manage';
+
 let currentPage = null;
+let currentSub = null;
 
 /* ---- Navigation ---- */
 function updateNavLabels() {
@@ -41,19 +43,24 @@ function updateNavLabels() {
   });
 }
 
-function navigate(page) {
-  if (!pages[page]) page = 'dashboard';
+function navigate(page, sub) {
+  if (!pages[page]) { page = DEFAULT_PAGE; sub = null; }
   currentPage = page;
+  currentSub = sub || null;
   navItems.forEach(el => {
     el.classList.toggle('active', el.dataset.page === page);
   });
+  // Tear down the outgoing view's timers/observers/renderers before swapping.
+  runCleanups();
   content.innerHTML = '';
-  pages[page](content);
+  pages[page](content, currentSub);
 }
 
 function onHash() {
-  const page = location.hash.replace('#', '') || 'dashboard';
-  navigate(page);
+  // Supports "#page" and "#page/sub" (sub = an in-page tab, e.g. #manage/graph).
+  const raw = location.hash.replace(/^#/, '');
+  const [page, sub] = raw.split('/');
+  navigate(page || DEFAULT_PAGE, sub);
 }
 window.addEventListener('hashchange', onHash);
 
@@ -93,10 +100,11 @@ function applyLang(lang) {
   setLang(lang);
   langLabel.textContent = lang.toUpperCase();
   updateNavLabels();
-  // Re-render current page to apply translations
+  // Re-render current page (and its active sub-tab) to apply translations
   if (currentPage && pages[currentPage]) {
+    runCleanups();
     content.innerHTML = '';
-    pages[currentPage](content);
+    pages[currentPage](content, currentSub);
   }
 }
 

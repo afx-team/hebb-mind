@@ -136,7 +136,7 @@ The model lives under `~/.cache/huggingface/hub/` (or `$HF_HOME` if you set it).
 
 ## Web Console shows nothing
 
-**Symptom.** You open <http://localhost:8321/> and the Memories tab is empty, or the Dashboard reads `0 memories`.
+**Symptom.** You open <http://localhost:8321/> and the Manage → Memories tab is empty, or the Manage overview reads `0 memories`.
 
 **Cause (most common).** The active workspace is empty — you started the server from a different directory than the one that holds your `hebb.db`. Hebb Mind resolves the workspace as:
 

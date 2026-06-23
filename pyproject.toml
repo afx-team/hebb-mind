@@ -4,7 +4,7 @@ name = "hebb-mind"
 # with src/hebb/__init__.py, .release-please-manifest.json, and
 # .claude-plugin/plugin.json. publish.yml ships to PyPI when this version
 # changes on main.
-version = "0.1.8"
+version = "0.2.0"
 description = "Hebb Mind — neuroscience-inspired long-term memory framework for AI agents (neurons that fire together, wire together)"
 readme = "README.md"
 license = {text = "MIT"}

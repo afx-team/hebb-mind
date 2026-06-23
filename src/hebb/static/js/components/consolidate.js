@@ -1,13 +1,38 @@
 /**
- * Dashboard — system stats, partition distribution, memory maintenance.
+ * Consolidate (记忆巩固) — manual trigger + run records + consolidation config.
+ *
+ * Brings together what used to be split between the Dashboard (the "Organize
+ * now" trigger + live run history) and Settings → Lifecycle (the consolidation
+ * tuning knobs). Consolidation runs automatically on a daily cron; this page is
+ * for triggering it on demand, watching a run stream its log, and configuring
+ * how it behaves.
  */
 
 import * as api from '../api.js';
 import { t, getLang } from '../i18n.js';
+import { onCleanup } from '../lifecycle.js';
 import { success, error, info } from './toast.js';
+import { buildGenericSection } from './config-section.js';
 
 let pollTimer = null;
 const logCache = {};
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Built at render time (not module scope) so t() resolves the CURRENT language
+// on every (re)render — a module-level object would freeze the initial language.
+function buildGroupConsolidation() {
+  return {
+    titleKey: 'consolidate.config_title',
+    icon: '&#128260;',
+    keys: ['consolidation_time', 'consolidation_concurrency', 'consolidation_max_tokens', 'consolidation_drain_empty_sources'],
+    hints: {
+      consolidation_drain_empty_sources: t('consolidate.drain_empty_hint'),
+    },
+  };
+}
 
 function fmtTime(iso) {
   try {
@@ -23,31 +48,6 @@ function fmtTime(iso) {
 function fmtEpoch(ts) {
   if (!ts) return '';
   return fmtTime(new Date(ts * 1000).toISOString());
-}
-
-function confirmDialog({ title, body, okLabel, danger = false }) {
-  return new Promise((resolve) => {
-    const overlay = document.getElementById('modal-overlay');
-    overlay.classList.remove('hidden');
-    overlay.innerHTML = `
-      <div class="modal">
-        <h3 class="modal-title">${title}</h3>
-        <p class="text-sm text-muted" style="line-height:1.6;">${body}</p>
-        <div class="modal-actions">
-          <button class="btn" id="cd-cancel">${t('common.cancel')}</button>
-          <button class="btn ${danger ? 'btn-danger' : 'btn-primary'}" id="cd-ok">${okLabel}</button>
-        </div>
-      </div>
-    `;
-    const close = (val) => {
-      overlay.classList.add('hidden');
-      overlay.innerHTML = '';
-      resolve(val);
-    };
-    overlay.querySelector('#cd-cancel').onclick = () => close(false);
-    overlay.querySelector('#cd-ok').onclick = () => close(true);
-    overlay.onclick = (e) => { if (e.target === overlay) close(false); };
-  });
 }
 
 function stopPolling() {
@@ -69,19 +69,18 @@ async function toggleRunLog(runId) {
   }
   row.classList.add('expanded');
   logDiv.classList.remove('hidden');
-  // Don't cache running runs — log is still growing
   const isRunning = row.querySelector('.history-status.running');
   if (!isRunning && logCache[runId] !== undefined) {
-    logDiv.innerHTML = `<pre class="history-log-pre">${logCache[runId] || t('maint.consolidate.log_empty')}</pre>`;
+    logDiv.innerHTML = `<pre class="history-log-pre">${logCache[runId] ? esc(logCache[runId]) : t('maint.consolidate.log_empty')}</pre>`;
     return;
   }
   logDiv.innerHTML = `<pre class="history-log-pre" style="color:var(--text-muted)">${t('common.loading')}</pre>`;
   try {
     const res = await api.getConsolidationLog(runId);
     if (!isRunning) logCache[runId] = res.log;
-    logDiv.innerHTML = `<pre class="history-log-pre">${res.log || t('maint.consolidate.log_empty')}</pre>`;
+    logDiv.innerHTML = `<pre class="history-log-pre">${res.log ? esc(res.log) : t('maint.consolidate.log_empty')}</pre>`;
   } catch {
-    logDiv.innerHTML = `<pre class="history-log-pre" style="color:var(--accent-red)">Failed to load log</pre>`;
+    logDiv.innerHTML = `<pre class="history-log-pre" style="color:var(--accent-red)">${t('consolidate.log_load_failed')}</pre>`;
   }
 }
 
@@ -103,8 +102,10 @@ function renderHistory(runs) {
       : r.status === 'interrupted'
         ? t('maint.consolidate.interrupted')
         : r.status === 'failed'
-          ? (r.errors?.[0]?.error || 'failed')
-          : `${r.succeeded} ok${r.failed ? ', ' + r.failed + ' fail' : ''}`;
+          ? esc(r.errors?.[0]?.error || t('consolidate.result_failed'))
+          : r.failed
+            ? t('consolidate.result_fail', { ok: r.succeeded, fail: r.failed })
+            : t('consolidate.result_ok', { n: r.succeeded });
     return `
       <div class="history-row" data-run-id="${r.run_id}">
         <div class="history-summary">
@@ -148,31 +149,19 @@ async function loadHistory() {
   }
 }
 
-export async function renderDashboard(root) {
+export async function renderConsolidate(root) {
   stopPolling();
+  // Stop the live run poll when this page is unmounted (navigating away while a
+  // consolidation is in progress would otherwise keep the 2s interval running).
+  onCleanup(stopPolling);
 
   root.innerHTML = `
     <div class="page-header">
-      <h1 class="page-title">${t('dashboard.title')}</h1>
-      <p class="page-subtitle">${t('dashboard.subtitle')}</p>
+      <h1 class="page-title">${t('consolidate.title')}</h1>
+      <p class="page-subtitle">${t('consolidate.subtitle')}</p>
     </div>
-    <div class="stats-grid" id="stats-grid">
-      <div class="stat-card"><div class="stat-label">${t('dashboard.total_memories')}</div><div class="stat-value blue" id="st-memories">-</div></div>
-      <div class="stat-card"><div class="stat-label">${t('dashboard.partitions')}</div><div class="stat-value green" id="st-partitions">-</div></div>
-      <div class="stat-card"><div class="stat-label">${t('dashboard.graph_nodes')}</div><div class="stat-value purple" id="st-nodes">-</div></div>
-      <div class="stat-card"><div class="stat-label">${t('dashboard.graph_edges')}</div><div class="stat-value yellow" id="st-edges">-</div></div>
-    </div>
+
     <div class="card mb-4">
-      <div class="flex-between mb-4">
-        <h3 style="font-size:14px;font-weight:600;">${t('dashboard.partition_dist')}</h3>
-      </div>
-      <div class="bar-chart" id="partition-bars"></div>
-    </div>
-    <div class="card">
-      <div class="mb-4">
-        <h3 style="font-size:14px;font-weight:600;">${t('maint.title')}</h3>
-        <p class="text-sm text-muted mt-1">${t('maint.subtitle')}</p>
-      </div>
       <div class="maint-list">
         <div class="maint-card maint-card--expandable">
           <div class="maint-icon">🗂️</div>
@@ -181,53 +170,30 @@ export async function renderDashboard(root) {
             <div class="maint-desc">${t('maint.consolidate.desc')}</div>
             <div class="maint-meta" id="consolidate-meta"></div>
             <div class="maint-note hidden" id="consolidate-note"></div>
-            <div class="consolidation-history">
-              <div class="history-header">${t('maint.consolidate.history')}</div>
-              <div class="history-list" id="history-list">
-                <div class="text-sm text-muted">${t('common.loading')}</div>
-              </div>
-            </div>
           </div>
           <div class="maint-action">
             <button class="btn btn-primary" id="btn-consolidate">${t('maint.consolidate.btn')}</button>
           </div>
         </div>
-        <div class="maint-card">
-          <div class="maint-icon">🧹</div>
-          <div class="maint-body">
-            <div class="maint-title">${t('maint.forget.title')}<span class="maint-term">${t('maint.forget.term')}</span></div>
-            <div class="maint-desc">${t('maint.forget.desc')}</div>
-            <div class="maint-meta" id="forget-meta"></div>
-          </div>
-          <div class="maint-action">
-            <button class="btn" id="btn-forget">${t('maint.forget.btn')}</button>
-          </div>
-        </div>
       </div>
     </div>
+
+    <h2 class="section-heading">${t('consolidate.records_title')}</h2>
+    <div class="card mb-4">
+      <div class="history-list" id="history-list">
+        <div class="text-sm text-muted">${t('common.loading')}</div>
+      </div>
+    </div>
+
+    <h2 class="section-heading">${t('consolidate.config_title')}</h2>
+    <div id="consolidate-config"></div>
   `;
 
   const btnConsolidate = document.getElementById('btn-consolidate');
-  const btnForget = document.getElementById('btn-forget');
 
-  async function loadStats() {
+  async function loadMeta() {
     try {
       const stats = await api.getStats();
-      document.getElementById('st-memories').textContent = stats.total_memories;
-      document.getElementById('st-partitions').textContent = stats.partitions.length;
-      document.getElementById('st-nodes').textContent = stats.graph.tag_count;
-      document.getElementById('st-edges').textContent = stats.graph.edge_count;
-
-      const bars = document.getElementById('partition-bars');
-      const maxCount = Math.max(1, ...stats.partitions.map(p => p.memory_count));
-      bars.innerHTML = stats.partitions.map(p => `
-        <div class="bar-row">
-          <span class="bar-label" title="${p.id}">${p.name}</span>
-          <div class="bar-track"><div class="bar-fill" style="width:${(p.memory_count / maxCount * 100).toFixed(1)}%"></div></div>
-          <span class="bar-value">${p.memory_count}</span>
-        </div>
-      `).join('');
-
       const jobs = stats.scheduler?.jobs || {};
       const hippo = stats.partitions.find(p => p.id === 'mem_hippocampus');
       const pending = hippo ? hippo.memory_count : 0;
@@ -237,14 +203,10 @@ export async function renderDashboard(root) {
       const pendText = pending > 0
         ? t('maint.consolidate.pending', { n: pending })
         : t('maint.consolidate.none_pending');
-      document.getElementById('consolidate-meta').textContent = `${consAuto} · ${pendText}`;
+      const metaEl = document.getElementById('consolidate-meta');
+      if (metaEl) metaEl.textContent = `${consAuto} · ${pendText}`;
       if (!pollTimer) btnConsolidate.disabled = pending === 0;
-
-      const forgetNext = jobs.forgetting_job?.next_run_time;
-      document.getElementById('forget-meta').textContent =
-        forgetNext ? t('maint.auto_next', { time: fmtTime(forgetNext) }) : t('maint.auto_bg');
     } catch (e) {
-      document.getElementById('st-memories').textContent = '!';
       error(e.message);
     }
   }
@@ -254,7 +216,6 @@ export async function renderDashboard(root) {
     btnConsolidate.textContent = t('maint.running');
     stopPolling();
 
-    // Auto-expand the running row's log panel
     requestAnimationFrame(() => {
       const row = document.querySelector(`.history-row[data-run-id="${runId}"]`);
       if (row && !row.classList.contains('expanded')) {
@@ -268,7 +229,6 @@ export async function renderDashboard(root) {
       try {
         const run = await api.getConsolidationRun(runId);
 
-        // Live-stream log into the expanded panel
         const row = document.querySelector(`.history-row[data-run-id="${runId}"]`);
         if (row && row.classList.contains('expanded')) {
           const logDiv = row.querySelector('.history-log');
@@ -279,7 +239,7 @@ export async function renderDashboard(root) {
               const wasAtBottom = pre
                 ? logDiv.scrollTop + logDiv.clientHeight >= logDiv.scrollHeight - 20
                 : true;
-              logDiv.innerHTML = `<pre class="history-log-pre">${res.log || t('maint.consolidate.log_empty')}</pre>`;
+              logDiv.innerHTML = `<pre class="history-log-pre">${res.log ? esc(res.log) : t('maint.consolidate.log_empty')}</pre>`;
               if (wasAtBottom) logDiv.scrollTop = logDiv.scrollHeight;
             } catch { /* ignore log fetch errors during polling */ }
           }
@@ -289,7 +249,7 @@ export async function renderDashboard(root) {
           stopPolling();
           delete logCache[runId];
           if (run.status === 'failed') {
-            error(run.errors?.[0]?.error || 'Consolidation failed');
+            error(run.errors?.[0]?.error || t('consolidate.failed'));
           } else if (!run.processed) {
             info(t('maint.consolidate.nothing'));
           } else if (run.failed > 0) {
@@ -298,7 +258,7 @@ export async function renderDashboard(root) {
             success(t('maint.consolidate.done', { ok: run.succeeded }));
           }
           btnConsolidate.textContent = t('maint.consolidate.btn');
-          await loadStats();
+          await loadMeta();
           await loadHistory();
         }
       } catch {
@@ -309,9 +269,9 @@ export async function renderDashboard(root) {
     }, 2000);
   }
 
-  await Promise.all([loadStats(), loadHistory()]);
+  await Promise.all([loadMeta(), loadHistory()]);
 
-  // Detect in-progress run on page load
+  // Reattach to an in-progress run on load.
   try {
     const res = await api.listConsolidationRuns();
     const running = (res.runs || []).find(r => r.status === 'running');
@@ -332,26 +292,12 @@ export async function renderDashboard(root) {
     }
   };
 
-  btnForget.onclick = async () => {
-    const ok = await confirmDialog({
-      title: t('maint.forget.confirm_title'),
-      body: t('maint.forget.confirm_body'),
-      okLabel: t('maint.forget.confirm_ok'),
-      danger: true,
-    });
-    if (!ok) return;
-    btnForget.disabled = true;
-    btnForget.textContent = t('maint.running');
-    try {
-      const r = await api.triggerForget();
-      if (r.deleted > 0) success(t('maint.forget.done', { n: r.deleted }));
-      else info(t('maint.forget.none'));
-    } catch (e) {
-      error(e.message);
-    } finally {
-      btnForget.textContent = t('maint.forget.btn');
-      btnForget.disabled = false;
-      await loadStats();
-    }
-  };
+  /* Consolidation config */
+  const configRoot = root.querySelector('#consolidate-config');
+  try {
+    const config = await api.getConfig();
+    configRoot.appendChild(buildGenericSection(buildGroupConsolidation(), config));
+  } catch (e) {
+    configRoot.innerHTML = `<div class="empty-state">${e.message}</div>`;
+  }
 }

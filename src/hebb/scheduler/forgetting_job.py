@@ -1,104 +1,192 @@
-"""Forgetting job — computes dynamic TTL and deletes expired memories."""
+"""Forgetting job — retention-score model: compute a memory's retained lifetime
+and delete it once its retention would have decayed below the threshold.
+
+Model (a faithful Ebbinghaus forgetting curve, mirrored client-side in
+``static/js/lib/forgetting-math.js``)::
+
+    eff_half_life = half_life_days · (1 + k_importance·(importance/10) + k_access·(access_count/10))
+    retention(idle_days) = exp(−idle_days / eff_half_life)
+    forget when retention < threshold
+        ⇔ idle_days > eff_half_life · ln(1/threshold)
+
+``importance`` (0–10) and ``access_count`` (uncapped) stretch the half-life
+linearly; idle time since last access decays retention. An ``importance`` of 0
+simply contributes no boost (it is NOT a delete signal). A global floor
+(``min_retention_days``) guards against pathological settings collapsing to
+instant deletion.
+"""
 
 from __future__ import annotations
 
 import math
-from datetime import datetime, timedelta, timezone
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 
+from hebb.config.settings import Settings
+from hebb.constants import PartitionType
 from hebb.models.memory import Memory
 
-# Minimum TTL floor (hours): a memory is never assigned a TTL below this, so a
-# legitimately-stored memory can never collapse to "already expired" and be
-# deleted on the very next sweep. Roughly one day of grace at the low end.
-MIN_TTL_HOURS = 24.0
+# Hard floor (days) on a memory's retained lifetime. Mirrors the default of
+# ``Settings.forget_min_retention_days``; callers pass the configured value.
+DEFAULT_MIN_RETENTION_DAYS = 1.0
 
-# Neutral importance midpoint. ``importance_score`` is in [0, 10]; a score of 0
-# is a valid value (LLM / consolidation / ``MemoryCreate(ge=0.0)`` all permit
-# it) and must NOT be read as "delete me immediately". Treat 0 as the neutral
-# midpoint so the importance weight is 1.0 instead of 0.0.
-NEUTRAL_IMPORTANCE = 5.0
-
-# Grace TTL (hours) for brand-new memories (``access_count == 0``). A memory
-# that has never been recalled still deserves at least one full forgetting
-# interval before it can be deleted, otherwise a low-importance write could be
-# swept before anything ever has a chance to access it.
-NEW_MEMORY_GRACE_HOURS = 168.0
+# Per-region forgetting defaults for the built-in cortical partitions. A field
+# absent here (or a region absent here) falls back to the global ``Settings``
+# value. HIPPOCAMPUS is never swept, so it has no entry.
+REGION_FORGET_DEFAULTS: dict[str, dict[str, float]] = {
+    PartitionType.EPISODIC.value: {"half_life_days": 30.0, "k_importance": 1.0, "k_access": 1.0, "threshold": 0.3},
+    PartitionType.SEMANTIC.value: {"half_life_days": 90.0, "k_importance": 3.0, "k_access": 1.5, "threshold": 0.3},
+    PartitionType.PROCEDURAL.value: {"half_life_days": 90.0, "k_importance": 3.0, "k_access": 1.5, "threshold": 0.3},
+    PartitionType.PREFERENCE.value: {"half_life_days": 180.0, "k_importance": 4.0, "k_access": 1.5, "threshold": 0.3},
+}
 
 
-def compute_ttl_hours(
-    last_accessed_at: datetime,
-    access_count: int,
+def eff_half_life_days(
+    half_life_days: float,
+    k_importance: float,
+    k_access: float,
     importance_score: float,
-    base_ttl_hours: float,
-    decay_factor: float,
-    now: datetime | None = None,
+    access_count: int,
 ) -> float:
-    """Compute the dynamic time-to-live (in hours) for a memory.
+    """Effective half-life (days) for a memory.
 
-    Dynamic TTL formula::
+    The base ``half_life_days`` is stretched linearly by importance and access::
 
-        TTL = base_ttl * (1 + log(access_count)) * (importance / 5.0)
-              * exp(-decay * days_since_access)
-
-    Higher ``access_count`` and ``importance_score`` extend the TTL; more time
-    since the last access shrinks it (exponential decay). The result is clamped
-    to ``MIN_TTL_HOURS`` so a memory can never be assigned a TTL of 0 and be
-    deleted on the next sweep. An ``importance_score`` of 0 is treated as the
-    neutral midpoint (5.0) rather than "expire immediately".
+        eff = half_life_days · (1 + k_importance·(importance/10) + k_access·(access_count/10))
 
     Args:
-        last_accessed_at: Timestamp of the memory's most recent access.
-        access_count: Number of times the memory has been accessed.
-        importance_score: Importance in [0, 10]; 0 is treated as neutral (5.0).
-        base_ttl_hours: Baseline TTL in hours for a neutral memory.
-        decay_factor: Exponential decay rate per day since last access.
-        now: Reference "now"; defaults to the current UTC time.
+        half_life_days: Base half-life in days for a neutral memory.
+        k_importance: Linear weight on normalized importance (importance/10).
+        k_access: Linear weight on normalized access count (access_count/10).
+        importance_score: Importance in [0, 10]; 0 contributes no boost.
+        access_count: Number of times the memory has been accessed (uncapped).
 
     Returns:
-        TTL in hours, never below ``MIN_TTL_HOURS``.
+        The effective half-life in days (>= ``half_life_days``).
     """
-    now = now or datetime.now(timezone.utc)
-    days_since = (now - last_accessed_at).total_seconds() / 86400.0
-    # importance == 0 is a valid neutral value, not a delete signal.
-    effective_importance = importance_score if importance_score > 0 else NEUTRAL_IMPORTANCE
-    importance_weight = effective_importance / 5.0
-    ttl = (
-        base_ttl_hours
-        * (1 + math.log(max(access_count, 1)))
-        * importance_weight
-        * math.exp(-decay_factor * max(days_since, 0))
-    )
-    return max(ttl, MIN_TTL_HOURS)
+    return half_life_days * (1.0 + k_importance * (importance_score / 10.0) + k_access * (access_count / 10.0))
 
 
-def compute_expires_at(memory: Memory, base_ttl_hours: float, decay_factor: float) -> datetime:
-    """Compute the expiration datetime for a memory.
+def retention(eff_half_life_days_value: float, idle_days: float) -> float:
+    """Retention in [0, 1] after ``idle_days`` of inactivity: ``exp(−idle/eff_hl)``."""
+    if eff_half_life_days_value <= 0:
+        return 0.0
+    return math.exp(-max(idle_days, 0.0) / eff_half_life_days_value)
 
-    Brand-new memories (``access_count == 0``) are given a grace TTL of at least
-    ``NEW_MEMORY_GRACE_HOURS`` measured from creation, so a freshly written
-    memory is never deleted within one forgetting interval of being stored.
+
+def forget_idle_days(
+    eff_half_life_days_value: float,
+    threshold: float,
+    min_retention_days: float = DEFAULT_MIN_RETENTION_DAYS,
+) -> float:
+    """Idle days at which retention drops below ``threshold`` (floored).
+
+    ``retention(idle) = threshold`` ⇔ ``idle = eff_half_life · ln(1/threshold)``;
+    the result is floored at ``min_retention_days``.
+    """
+    idle = eff_half_life_days_value * math.log(1.0 / threshold)
+    return max(idle, min_retention_days)
+
+
+def compute_expires_at(
+    memory: Memory,
+    half_life_days: float,
+    k_importance: float,
+    k_access: float,
+    threshold: float,
+    min_retention_days: float = DEFAULT_MIN_RETENTION_DAYS,
+) -> datetime:
+    """Compute the expiration datetime for a memory under the retention model.
+
+    The memory is considered expired once its retention (decaying from its last
+    access) would fall below ``threshold`` — i.e. at
+    ``last_accessed_at + eff_half_life · ln(1/threshold)``, floored at
+    ``min_retention_days``.
 
     Args:
         memory: The memory whose expiry to compute.
-        base_ttl_hours: Baseline TTL in hours for a neutral memory.
-        decay_factor: Exponential decay rate per day since last access.
+        half_life_days: Base half-life in days.
+        k_importance: Linear weight on normalized importance.
+        k_access: Linear weight on normalized access count.
+        threshold: Retention level below which the memory is forgotten, in (0, 1).
+        min_retention_days: Hard floor (days) on the retained lifetime.
 
     Returns:
         The UTC datetime at which the memory should be considered expired.
     """
-    ttl = compute_ttl_hours(
-        last_accessed_at=memory.last_accessed_at,
-        access_count=memory.access_count,
-        importance_score=memory.importance_score,
-        base_ttl_hours=base_ttl_hours,
-        decay_factor=decay_factor,
+    eff = eff_half_life_days(half_life_days, k_importance, k_access, memory.importance_score, memory.access_count)
+    idle = forget_idle_days(eff, threshold, min_retention_days)
+    return memory.last_accessed_at + timedelta(days=idle)
+
+
+@dataclass(frozen=True)
+class EffectiveForgettingParams:
+    """The forgetting parameters in effect for one partition."""
+
+    half_life_days: float
+    k_importance: float
+    k_access: float
+    threshold: float
+    enabled: bool
+
+
+def resolve_forgetting_params(partition_id: str, settings: Settings) -> EffectiveForgettingParams:
+    """Resolve the effective forgetting parameters for a partition.
+
+    Resolution order, per field: per-partition override (in
+    ``settings.forgetting_overrides``) → built-in region default
+    (``REGION_FORGET_DEFAULTS``) → global ``Settings`` value. An override entry
+    with ``enabled=False`` opts the partition out of the sweep entirely.
+
+    This is the single resolution point shared by the scheduled sweep
+    (:meth:`SchedulerManager._run_forgetting`) and the manual ``POST /forget``
+    endpoint so the two can never drift.
+
+    Args:
+        partition_id: The partition whose policy to resolve.
+        settings: Global settings holding the defaults and the overrides map.
+
+    Returns:
+        The resolved half-life, importance/access weights, threshold, and enabled.
+    """
+    override = settings.forgetting_overrides.get(partition_id)
+    region = REGION_FORGET_DEFAULTS.get(partition_id)
+
+    def pick(field: str, global_default: float) -> float:
+        if override is not None:
+            value = getattr(override, field)
+            if value is not None:
+                return float(value)
+        if region is not None and field in region:
+            return region[field]
+        return global_default
+
+    return EffectiveForgettingParams(
+        half_life_days=pick("half_life_days", settings.half_life_days),
+        k_importance=pick("k_importance", settings.k_importance),
+        k_access=pick("k_access", settings.k_access),
+        threshold=pick("threshold", settings.forget_threshold),
+        enabled=override.enabled if override is not None else True,
     )
-    expires_at = memory.last_accessed_at + timedelta(hours=ttl)
 
-    # New, never-accessed memories get a creation-anchored grace window so they
-    # survive at least one forgetting interval after being written.
-    if memory.access_count == 0:
-        grace_expiry = memory.created_at + timedelta(hours=NEW_MEMORY_GRACE_HOURS)
-        expires_at = max(expires_at, grace_expiry)
 
-    return expires_at
+def resolve_inherited_params(partition_id: str, settings: Settings) -> EffectiveForgettingParams:
+    """Region/global defaults for a partition, IGNORING any override.
+
+    Used by the console tuner to show what each field falls back to when its
+    override is cleared (the "inherit" baseline). ``enabled`` is always True.
+    """
+    region = REGION_FORGET_DEFAULTS.get(partition_id)
+
+    def pick(field: str, global_default: float) -> float:
+        if region is not None and field in region:
+            return region[field]
+        return global_default
+
+    return EffectiveForgettingParams(
+        half_life_days=pick("half_life_days", settings.half_life_days),
+        k_importance=pick("k_importance", settings.k_importance),
+        k_access=pick("k_access", settings.k_access),
+        threshold=pick("threshold", settings.forget_threshold),
+        enabled=True,
+    )

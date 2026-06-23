@@ -28,13 +28,12 @@ from hebb.retrieval.scorer import (
 from hebb.retrieval.temporal_boost import parse_query_dates, temporal_boost
 from hebb.storage.base import MemoryStore
 
-# Recency decay base for ``score = decay ** hours``. Mirrors the configured
-# default ``Settings.decay_factor`` (0.693) so the search path's recency is on
-# the same curve the forgetting TTL was tuned against — the previous silent
-# 0.99 baked in a near-flat decay that ignored the configured value entirely.
-# A module constant (not a new Settings field, per INT-8); the searcher has no
-# Settings handle, and recency weight is already tunable per-query via
-# ``weight_recency``.
+# Recency decay base for ``score = decay ** hours`` (0.693 ≈ a 1-day half-life
+# for the recency signal). This is the SEARCH-path recency weighting and is
+# independent of the forgetting model. A module constant (not a Settings field,
+# per INT-8): the searcher has no Settings handle, and recency weight is already
+# tunable per-query via ``weight_recency``. The previous silent 0.99 baked in a
+# near-flat decay.
 _RECENCY_DECAY_FACTOR = 0.693
 
 # Strict-recall floor lives on a MIXED scale after rerank: reranked pool entries

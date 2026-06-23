@@ -25,69 +25,47 @@ from hebb.models.memory import Memory, MemoryCreate
 from hebb.retrieval.searcher import MemorySearcher
 from hebb.scheduler.consolidation_job import run_consolidation
 from hebb.scheduler.forgetting_job import (
-    MIN_TTL_HOURS,
-    NEW_MEMORY_GRACE_HOURS,
+    DEFAULT_MIN_RETENTION_DAYS,
     compute_expires_at,
-    compute_ttl_hours,
+    forget_idle_days,
 )
 
+# Representative parameter set (the global user-partition defaults).
+_PARAMS = dict(half_life_days=60.0, k_importance=2.0, k_access=1.5, threshold=0.3)
+
 
 # --------------------------------------------------------------------------- #
-# Forgetting: TTL floor + neutral importance + new-memory grace (F1 / F2)
+# Forgetting: importance 0 is not a delete signal + retention floor (F1 / F2)
 # --------------------------------------------------------------------------- #
 class TestForgettingSafety:
-    def test_importance_zero_treated_as_neutral_not_zero_ttl(self) -> None:
-        """importance_score == 0 must NOT collapse the TTL to 0."""
-        now = datetime.now(timezone.utc)
-        ttl_zero = compute_ttl_hours(
-            last_accessed_at=now,
-            access_count=5,
-            importance_score=0.0,
-            base_ttl_hours=168.0,
-            decay_factor=0.693,
-            now=now,
-        )
-        ttl_neutral = compute_ttl_hours(
-            last_accessed_at=now,
-            access_count=5,
-            importance_score=5.0,
-            base_ttl_hours=168.0,
-            decay_factor=0.693,
-            now=now,
-        )
-        assert ttl_zero > 0
-        # importance 0 is treated as the neutral midpoint (5.0).
-        assert ttl_zero == pytest.approx(ttl_neutral)
-
-    def test_ttl_never_below_floor(self) -> None:
-        """Even a very old, low-importance memory keeps the minimum TTL floor."""
-        now = datetime.now(timezone.utc)
-        ttl = compute_ttl_hours(
-            last_accessed_at=now - timedelta(days=365),
-            access_count=1,
-            importance_score=1.0,
-            base_ttl_hours=168.0,
-            decay_factor=0.693,
-            now=now,
-        )
-        assert ttl >= MIN_TTL_HOURS
-
-    def test_importance_zero_memory_not_immediately_expired(self) -> None:
-        """An importance-0 memory accessed just now must not already be expired."""
+    def test_importance_zero_not_immediately_expired(self) -> None:
+        """importance_score == 0 adds no boost, but must NOT collapse the lifetime."""
         now = datetime.now(timezone.utc)
         mem = Memory(
             id="imp0",
             content="zero importance fact",
             last_accessed_at=now,
             created_at=now,
-            access_count=3,
+            access_count=5,
             importance_score=0.0,
         )
-        expires = compute_expires_at(mem, base_ttl_hours=168.0, decay_factor=0.693)
+        expires = compute_expires_at(mem, **_PARAMS)
         assert expires > now
 
-    def test_new_memory_has_grace_window(self) -> None:
-        """A brand-new (access_count == 0) memory survives at least the grace TTL."""
+    def test_higher_importance_lives_longer(self) -> None:
+        """importance 0 (no boost) must expire no later than a higher-importance peer."""
+        now = datetime.now(timezone.utc)
+        imp0 = Memory(id="i0", content="x", last_accessed_at=now, created_at=now, access_count=5, importance_score=0.0)
+        imp8 = Memory(id="i8", content="x", last_accessed_at=now, created_at=now, access_count=5, importance_score=8.0)
+        assert compute_expires_at(imp8, **_PARAMS) > compute_expires_at(imp0, **_PARAMS)
+
+    def test_retention_floored_at_min(self) -> None:
+        """A pathological tiny half-life / high threshold can't delete instantly."""
+        idle = forget_idle_days(0.1, 0.95, min_retention_days=DEFAULT_MIN_RETENTION_DAYS)
+        assert idle >= DEFAULT_MIN_RETENTION_DAYS
+
+    def test_fresh_memory_survives_well_past_one_sweep(self) -> None:
+        """A just-written low-value memory still has a long retained lifetime."""
         now = datetime.now(timezone.utc)
         mem = Memory(
             id="fresh",
@@ -95,25 +73,11 @@ class TestForgettingSafety:
             last_accessed_at=now,
             created_at=now,
             access_count=0,
-            importance_score=0.0,  # worst case: zero importance
+            importance_score=0.0,  # worst case: zero importance, never accessed
         )
-        expires = compute_expires_at(mem, base_ttl_hours=168.0, decay_factor=0.693)
-        # Never deleted within one forgetting interval of creation.
-        assert expires >= now + timedelta(hours=NEW_MEMORY_GRACE_HOURS) - timedelta(seconds=1)
-
-    def test_new_memory_not_deleted_next_sweep_even_when_old_timestamp(self) -> None:
-        """Grace is anchored to creation: a fresh-but-stale-clock memory is safe."""
-        now = datetime.now(timezone.utc)
-        mem = Memory(
-            id="fresh2",
-            content="x",
-            last_accessed_at=now,
-            created_at=now,
-            access_count=0,
-            importance_score=2.0,
-        )
-        expires = compute_expires_at(mem, base_ttl_hours=168.0, decay_factor=0.693)
-        assert expires > now
+        expires = compute_expires_at(mem, **_PARAMS)
+        # 60-day half-life, threshold 0.3 → ~72 days; comfortably past a week.
+        assert expires > now + timedelta(days=7)
 
 
 # --------------------------------------------------------------------------- #

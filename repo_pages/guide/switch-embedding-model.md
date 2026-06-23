@@ -59,7 +59,7 @@ hebb memory reembed
 
 ## Path C — Web Console
 
-Open <http://localhost:8321/#settings>, expand **Embedding Configuration**, then:
+Open <http://localhost:8321/#system/embedding> (the **System → Embedding** tab), then:
 
 1. **Pick a preset** from the dropdown (or choose *Custom* and type a model ID).
 2. **Test Embedding** — local models download in the background with a live progress bar; cached models and API providers verify in one round-trip.

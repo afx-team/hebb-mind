@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
@@ -21,7 +22,7 @@ from hebb.constants import PartitionType
 from hebb.embedding.base import EmbeddingProvider
 from hebb.graph.knowledge_graph import KnowledgeGraph
 from hebb.scheduler.consolidation_job import run_consolidation
-from hebb.scheduler.forgetting_job import compute_expires_at
+from hebb.scheduler.forgetting_job import compute_expires_at, resolve_forgetting_params
 from hebb.server.consolidation_tracker import (
     HEARTBEAT_INTERVAL_SECONDS,
     create_run,
@@ -31,6 +32,7 @@ from hebb.server.consolidation_tracker import (
     get_or_create_run,
     heartbeat,
 )
+from hebb.server.forgetting_tracker import record_run as record_forget_run
 from hebb.storage.base import MemoryStore, PartitionStore
 from hebb.storage.purge import purge_memory
 from hebb.upgrade.checker import run_check as run_upgrade_check
@@ -269,8 +271,11 @@ class SchedulerManager:
 
     async def _run_forgetting(self) -> None:
         logger.info("Starting forgetting job")
+        started_at = time.time()
+        scanned = 0
+        partitions_swept = 0
+        total_deleted = 0
         try:
-            total_deleted = 0
             # Accumulate expiry refreshes and deletions across all partitions so
             # we persist them in batches instead of one commit per memory
             # (INT-6 / forgetting F5). Per-memory commits blocked the shared
@@ -282,14 +287,25 @@ class SchedulerManager:
             for partition in partitions:
                 if partition.id == PartitionType.HIPPOCAMPUS.value:
                     continue
+                # Per-partition forgetting policy (config-driven); a disabled
+                # partition is skipped entirely, and the retention params come from
+                # its override or fall back to the region/global defaults.
+                fparams = resolve_forgetting_params(partition.id, self.settings)
+                if not fparams.enabled:
+                    continue
+                partitions_swept += 1
                 memories = await self.memory_store.get_by_partition(partition.id)
+                scanned += len(memories)
                 now = datetime.now(timezone.utc)
 
                 for memory in memories:
                     expires_at = compute_expires_at(
                         memory,
-                        base_ttl_hours=self.settings.base_ttl_hours,
-                        decay_factor=self.settings.decay_factor,
+                        half_life_days=fparams.half_life_days,
+                        k_importance=fparams.k_importance,
+                        k_access=fparams.k_access,
+                        threshold=fparams.threshold,
+                        min_retention_days=self.settings.forget_min_retention_days,
                     )
                     iso = expires_at.isoformat()
                     # Only persist expires_at when it materially changed —
@@ -326,8 +342,24 @@ class SchedulerManager:
                     self.knowledge_graph.save()
 
             logger.info("Forgetting job complete: %d memories deleted", total_deleted)
-        except Exception:
+            record_forget_run(
+                trigger="scheduled",
+                started_at=started_at,
+                scanned=scanned,
+                deleted=total_deleted,
+                partitions_swept=partitions_swept,
+            )
+        except Exception as exc:
             logger.error("Forgetting job failed", exc_info=True)
+            record_forget_run(
+                trigger="scheduled",
+                started_at=started_at,
+                scanned=scanned,
+                deleted=total_deleted,
+                partitions_swept=partitions_swept,
+                status="failed",
+                error=str(exc),
+            )
 
     async def _run_upgrade_check(self) -> None:
         """Check PyPI for a newer release. No-op when ``auto_upgrade_mode == 'off'``."""

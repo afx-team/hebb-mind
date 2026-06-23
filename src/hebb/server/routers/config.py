@@ -57,9 +57,11 @@ class ConfigUpdateRequest(BaseModel):
 # Keys the console may edit without an explicit confirm flag. Excludes the
 # infrastructure / network-binding keys whose change has security or
 # data-location consequences (host/port exposure, workspace relocation, storage
-# backend, DB URL) — those require ConfigUpdateRequest.confirm=True.
+# backend, DB URL) — those require ConfigUpdateRequest.confirm=True. Also excludes
+# ``forgetting_overrides``, a structured nested map edited through its own
+# /api/v1/admin/forgetting router (the scalar key/value PUT cannot represent it).
 CONSOLE_EDITABLE_KEYS = frozenset(Settings.model_fields.keys()) - frozenset(
-    {"host", "port", "home", "storage_type", "pg_url", "home_dir"}
+    {"host", "port", "home", "storage_type", "pg_url", "home_dir", "forgetting_overrides"}
 )
 
 # Keys that may only be changed with an explicit confirm flag.

@@ -100,10 +100,12 @@ curl -X POST http://localhost:8321/api/v1/search \
 
 ## Stage 4: Forget
 
-A periodic forgetting job computes a dynamic TTL for each memory:
+A periodic forgetting job decays each memory's retention from its last access and removes it once retention drops below a threshold:
 
 ```
-TTL = base_ttl * (1 + log(access_count)) * (importance / 5) * exp(-decay_factor * days_since_access)
+eff_half_life  = half_life_days * (1 + k_importance*(importance/10) + k_access*(access_count/10))
+retention(idle) = exp(-idle_days / eff_half_life)
+forget when retention < threshold
 ```
 
 - Frequently accessed memories survive longer

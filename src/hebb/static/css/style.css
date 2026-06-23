@@ -124,6 +124,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: var(-
 .sidebar-toggle:hover { color: var(--text-primary); background: var(--bg-tertiary); }
 
 .sidebar-nav { flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+.sidebar-nav-divider { height: 1px; background: var(--border); margin: 8px 6px; flex-shrink: 0; }
 .nav-item {
   display: flex;
   align-items: center;
@@ -310,6 +311,42 @@ td { padding: 12px; border-bottom: 1px solid var(--border-light); font-size: 13p
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: var(--bg-tertiary); }
 .td-truncate { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* ============================================================
+   Memory cards (Manage → Memories list)
+   A card per memory so the full original text is always visible (wrapped,
+   line breaks preserved) without the rigid-column whitespace of a table.
+   ============================================================ */
+.mem-list { display: flex; flex-direction: column; gap: 10px; }
+.mem-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  transition: border-color var(--transition);
+}
+.mem-card:hover { border-color: var(--text-muted); }
+.mem-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.mem-imp {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; font-family: var(--font-mono); color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.mem-imp-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.mem-card-date {
+  margin-left: auto; font-size: 12px; color: var(--text-muted);
+  font-family: var(--font-mono); white-space: nowrap;
+}
+.mem-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.mem-card-body {
+  font-size: 13.5px; line-height: 1.65; color: var(--text-primary);
+  white-space: pre-wrap; word-break: break-word;
+}
+.mem-card-tags { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 4px; }
+@media (max-width: 640px) {
+  .mem-card-head { flex-wrap: wrap; }
+  .mem-card-date { margin-left: 0; }
+  .mem-card-actions { margin-left: auto; }
+}
 
 /* ============================================================
    Tags
@@ -604,6 +641,43 @@ tr:hover td { background: var(--bg-tertiary); }
 .setting-save { transition: opacity var(--transition); }
 .settings-fields .toggle { flex-shrink: 0; }
 
+/* In-page tab bar (Manage, System) + multi-section page helpers */
+.console-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+.console-tab {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition);
+}
+.console-tab:hover { color: var(--text-primary); }
+.console-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Filter/action row at the top of a Manage tab body */
+.tab-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 16px;
+}
+
+/* Section heading inside Activate / Consolidate / Forget */
+.section-heading {
+  font-size: 12px; font-weight: 600; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin: 28px 0 12px;
+}
+.page-header + .section-heading { margin-top: 0; }
+
 .settings-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -722,4 +796,100 @@ tr:hover td { background: var(--bg-tertiary); }
 @media (max-width: 720px) {
   .cc-layout { flex-direction: column; }
   .cc-files { width: 100%; max-height: 260px; }
+}
+
+/* ------------------------------------------------------------------
+   Forgetting — per-partition retention tuning page
+   ------------------------------------------------------------------ */
+.tag-red { background: rgba(248,81,73,0.15); color: var(--accent-red); }
+
+.fg-row { display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+.fg-globals { font-size: 12px; padding-bottom: 6px; }
+.fg-hint { font-size: 11.5px; margin-top: 4px; line-height: 1.5; }
+
+.fg-control-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 22px;
+}
+.fg-control { display: flex; flex-direction: column; }
+.fg-slider-row { display: flex; align-items: center; gap: 10px; }
+.fg-num { width: 84px; flex: 0 0 auto; padding: 5px 7px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.fg-inherit {
+  font-size: 11.5px; color: var(--text-secondary);
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer; user-select: none;
+}
+.fg-inherit input { accent-color: var(--accent); }
+
+.fg-actions {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border);
+}
+.fg-actions .fg-hint { margin: 0; }
+
+.fg-banner { color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+
+.fg-viz {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 16px;
+}
+.fg-card-title { font-size: 14px; margin: 0 0 4px; color: var(--text-primary); }
+
+.fg-curve { width: 100%; height: auto; display: block; }
+.fg-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; font-size: 11.5px; color: var(--text-secondary); }
+.fg-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.fg-swatch { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
+
+.fg-matrix-wrap { display: flex; align-items: stretch; gap: 6px; }
+.fg-axis-y {
+  writing-mode: vertical-rl; transform: rotate(180deg);
+  font-size: 11px; color: var(--text-muted); text-align: center; padding: 4px 0;
+}
+.fg-axis-x { text-align: center; font-size: 11px; margin-top: 4px; }
+.fg-matrix { width: 100%; border-collapse: collapse; font-size: 11.5px; table-layout: fixed; }
+.fg-matrix th { color: var(--text-muted); font-weight: 500; padding: 3px; text-align: center; }
+.fg-matrix tbody th { text-align: right; padding-right: 8px; }
+.fg-matrix td {
+  /* text color is set inline per-cell (contrast-picked against the heatmap bg) */
+  text-align: center; padding: 7px 2px; font-weight: 600;
+  border: 1px solid var(--bg-primary); border-radius: 3px; font-variant-numeric: tabular-nums;
+}
+
+.fg-impact-headline { font-size: 14px; margin-bottom: 12px; color: var(--text-primary); }
+.fg-impact-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.fg-impact-table th {
+  text-align: left; color: var(--text-muted); font-weight: 500;
+  padding: 6px 8px; border-bottom: 1px solid var(--border);
+}
+.fg-impact-table td { padding: 6px 8px; border-bottom: 1px solid var(--border-light); vertical-align: top; }
+.fg-impact-table td:first-child {
+  max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary);
+}
+.fg-impact-table tr.fg-row-forget td:first-child { color: var(--text-primary); }
+
+/* "How forgetting works" explainer callout */
+.fg-explain {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+.fg-explain-title { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+.fg-explain-body { font-size: 12.5px; line-height: 1.7; color: var(--text-secondary); }
+.fg-explain-body strong { color: var(--text-primary); font-weight: 600; }
+
+/* Matrix color legend: sooner → later gradient + the ∞ swatch */
+.fg-matrix-legend {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 12px; font-size: 11px; color: var(--text-muted);
+}
+.fg-legend-bar { flex: 1; max-width: 150px; height: 8px; border-radius: 4px; }
+.fg-legend-never { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; }
+.fg-legend-never-swatch { width: 14px; height: 8px; border-radius: 2px; display: inline-block; }
+
+@media (max-width: 720px) {
+  .fg-viz { grid-template-columns: 1fr; }
 }
