@@ -152,3 +152,13 @@ module = [
     "sqlite_vec",
 ]
 ignore_missing_imports = true
+
+# numpy >= 2.5 ships PEP 695 `type` statements in its stubs, which mypy rejects
+# under our `python_version = "3.10"` target (a stub-syntax/target mismatch, not
+# our code). Skip following numpy's stubs rather than dropping the 3.10 target or
+# pinning numpy down. numpy is shallowly typed here anyway (disallow_any_generics
+# is off), so this loses no meaningful checking.
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*"]
+follow_imports = "skip"
+follow_imports_for_stubs = true
