@@ -89,8 +89,11 @@ Below is a complete `hebb.json` with all available fields:
   "port": 8321,
   "consolidation_time": "18:00",
   "forget_interval_seconds": 1800,
-  "base_ttl_hours": 168,
-  "decay_factor": 0.693,
+  "half_life_days": 60,
+  "k_importance": 2.0,
+  "k_access": 1.5,
+  "forget_threshold": 0.3,
+  "forget_min_retention_days": 1,
   "weight_recency": 1.0,
   "weight_importance": 1.0,
   "weight_relevance": 1.0
@@ -119,8 +122,11 @@ Below is a complete `hebb.json` with all available fields:
 | `port` | `8321` | Server port |
 | `consolidation_time` | `18:00` | Daily consolidation clock time (`HH:MM`) |
 | `forget_interval_seconds` | `1800` | Forgetting job run interval (seconds) |
-| `base_ttl_hours` | `168` | Base memory TTL before decay (hours, default 7 days) |
-| `decay_factor` | `0.693` | Exponential decay factor for forgetting |
+| `half_life_days` | `60` | Base retention half-life in days (forgetting). Built-in regions override this; see [Dynamic Forgetting](../concepts/forgetting.md). |
+| `k_importance` | `2.0` | How strongly importance extends the half-life (×importance/10) |
+| `k_access` | `1.5` | How strongly access count extends the half-life (×access/10) |
+| `forget_threshold` | `0.3` | Retention level below which a memory is forgotten |
+| `forget_min_retention_days` | `1` | Hard floor (days) on any memory's retained lifetime |
 | `weight_recency` | `1.0` | Weight for recency in search scoring |
 | `weight_importance` | `1.0` | Weight for importance in search scoring |
 | `weight_relevance` | `1.0` | Weight for relevance in search scoring |
@@ -138,7 +144,7 @@ Most fields take effect on the next request. These take effect only after `hebb 
 
 ## Web Console Settings
 
-The Web Console at [http://localhost:8321/](http://localhost:8321/) includes a **Settings** page where you can view and edit all configuration values through a graphical interface. Changes made through the Web Console are saved to `hebb.json` immediately. Fields that require a restart show a `restart required` badge.
+The Web Console at [http://localhost:8321/](http://localhost:8321/) lets you view and edit configuration through a graphical interface. Infrastructure settings (LLM, embedding, storage, server) live on the **System** page; recall, consolidation, and forgetting parameters live on their respective **Activate**, **Consolidate**, and **Forget** pages. Changes are saved to `hebb.json` immediately, and fields that require a restart show a `restart required` badge.
 
 ## Configuration Precedence
 
@@ -185,11 +191,11 @@ hebb config set llm_base_url https://dashscope.aliyuncs.com/compatible-mode/v1
 ### Adjust memory retention
 
 ```bash
-# Memories live longer (14 days base TTL)
-hebb config set base_ttl_hours 336
+# Memories live longer (120-day base half-life)
+hebb config set half_life_days 120
 
-# Slower decay
-hebb config set decay_factor 0.3
+# Forget sooner (raise the retention threshold)
+hebb config set forget_threshold 0.5
 
 # Daily consolidation at 6 PM
 hebb config set consolidation_time 18:00

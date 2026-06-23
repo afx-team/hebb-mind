@@ -40,8 +40,11 @@ curl http://localhost:8321/api/v1/admin/config
   "port": 8321,
   "consolidation_time": "18:00",
   "forget_interval_seconds": 1800,
-  "base_ttl_hours": 168.0,
-  "decay_factor": 0.693,
+  "half_life_days": 60.0,
+  "k_importance": 2.0,
+  "k_access": 1.5,
+  "forget_threshold": 0.3,
+  "forget_min_retention_days": 1.0,
   "weight_recency": 1.0,
   "weight_importance": 1.0,
   "weight_relevance": 1.0

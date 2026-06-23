@@ -59,7 +59,7 @@ hebb memory reembed
 
 ## 路径 C — Web 控制台
 
-打开 <http://localhost:8321/#settings>，展开 **Embedding Configuration**：
+打开 <http://localhost:8321/#system/embedding>（**系统设置 → 嵌入** 标签页）：
 
 1. **挑预设**：下拉框里选已知模型，或选 *Custom* 自己填模型 ID。
 2. **Test Embedding**：本地模型未缓存时会后台下载，进度条实时更新；已缓存或 API 一次请求就返回。

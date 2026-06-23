@@ -223,6 +223,49 @@ def update_config_field(key: str, value: str, config_path: Path | None = None) -
     return path, validated
 
 
+def update_forgetting_overrides(
+    overrides: dict[str, dict[str, Any]], config_path: Path | None = None
+) -> tuple[Path, dict[str, Any]]:
+    """Atomically replace the ``forgetting_overrides`` map in hebb.json.
+
+    This is the structured-config counterpart to :func:`update_config_field`
+    (which only handles scalar key/value edits): the forgetting overrides are a
+    nested ``{partition_id: {half_life_days, k_importance, k_access, threshold, enabled}}`` map, so the
+    whole map is written under the same cross-process lock and atomic temp-file +
+    ``os.replace`` as the scalar writer. The map is validated through ``Settings``
+    before being persisted, so a malformed override is rejected rather than saved.
+
+    Args:
+        overrides: The complete desired overrides map (partition id -> override
+            fields). Pass an empty dict to clear all overrides.
+        config_path: Explicit hebb.json path, or ``None`` to auto-discover.
+
+    Returns:
+        ``(path, validated_overrides)`` — the config file path and the map after
+        Pydantic validation, so callers can sync a live Settings instance.
+
+    Raises:
+        FileNotFoundError: If the config file does not exist.
+    """
+    path = config_path or find_config_file() or Path("hebb.json")
+    if not path.exists():
+        raise FileNotFoundError(f"Config file not found: {path}")
+
+    with _ConfigLock(path):
+        with open(path) as f:
+            data = json.load(f)
+
+        data["forgetting_overrides"] = overrides
+        # Validate the whole map through Settings (rejects malformed overrides)
+        # and write back the normalized form.
+        settings = Settings(**{k: v for k, v in data.items() if k in Settings.model_fields})
+        validated = settings.model_dump()["forgetting_overrides"]
+        data["forgetting_overrides"] = validated
+
+        _atomic_write_json(path, data)
+    return path, validated
+
+
 def _coerce_value(value: str, annotation: type | None) -> str | int | float | bool | None:
     """Coerce a string value to the appropriate Python type."""
     if value.lower() == "null" or value.lower() == "none":

@@ -5,6 +5,7 @@
 
 import * as api from '../api.js';
 import { t } from '../i18n.js';
+import { onCleanup } from '../lifecycle.js';
 import { error } from './toast.js';
 
 let renderer = null;
@@ -51,16 +52,14 @@ export async function renderGraph(root) {
   if (fa2Interval) { clearInterval(fa2Interval); fa2Interval = null; }
 
   root.innerHTML = `
-    <div class="page-header">
-      <h1 class="page-title">${t('graph.title')}</h1>
-      <p class="page-subtitle">${t('graph.subtitle')}</p>
+    <div class="tab-toolbar">
+      <div class="flex gap-4" style="align-items:center;">
+        <input class="form-input" id="graph-search" placeholder="${t('graph.search_placeholder')}" style="max-width:300px">
+        <button class="btn btn-sm" id="graph-layout-toggle">${t('graph.pause_layout')}</button>
+        <span id="graph-stats" class="text-muted text-sm"></span>
+      </div>
     </div>
-    <div class="flex gap-4 mb-4" style="align-items:center;">
-      <input class="form-input" id="graph-search" placeholder="${t('graph.search_placeholder')}" style="max-width:300px">
-      <button class="btn btn-sm" id="graph-layout-toggle">${t('graph.pause_layout')}</button>
-      <span id="graph-stats" class="text-muted text-sm"></span>
-    </div>
-    <div style="display:flex;gap:16px;height:calc(100vh - 200px);min-height:400px;">
+    <div style="display:flex;gap:16px;height:calc(100vh - 300px);min-height:400px;">
       <div class="graph-container" id="graph-container" style="flex:1;min-width:0;height:100%;"></div>
       <div id="graph-panel" class="hidden" style="width:320px;flex-shrink:0;height:100%;overflow-y:auto;"></div>
     </div>
@@ -81,7 +80,7 @@ export async function renderGraph(root) {
       return;
     }
   } catch (e) {
-    error('Failed to load graph: ' + e.message);
+    error(t('graph.load_failed', { msg: e.message }));
     return;
   }
 
@@ -124,7 +123,7 @@ export async function renderGraph(root) {
     }
   }
 
-  statsEl.textContent = `${graph.order} nodes, ${graph.size} edges`;
+  statsEl.textContent = t('graph.stats', { nodes: graph.order, edges: graph.size });
 
   /* Renderer */
   renderer = new Sigma(graph, container, {
@@ -271,7 +270,7 @@ export async function renderGraph(root) {
           <button class="btn btn-sm" id="panel-close" style="padding:2px 8px;font-size:16px;line-height:1;">&times;</button>
         </div>
         <div style="flex-shrink:0;margin-bottom:12px;">
-          <span class="text-muted text-sm">${memCount} memories</span>
+          <span class="text-muted text-sm">${t('graph.mem_count', { n: memCount })}</span>
           ${neighbors.length ? `<div class="text-muted text-sm" style="margin-top:4px;">${t('graph.neighbors')} ${neighbors.slice(0, 8).map(n => `<span class="tag">${esc(n)}</span>`).join(' ')}${neighbors.length > 8 ? ` +${neighbors.length - 8}` : ''}</div>` : ''}
         </div>
         <div id="panel-memories" style="flex:1;overflow-y:auto;font-size:13px;min-height:0;">
@@ -287,7 +286,7 @@ export async function renderGraph(root) {
     try {
       const memIds = nodeMemoryIds[node] || [];
       if (!memIds.length) {
-        memoriesEl.innerHTML = '<div class="text-muted">No linked memories.</div>';
+        memoriesEl.innerHTML = `<div class="text-muted">${t('graph.no_linked_memories')}</div>`;
         return;
       }
 
@@ -296,7 +295,7 @@ export async function renderGraph(root) {
       const memories = (await Promise.all(fetches)).filter(Boolean);
 
       if (!memories.length) {
-        memoriesEl.innerHTML = '<div class="text-muted">Memories not found (may have been deleted).</div>';
+        memoriesEl.innerHTML = `<div class="text-muted">${t('graph.memories_not_found')}</div>`;
         return;
       }
 
@@ -312,10 +311,10 @@ export async function renderGraph(root) {
       `).join('');
 
       if (memIds.length > 20) {
-        memoriesEl.innerHTML += `<div class="text-muted" style="padding:8px 0;">+${memIds.length - 20} more</div>`;
+        memoriesEl.innerHTML += `<div class="text-muted" style="padding:8px 0;">${t('graph.more_memories', { n: memIds.length - 20 })}</div>`;
       }
     } catch (e) {
-      memoriesEl.innerHTML = `<div style="color:var(--accent-red);">Failed to load: ${esc(e.message)}</div>`;
+      memoriesEl.innerHTML = `<div style="color:var(--accent-red);">${esc(t('graph.panel_load_failed', { msg: e.message }))}</div>`;
     }
   });
 
@@ -384,6 +383,15 @@ export async function renderGraph(root) {
     if (selectedNode) clearSelection();
   });
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  // Tear down on unmount (tab switch / navigation): the theme observer would
+  // otherwise accumulate one live instance per visit, and the WebGL renderer +
+  // ForceAtlas2 interval would keep running against a detached container.
+  onCleanup(() => {
+    observer.disconnect();
+    if (renderer) { renderer.kill(); renderer = null; }
+    if (fa2Interval) { clearInterval(fa2Interval); fa2Interval = null; }
+  });
 }
 
 function esc(s) {

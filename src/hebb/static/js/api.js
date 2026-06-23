@@ -75,6 +75,13 @@ export const getTestEmbeddingStatus = (task_id) => request('GET', `/api/v1/admin
 export const getEmbeddingStatus = () => request('GET', '/api/v1/admin/config/embedding-status');
 export const revealConfigValue = (key) => request('GET', `/api/v1/admin/config/reveal/${key}`);
 
+/* Forgetting (per-partition forgetting policy + non-destructive preview) */
+export const getForgettingConfig = () => request('GET', '/api/v1/admin/forgetting');
+export const listForgettingRuns = () => request('GET', '/api/v1/admin/forgetting/runs');
+export const setForgettingOverride = (id, params) => request('PUT', `/api/v1/admin/forgetting/${id}`, params);
+export const clearForgettingOverride = (id) => request('DELETE', `/api/v1/admin/forgetting/${id}`);
+export const previewForgetting = (id, params) => request('POST', `/api/v1/admin/forgetting/${id}/preview`, params);
+
 /* Upgrade */
 export const getUpgradeState = () => request('GET', '/api/v1/admin/upgrade');
 export const forceUpgradeCheck = () => request('POST', '/api/v1/admin/upgrade/check');

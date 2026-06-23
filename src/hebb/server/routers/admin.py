@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -14,7 +15,7 @@ from hebb.constants import PartitionType
 from hebb.embedding.base import EmbeddingProvider
 from hebb.graph.knowledge_graph import KnowledgeGraph
 from hebb.scheduler.consolidation_job import run_consolidation
-from hebb.scheduler.forgetting_job import compute_expires_at
+from hebb.scheduler.forgetting_job import compute_expires_at, resolve_forgetting_params
 from hebb.scheduler.manager import SchedulerManager
 from hebb.server.consolidation_tracker import (
     get_run,
@@ -29,6 +30,7 @@ from hebb.server.dependencies import (
     get_scheduler,
     get_settings,
 )
+from hebb.server.forgetting_tracker import record_run as record_forget_run
 from hebb.storage.base import MemoryStore, PartitionStore
 from hebb.storage.purge import purge_memory
 
@@ -147,33 +149,67 @@ async def trigger_forgetting(
     Args:
         memory_store: Backing memory store.
         kg: Knowledge graph kept in sync via :func:`purge_memory`.
-        settings: TTL parameters (base_ttl_hours, decay_factor).
+        settings: Retention-model forgetting parameters + per-partition overrides.
         partition_store: Source of the partition list to iterate.
 
     Returns:
         ``{"deleted": <count>}`` — number of memories purged.
     """
+    started_at = time.time()
     now = datetime.now(timezone.utc)
     deleted = 0
-    partitions = await partition_store.list()
-    for partition in partitions:
-        if partition.id == PartitionType.HIPPOCAMPUS.value:
-            continue
-        memories = await memory_store.get_by_partition(partition.id)
-        for memory in memories:
-            # Recompute expiry from current access state so strengthened
-            # (recently recalled) memories survive, then persist for visibility.
-            expires_at = compute_expires_at(
-                memory,
-                base_ttl_hours=settings.base_ttl_hours,
-                decay_factor=settings.decay_factor,
-            )
-            await memory_store.update_expiry(memory.id, expires_at.isoformat())
-            if expires_at < now:
-                await purge_memory(memory_store, kg, memory.id, save=False)
-                deleted += 1
-    if deleted > 0:
-        kg.save()
+    scanned = 0
+    partitions_swept = 0
+    try:
+        partitions = await partition_store.list()
+        for partition in partitions:
+            if partition.id == PartitionType.HIPPOCAMPUS.value:
+                continue
+            # Honor the per-partition forgetting policy, exactly like the scheduled
+            # sweep — a disabled partition is left untouched.
+            fparams = resolve_forgetting_params(partition.id, settings)
+            if not fparams.enabled:
+                continue
+            partitions_swept += 1
+            memories = await memory_store.get_by_partition(partition.id)
+            scanned += len(memories)
+            for memory in memories:
+                # Recompute expiry from current access state so strengthened
+                # (recently recalled) memories survive, then persist for visibility.
+                expires_at = compute_expires_at(
+                    memory,
+                    half_life_days=fparams.half_life_days,
+                    k_importance=fparams.k_importance,
+                    k_access=fparams.k_access,
+                    threshold=fparams.threshold,
+                    min_retention_days=settings.forget_min_retention_days,
+                )
+                await memory_store.update_expiry(memory.id, expires_at.isoformat())
+                if expires_at < now:
+                    await purge_memory(memory_store, kg, memory.id, save=False)
+                    deleted += 1
+        if deleted > 0:
+            kg.save()
+    except Exception as exc:
+        # Record the failed sweep (mirrors the scheduled job) before surfacing
+        # the error, so a manual run that errors mid-way still leaves a record.
+        record_forget_run(
+            trigger="manual",
+            started_at=started_at,
+            scanned=scanned,
+            deleted=deleted,
+            partitions_swept=partitions_swept,
+            status="failed",
+            error=str(exc),
+        )
+        raise
+    record_forget_run(
+        trigger="manual",
+        started_at=started_at,
+        scanned=scanned,
+        deleted=deleted,
+        partitions_swept=partitions_swept,
+    )
     return {"deleted": deleted}
 
 

@@ -13,6 +13,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      3. Merge to main — publish.yml ships to PyPI on the pyproject.toml change
         and tags the release. -->
 
+## [0.2.0] - 2026-06-23
+
+### Added
+
+- **Web console restructure**: the console is reorganized around the four memory
+  lifecycle stages — **Manage** (memories / partitions / graph as in-page tabs,
+  with overview stats), **Activate** (recall test + retrieval parameters),
+  **Consolidate** (trigger + run records + config), and **Forget** (trigger +
+  records + global defaults + per-partition tuner) — plus a **System** page for
+  infrastructure config (LLM / embedding / storage / server) and the existing
+  CC-memory page. Unified design language, deep-linkable tabs (`#page/sub`), and a
+  `lifecycle.js` teardown registry that tears down timers/observers on navigation.
+- **Forgetting run tracking**: each forgetting sweep (scheduled or manual) is
+  recorded with scanned / deleted / partitions-swept counts and surfaced as a
+  records panel on the Forget page.
+
+### Changed
+
+- **Forgetting now uses a retention-score model** (a true Ebbinghaus curve)
+  instead of the previous dynamic-TTL crossover. Each memory has a retention that
+  decays from its last access — `retention(idle) = exp(-idle / eff_half_life)`,
+  where `eff_half_life = half_life_days · (1 + k_importance·(importance/10) +
+  k_access·(access_count/10))` — and is forgotten once retention drops below
+  `threshold`. This is monotonic in importance and access (the old model could
+  forget a once-accessed memory *sooner* than a never-accessed one) and uses
+  long-term defaults (30–180 day half-lives per cortical region) instead of the
+  old day-scale TTLs.
+- **BREAKING (config)**: the global `base_ttl_hours` / `decay_factor` settings and
+  the per-partition override fields of the same name are **removed**, replaced by
+  `half_life_days`, `k_importance`, `k_access`, `forget_threshold`, and
+  `forget_min_retention_days` (global) plus `half_life_days` / `k_importance` /
+  `k_access` / `threshold` (per-partition override). Legacy keys in `hebb.json` are
+  ignored; per-partition overrides fall back to the region/global defaults — re-tune
+  in the console's **Forgetting** page if you had custom retention policies.
+- **Console — Forgetting page** reworked for the new model: a retention decay curve
+  with a threshold line, a contrast-fixed importance×access matrix (access axis now
+  0–100), a "how forgetting works" explainer, and the working-memory inbox hidden
+  from the partition picker (it is never swept).
+
 ## [0.1.8] - 2026-06-09
 
 ### Added

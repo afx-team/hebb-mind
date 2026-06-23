@@ -10,6 +10,8 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
+from starlette.types import Scope
 
 from hebb import __version__
 from hebb.config.loader import load_settings
@@ -22,6 +24,24 @@ from hebb.server.auth import AntiCsrfMiddleware
 from hebb.storage.factory import create_stores
 
 logger = logging.getLogger(__name__)
+
+
+class NoCacheStaticFiles(StaticFiles):
+    """StaticFiles that asks browsers to revalidate before reusing a cached asset.
+
+    The console is a module-graph SPA: ``app.js`` statically imports component
+    modules by path. If a browser keeps a stale ``app.js`` after an upgrade, it
+    can try to import a module the new build deleted — the import 404s and the
+    whole console fails to boot (buttons render but never wire up). Sending
+    ``Cache-Control: no-cache`` forces a conditional revalidation on every load,
+    so an upgraded build is always picked up (304 when unchanged — negligible
+    cost on a localhost console).
+    """
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
 
 
 @asynccontextmanager
@@ -93,8 +113,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # ``interrupted``; a non-zero count means a run did not finish.
     from hebb.constants import PartitionType
     from hebb.server.consolidation_tracker import init_tracker
+    from hebb.server.forgetting_tracker import init_forgetting_tracker
 
     interrupted = init_tracker(Path(settings.home_dir) / "logs" / "consolidation")
+    # Forgetting run history (records for the console's 记忆遗忘 page).
+    init_forgetting_tracker(Path(settings.home_dir) / "logs" / "forgetting")
 
     # Resume an interrupted run: if there are still working memories waiting and
     # an LLM is configured, schedule a catch-up so the inbox is consolidated on
@@ -170,6 +193,7 @@ def create_app() -> FastAPI:
         admin,
         claude_memory,
         config,
+        forgetting,
         graph,
         health,
         memories,
@@ -186,12 +210,18 @@ def create_app() -> FastAPI:
     app.include_router(claude_memory.router, prefix="/api/v1/claude-memory", tags=["claude-memory"])
     app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
     app.include_router(config.router, prefix="/api/v1/admin", tags=["config"])
+    app.include_router(forgetting.router, prefix="/api/v1/admin", tags=["forgetting"])
     app.include_router(upgrade.router, prefix="/api/v1/admin/upgrade", tags=["upgrade"])
 
-    # Mount static web console (after API routers so they take precedence)
+    # Mount static web console (after API routers so they take precedence).
+    # Served with ``Cache-Control: no-cache`` so the browser always revalidates:
+    # an upgrade must never leave a stale ``app.js`` cached that still imports
+    # modules a newer build has removed (the cached module graph 404s and the
+    # SPA fails to boot). Revalidation is a cheap conditional request on the
+    # local console and returns 304 when nothing changed.
     static_dir = Path(__file__).resolve().parent.parent / "static"
     if static_dir.is_dir():
-        app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
+        app.mount("/", NoCacheStaticFiles(directory=str(static_dir), html=True), name="static")
 
     return app
 

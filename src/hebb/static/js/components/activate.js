@@ -1,22 +1,79 @@
 /**
- * Search — semantic memory search with weight tuning.
+ * Activate (记忆激活) — recall test + recall parameters in one page.
+ *
+ * Top: a live search ("activation test") with per-query weight sliders and
+ * scored results, exactly like the old Search page. Below: the global recall
+ * parameters that used to live under Settings → Retrieval — the recall pipeline
+ * toggles, the cross-encoder rerank, and the default scoring weights — so you
+ * can test recall and tune the knobs that shape it without leaving the page.
  */
 
 import * as api from '../api.js';
 import { t } from '../i18n.js';
 import { error } from './toast.js';
+import { buildGenericSection } from './config-section.js';
 
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 function truncate(s, n = 200) { return s.length > n ? s.slice(0, n) + '...' : s; }
 
-export async function renderSearch(root) {
+/* --- Recall-parameter config groups (moved from Settings → Retrieval) ---
+ *
+ * Built at RENDER time (not at module load) so t() resolves the CURRENT
+ * language on every (re)render — module-level t() would freeze the initial
+ * language for these display strings.
+ */
+function groupRecall() {
+  return {
+    titleKey: 'settings.group.recall',
+    icon: '&#128269;',
+    keys: ['keyword_search_enabled', 'graph_search_enabled', 'lexical_boost_enabled', 'temporal_boost_enabled', 'graph_expansion_enabled', 'recall_min_score'],
+    hints: {
+      keyword_search_enabled: t('recall.hint.keyword_search_enabled'),
+      graph_search_enabled: t('recall.hint.graph_search_enabled'),
+      lexical_boost_enabled: t('recall.hint.lexical_boost_enabled'),
+      temporal_boost_enabled: t('recall.hint.temporal_boost_enabled'),
+      graph_expansion_enabled: t('recall.hint.graph_expansion_enabled'),
+      recall_min_score: t('recall.hint.recall_min_score'),
+    },
+  };
+}
+function groupRerank() {
+  return {
+    titleKey: 'settings.group.rerank',
+    icon: '&#127919;',
+    keys: ['rerank_enabled', 'rerank_provider', 'rerank_model', 'rerank_top_n'],
+    hints: {
+      rerank_enabled: t('recall.hint.rerank_enabled'),
+      rerank_provider: t('recall.hint.rerank_provider'),
+      rerank_model: t('recall.hint.rerank_model'),
+      rerank_top_n: t('recall.hint.rerank_top_n'),
+    },
+  };
+}
+function groupWeights() {
+  return {
+    titleKey: 'settings.group.weights',
+    icon: '&#9878;',
+    note: t('recall.note_weights'),
+    keys: ['weight_recency', 'weight_importance', 'weight_relevance'],
+    hints: {
+      weight_recency: t('recall.hint.weight_recency'),
+      weight_importance: t('recall.hint.weight_importance'),
+      weight_relevance: t('recall.hint.weight_relevance'),
+    },
+  };
+}
+
+export async function renderActivate(root) {
   root.innerHTML = `
     <div class="page-header">
-      <h1 class="page-title">${t('search.title')}</h1>
-      <p class="page-subtitle">${t('search.subtitle')}</p>
+      <h1 class="page-title">${t('activate.title')}</h1>
+      <p class="page-subtitle">${t('activate.subtitle')}</p>
     </div>
+
+    <h2 class="section-heading">${t('activate.test_title')}</h2>
     <div class="search-bar">
       <input class="form-input" id="search-input" placeholder="${t('search.placeholder')}" autofocus>
       <button class="btn btn-primary" id="btn-search">${t('search.button')}</button>
@@ -41,7 +98,10 @@ export async function renderSearch(root) {
         </div>
       </div>
     </div>
-    <div id="search-results"></div>
+    <div id="search-results" class="mb-4"></div>
+
+    <h2 class="section-heading">${t('activate.params_title')}</h2>
+    <div id="activate-params"></div>
   `;
 
   /* Wire sliders */
@@ -55,7 +115,7 @@ export async function renderSearch(root) {
     const query = root.querySelector('#search-input').value.trim();
     if (!query) return;
     const results = root.querySelector('#search-results');
-    results.innerHTML = '<div class="text-muted" style="padding:20px;text-align:center">Searching...</div>';
+    results.innerHTML = `<div class="text-muted" style="padding:20px;text-align:center">${t('common.loading')}</div>`;
     try {
       const resp = await api.searchMemories({
         query,
@@ -64,7 +124,7 @@ export async function renderSearch(root) {
         weight_importance: parseFloat(root.querySelector('#w-imp').value),
         weight_recency: parseFloat(root.querySelector('#w-rec').value),
       });
-      const data = resp.results || resp; // support both SearchResponse and legacy list
+      const data = resp.results || resp;
       if (!data.length) {
         results.innerHTML = `<div class="empty-state">${t('search.no_results')}</div>`;
         return;
@@ -95,7 +155,6 @@ export async function renderSearch(root) {
           </div>
         </div>
       `).join('');
-      // Related memories from graph expansion
       const related = resp.related || [];
       if (related.length) {
         html += `
@@ -123,4 +182,15 @@ export async function renderSearch(root) {
 
   root.querySelector('#btn-search').onclick = doSearch;
   root.querySelector('#search-input').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+  /* Recall parameters (global config) */
+  const paramsRoot = root.querySelector('#activate-params');
+  try {
+    const config = await api.getConfig();
+    paramsRoot.appendChild(buildGenericSection(groupRecall(), config));
+    paramsRoot.appendChild(buildGenericSection(groupRerank(), config));
+    paramsRoot.appendChild(buildGenericSection(groupWeights(), config));
+  } catch (e) {
+    paramsRoot.innerHTML = `<div class="empty-state">${esc(e.message)}</div>`;
+  }
 }

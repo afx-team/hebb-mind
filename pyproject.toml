@@ -4,7 +4,7 @@ name = "hebb-mind"
 # with src/hebb/__init__.py, .release-please-manifest.json, and
 # .claude-plugin/plugin.json. publish.yml ships to PyPI when this version
 # changes on main.
-version = "0.1.8"
+version = "0.2.0"
 description = "Hebb Mind — neuroscience-inspired long-term memory framework for AI agents (neurons that fire together, wire together)"
 readme = "README.md"
 license = {text = "MIT"}
@@ -152,3 +152,13 @@ module = [
     "sqlite_vec",
 ]
 ignore_missing_imports = true
+
+# numpy >= 2.5 ships PEP 695 `type` statements in its stubs, which mypy rejects
+# under our `python_version = "3.10"` target (a stub-syntax/target mismatch, not
+# our code). Skip following numpy's stubs rather than dropping the 3.10 target or
+# pinning numpy down. numpy is shallowly typed here anyway (disallow_any_generics
+# is off), so this loses no meaningful checking.
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*"]
+follow_imports = "skip"
+follow_imports_for_stubs = true

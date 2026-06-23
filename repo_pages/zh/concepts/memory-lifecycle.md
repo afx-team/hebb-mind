@@ -85,7 +85,7 @@ curl -X POST http://localhost:8321/api/v1/search \
 
 ## 阶段四：遗忘
 
-遗忘任务按照 `forget_interval_seconds` 设定的间隔定期执行（默认 30 分钟），计算每条记忆的动态 TTL，清理过期记忆：
+遗忘任务按照 `forget_interval_seconds` 设定的间隔定期执行（默认 30 分钟），按留存曲线衰减每条记忆，清理留存率跌破阈值的记忆：
 
 ```bash
 curl -X POST http://localhost:8321/api/v1/admin/forget

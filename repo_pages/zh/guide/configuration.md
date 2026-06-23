@@ -55,8 +55,11 @@ hebb model status
 | `port` | number | `8321` | 服务监听端口 |
 | `consolidation_time` | string | `"18:00"` | 每日巩固时间（`HH:MM`） |
 | `forget_interval_seconds` | number | `1800` | 遗忘任务执行间隔（秒） |
-| `base_ttl_hours` | number | `168.0` | 记忆基础存活时间（小时），即 7 天 |
-| `decay_factor` | number | `0.693` | 遗忘衰减因子 |
+| `half_life_days` | number | `60` | 遗忘的基础留存半衰期（天）。内置分区会各自覆盖，详见[动态遗忘](../concepts/forgetting.md)。 |
+| `k_importance` | number | `2.0` | 重要度对半衰期的拉长强度（×重要度/10） |
+| `k_access` | number | `1.5` | 访问次数对半衰期的拉长强度（×访问次数/10） |
+| `forget_threshold` | number | `0.3` | 留存率低于此值即被遗忘 |
+| `forget_min_retention_days` | number | `1` | 任何记忆留存寿命的硬下限（天） |
 | `weight_recency` | number | `1.0` | 检索时"时效性"权重 |
 | `weight_importance` | number | `1.0` | 检索时"重要性"权重 |
 | `weight_relevance` | number | `1.0` | 检索时"相关性"权重 |
@@ -79,8 +82,11 @@ hebb model status
   "port": 8321,
   "consolidation_time": "18:00",
   "forget_interval_seconds": 1800,
-  "base_ttl_hours": 168.0,
-  "decay_factor": 0.693,
+  "half_life_days": 60,
+  "k_importance": 2.0,
+  "k_access": 1.5,
+  "forget_threshold": 0.3,
+  "forget_min_retention_days": 1,
   "weight_recency": 1.0,
   "weight_importance": 1.0,
   "weight_relevance": 1.0
@@ -110,7 +116,7 @@ hebb config set home /data/hebb
 
 ## Web 控制台配置
 
-启动服务后，打开 `http://localhost:8321/` 进入 Web 控制台，在 **Settings** 页面也可以可视化编辑配置。修改后会自动写入 `hebb.json`。
+启动服务后，打开 `http://localhost:8321/` 进入 Web 控制台。基础设施配置（LLM、嵌入、存储、服务）在 **系统设置（System）** 页面，召回、巩固、遗忘参数分别在对应的 **记忆激活 / 记忆巩固 / 记忆遗忘** 页面，均可可视化编辑，修改后会自动写入 `hebb.json`。
 
 ::: tip
 部分配置修改后需要重启服务才能生效，包括：`storage_type`、`home`、`pg_url`、`embedding_enabled`、`embedding_model`、`embedding_dim`、`hf_endpoint`、`host`、`port`。

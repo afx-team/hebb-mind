@@ -1,119 +1,59 @@
-"""Tests for forgetting mechanism."""
+"""Tests for the retention-score forgetting formula."""
 
-from datetime import datetime, timedelta, timezone
+from __future__ import annotations
+
+import math
 
 import pytest
 
-from hebb.scheduler.forgetting_job import compute_ttl_hours
+from hebb.scheduler.forgetting_job import (
+    DEFAULT_MIN_RETENTION_DAYS,
+    eff_half_life_days,
+    forget_idle_days,
+    retention,
+)
 
 
 class TestForgettingFormula:
-    def test_baseline_ttl(self):
-        now = datetime.now(timezone.utc)
-        ttl = compute_ttl_hours(
-            last_accessed_at=now,
-            access_count=1,
-            importance_score=5.0,
-            base_ttl_hours=168.0,
-            decay_factor=0.693,
-            now=now,
-        )
-        # With access_count=1, importance=5, just accessed: TTL = 168 * 1 * 1 * 1 = 168
-        assert ttl == pytest.approx(168.0, rel=0.01)
+    def test_eff_half_life_baseline(self):
+        # Neutral memory (importance 0, access 0) → just the base half-life.
+        assert eff_half_life_days(60.0, 2.0, 1.5, 0.0, 0) == pytest.approx(60.0)
 
-    def test_high_access_extends_ttl(self):
-        now = datetime.now(timezone.utc)
-        ttl_low = compute_ttl_hours(
-            last_accessed_at=now,
-            access_count=1,
-            importance_score=5.0,
-            base_ttl_hours=168,
-            decay_factor=0.693,
-            now=now,
-        )
-        ttl_high = compute_ttl_hours(
-            last_accessed_at=now,
-            access_count=100,
-            importance_score=5.0,
-            base_ttl_hours=168,
-            decay_factor=0.693,
-            now=now,
-        )
-        assert ttl_high > ttl_low
+    def test_importance_extends_half_life(self):
+        low = eff_half_life_days(60.0, 2.0, 1.5, 2.0, 1)
+        high = eff_half_life_days(60.0, 2.0, 1.5, 9.0, 1)
+        assert high > low
 
-    def test_high_importance_extends_ttl(self):
-        now = datetime.now(timezone.utc)
-        ttl_low = compute_ttl_hours(
-            last_accessed_at=now,
-            access_count=1,
-            importance_score=2.0,
-            base_ttl_hours=168,
-            decay_factor=0.693,
-            now=now,
-        )
-        ttl_high = compute_ttl_hours(
-            last_accessed_at=now,
-            access_count=1,
-            importance_score=9.0,
-            base_ttl_hours=168,
-            decay_factor=0.693,
-            now=now,
-        )
-        assert ttl_high > ttl_low
+    def test_access_extends_half_life(self):
+        low = eff_half_life_days(60.0, 2.0, 1.5, 5.0, 1)
+        high = eff_half_life_days(60.0, 2.0, 1.5, 5.0, 100)
+        assert high > low
 
-    def test_old_access_reduces_ttl(self):
-        now = datetime.now(timezone.utc)
-        ttl_recent = compute_ttl_hours(
-            last_accessed_at=now,
-            access_count=1,
-            importance_score=5.0,
-            base_ttl_hours=168,
-            decay_factor=0.693,
-            now=now,
-        )
-        ttl_old = compute_ttl_hours(
-            last_accessed_at=now - timedelta(days=7),
-            access_count=1,
-            importance_score=5.0,
-            base_ttl_hours=168,
-            decay_factor=0.693,
-            now=now,
-        )
-        assert ttl_old < ttl_recent
+    def test_access_is_uncapped(self):
+        # access_count/10 is uncapped, so 100 accesses keep extending past 50.
+        assert eff_half_life_days(60.0, 2.0, 1.5, 5.0, 100) > eff_half_life_days(60.0, 2.0, 1.5, 5.0, 50)
 
-    def test_zero_importance(self):
-        # Audit C5 / forgetting F1: importance 0 is a valid neutral value, not a
-        # "delete me now" signal. It is treated as the neutral midpoint (5.0),
-        # so the TTL must be positive (and equal to the importance-5 TTL), never
-        # collapse to 0 (which previously caused immediate next-sweep deletion).
-        now = datetime.now(timezone.utc)
-        ttl = compute_ttl_hours(
-            last_accessed_at=now,
-            access_count=1,
-            importance_score=0.0,
-            base_ttl_hours=168,
-            decay_factor=0.693,
-            now=now,
-        )
-        ttl_neutral = compute_ttl_hours(
-            last_accessed_at=now,
-            access_count=1,
-            importance_score=5.0,
-            base_ttl_hours=168,
-            decay_factor=0.693,
-            now=now,
-        )
-        assert ttl > 0.0
-        assert ttl == pytest.approx(ttl_neutral)
+    def test_retention_decays_with_idle(self):
+        eff = eff_half_life_days(60.0, 2.0, 1.5, 5.0, 1)
+        assert retention(eff, 0) == pytest.approx(1.0)
+        assert retention(eff, 10) > retention(eff, 30)
+        # retention = exp(−idle/eff): 1/e at the characteristic time, 0.5 at eff·ln2.
+        assert retention(eff, eff) == pytest.approx(math.exp(-1))
+        assert retention(eff, eff * math.log(2)) == pytest.approx(0.5)
 
-    def test_never_negative(self):
-        now = datetime.now(timezone.utc)
-        ttl = compute_ttl_hours(
-            last_accessed_at=now - timedelta(days=365),
-            access_count=1,
-            importance_score=1.0,
-            base_ttl_hours=168,
-            decay_factor=0.693,
-            now=now,
-        )
-        assert ttl >= 0.0
+    def test_forget_idle_matches_threshold_crossing(self):
+        eff = 60.0
+        threshold = 0.3
+        idle = forget_idle_days(eff, threshold)
+        # By definition retention(idle) == threshold (above the floor).
+        assert retention(eff, idle) == pytest.approx(threshold)
+        assert idle == pytest.approx(eff * math.log(1 / threshold))
+
+    def test_forget_idle_floored_at_min_retention(self):
+        # A pathological tiny half-life / high threshold can't collapse below the floor.
+        idle = forget_idle_days(0.1, 0.9, min_retention_days=DEFAULT_MIN_RETENTION_DAYS)
+        assert idle == pytest.approx(DEFAULT_MIN_RETENTION_DAYS)
+
+    def test_higher_threshold_forgets_sooner(self):
+        eff = 60.0
+        assert forget_idle_days(eff, 0.5) < forget_idle_days(eff, 0.2)

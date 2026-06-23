@@ -7,6 +7,34 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+# Bounds for the retention-score forgetting parameters. ``half_life_days`` is
+# capped at ~10 years; the coefficients keep the linear half-life stretch sane;
+# ``threshold`` is an open interval (0, 1) — the retention level below which a
+# memory is forgotten.
+FORGETTING_HALF_LIFE_MAX_DAYS = 3650.0
+FORGETTING_COEFF_MAX = 10.0
+
+
+class PartitionForgettingOverride(BaseModel):
+    """Per-partition forgetting policy stored in hebb.json (config, not data).
+
+    Forgetting uses the retention-score model::
+
+        eff_half_life = half_life_days · (1 + k_importance·(importance/10) + k_access·(access_count/10))
+        retention(idle) = exp(−idle_days / eff_half_life)
+        forget when retention < threshold
+
+    A ``None`` numeric field inherits the partition's region default (see
+    ``REGION_FORGET_DEFAULTS``) or, failing that, the global ``Settings`` value;
+    ``enabled=False`` exempts the partition from the forgetting sweep entirely.
+    """
+
+    half_life_days: float | None = Field(default=None, gt=0, le=FORGETTING_HALF_LIFE_MAX_DAYS)
+    k_importance: float | None = Field(default=None, ge=0, le=FORGETTING_COEFF_MAX)
+    k_access: float | None = Field(default=None, ge=0, le=FORGETTING_COEFF_MAX)
+    threshold: float | None = Field(default=None, gt=0, lt=1)
+    enabled: bool = Field(default=True)
+
 
 class Settings(BaseModel):
     """Hebb Mind configuration. All fields from hebb.json."""
@@ -159,9 +187,21 @@ class Settings(BaseModel):
     )
     forget_interval_seconds: int = Field(default=1800)
 
-    # Forgetting
-    base_ttl_hours: float = Field(default=168.0)
-    decay_factor: float = Field(default=0.693)
+    # Forgetting — retention-score model (see PartitionForgettingOverride). These
+    # are the global fallbacks for user partitions / unknown regions; the built-in
+    # cortical regions have their own defaults in REGION_FORGET_DEFAULTS.
+    half_life_days: float = Field(default=60.0, gt=0, le=FORGETTING_HALF_LIFE_MAX_DAYS)
+    k_importance: float = Field(default=2.0, ge=0, le=FORGETTING_COEFF_MAX)
+    k_access: float = Field(default=1.5, ge=0, le=FORGETTING_COEFF_MAX)
+    forget_threshold: float = Field(default=0.3, gt=0, lt=1)
+    # Hard floor (days) on a memory's retained lifetime, so a pathological
+    # low-half-life / high-threshold setting can never collapse to instant deletion.
+    forget_min_retention_days: float = Field(default=1.0, ge=0)
+    # Per-partition forgetting overrides, keyed by partition id. Operator policy
+    # (not data) — lives here in config so it survives DB rebuilds and is editable
+    # in hebb.json. Unset numeric fields inherit the region/global defaults; an entry
+    # with enabled=false exempts that partition from the forgetting sweep.
+    forgetting_overrides: dict[str, PartitionForgettingOverride] = Field(default_factory=dict)
 
     # Retrieval weights
     weight_recency: float = Field(default=1.0)
