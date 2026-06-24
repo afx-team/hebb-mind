@@ -53,6 +53,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     assert settings.home_dir is not None
     app.state.settings = settings
 
+    # A previous upgrade helper may have been killed before clearing its flag
+    # (or the OS supervisor respawned the old daemon mid-upgrade). Clear any
+    # stale ``upgrade_in_progress`` now so the console banner isn't frozen.
+    from hebb.upgrade import state as upgrade_state
+
+    upgrade_state.reconcile_stale(settings.home_dir)
+
     # Embedder FIRST — the vec0 virtual table is created with a fixed
     # ``float[N]`` width, so the storage layer must know the real
     # embedding dimension before it builds the schema. Constructing the

@@ -191,6 +191,8 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: var(-
   gap: 12px;
 }
 .upgrade-banner-icon { font-size: 16px; }
+.upgrade-banner-icon.spin { display: inline-block; animation: upgrade-spin 1s linear infinite; }
+@keyframes upgrade-spin { to { transform: rotate(360deg); } }
 .upgrade-banner-text { flex: 1; display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
 .upgrade-banner-text strong { font-weight: 600; }
 .upgrade-banner-current { color: var(--text-secondary); font-size: 12px; }

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import os
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -35,7 +36,11 @@ from hebb.server.consolidation_tracker import (
 from hebb.server.forgetting_tracker import record_run as record_forget_run
 from hebb.storage.base import MemoryStore, PartitionStore
 from hebb.storage.purge import purge_memory
+from hebb.upgrade import state as upgrade_state
 from hebb.upgrade.checker import run_check as run_upgrade_check
+from hebb.upgrade.helper import spawn_detached
+from hebb.upgrade.installer import build_command
+from hebb.upgrade.state import UpgradeState
 
 logger = logging.getLogger(__name__)
 
@@ -362,17 +367,50 @@ class SchedulerManager:
             )
 
     async def _run_upgrade_check(self) -> None:
-        """Check PyPI for a newer release. No-op when ``auto_upgrade_mode == 'off'``."""
+        """Check PyPI for a newer release. No-op when ``auto_upgrade_mode == 'off'``.
+
+        When ``auto_upgrade_mode == 'auto'`` and a newer auto-upgradable release
+        exists, spawns the upgrade helper directly (same path as ``/apply``).
+        Also clears a stuck ``upgrade_in_progress`` flag left by a helper that
+        died before it could report.
+        """
         if self.settings.auto_upgrade_mode == "off":
             logger.debug("Skipping upgrade check (auto_upgrade_mode=off)")
             return
         if self.settings.home_dir is None:
             logger.warning("Skipping upgrade check: home_dir not resolved")
             return
+        upgrade_state.reconcile_stale(self.settings.home_dir)
         try:
-            await run_upgrade_check(self.settings.home_dir)
+            state = await run_upgrade_check(self.settings.home_dir)
         except Exception:
             logger.error("Upgrade check job failed", exc_info=True)
+            return
+        if self.settings.auto_upgrade_mode == "auto":
+            self._maybe_auto_upgrade(state)
+
+    def _maybe_auto_upgrade(self, state: UpgradeState) -> None:
+        """Trigger the upgrade helper for ``auto`` mode when one is available."""
+        if self.settings.home_dir is None:
+            return
+        if not state.available or state.upgrade_in_progress:
+            return
+        cmd = build_command()
+        if not cmd.auto_upgradable:
+            logger.info("Auto-upgrade unavailable (%s): %s", cmd.method, cmd.refusal_reason)
+            return
+        try:
+            pid = spawn_detached(
+                home_dir=self.settings.home_dir,
+                port=self.settings.port,
+                grace=self.settings.upgrade_grace_seconds,
+                method=cmd.method,
+                parent_pid=os.getpid(),
+            )
+            upgrade_state.update(self.settings.home_dir, upgrade_in_progress=True, upgrade_helper_pid=pid)
+            logger.info("Auto-upgrade: spawned helper to upgrade to %s", state.latest_version)
+        except Exception:
+            logger.exception("Auto-upgrade: failed to spawn helper")
 
     def get_status(self) -> dict[str, Any]:
         """Return scheduler status info."""

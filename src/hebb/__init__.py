@@ -42,7 +42,7 @@ from hebb.exceptions import (
 # Bumped MANUALLY on release (release-please automation removed). Keep in sync
 # with the version in pyproject.toml, .release-please-manifest.json, and
 # .claude-plugin/plugin.json.
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 # ``HebbMind`` pulls in storage + embedding + graph + searcher, which
 # in turn import heavy third-party libs (sentence-transformers, litellm,

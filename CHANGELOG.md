@@ -13,6 +13,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      3. Merge to main — publish.yml ships to PyPI on the pyproject.toml change
         and tags the release. -->
 
+## [0.2.1] - 2026-06-24
+
+### Added
+
+- **Console-driven upgrades (auto-upgrade PR-2)**: the "Upgrade now" banner button
+  is now live. Clicking it opens a confirm dialog, then a detached helper
+  (`python -m hebb.upgrade.helper`) stops the service, runs the matching upgrade
+  command for how Hebb Mind was installed (pip / pipx / uv-tool), restarts the
+  service, and verifies `/health` — the banner tracks progress across the restart
+  and reloads the console on success. Editable/dev and system-managed Python
+  installs are detected and refused (the button stays disabled with the reason).
+- **`POST /api/v1/admin/upgrade/apply` and `/dismiss`** endpoints, plus
+  `POST /api/v1/admin/shutdown` (stop without restart, used by the helper).
+  "Skip this version" now persists server-side (`dismissed_for_version`) instead
+  of only in the browser.
+- **`hebb upgrade` CLI** — `--check` / `--apply` / `--status` for headless hosts;
+  talks to the running daemon when up, shells out to the helper when it is not.
+- **`auto_upgrade_mode = "auto"`** is now wired: the daily check triggers the
+  upgrade helper directly when a newer auto-upgradable release exists (previously
+  the setting was a no-op). Default remains `"notify"`.
+
+### Fixed
+
+- **Stale upgrade lock recovery**: a helper killed mid-upgrade no longer freezes
+  the banner — `upgrade_state.reconcile_stale` (keyed on the recorded helper PID,
+  with an age fallback) clears an abandoned `upgrade_in_progress` at daemon boot
+  and before each `/apply`.
+- **Cross-platform hardening** of the upgrade helper: Windows-safe process
+  termination (no `signal.SIGKILL`, which does not exist on Windows),
+  case-insensitive system-Python detection, robust pipx/uv detection via tool
+  marker files (custom `PIPX_HOME` / `UV_TOOL_DIR`), and a failed restart is now
+  reported as a failed upgrade instead of being left silently down.
+
 ## [0.2.0] - 2026-06-23
 
 ### Added

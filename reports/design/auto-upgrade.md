@@ -288,6 +288,17 @@ out to the helper directly.
 
 ## Implementation order (proposed PRs)
 
+> **Status (2026-06-24):** PR-1 and PR-2 are **shipped**. PR-2 landed
+> `upgrade.installer` + `upgrade.helper` + `POST /apply` / `/dismiss` /
+> `/shutdown`, enabled the console banner button (confirm modal + progress
+> tracking across the restart), added `hebb upgrade [--check|--apply|--status]`,
+> and **wired `auto_upgrade_mode="auto"`** so the scheduler triggers the helper
+> directly (the setting was previously a no-op). Also added a stale-lock
+> reconcile (`upgrade_state.reconcile_stale`, keyed on a recorded helper PID)
+> run at daemon boot + on every check. PR-3 (native OS notifications via
+> `upgrade.notifier`, the Settings-page section, docs in `repo_pages/`) is the
+> only remaining piece.
+
 1. **PR-1: state + checker + settings + tests.** Pure functions, no
    process management. Lands `upgrade.checker`, `upgrade.state`,
    Settings additions, REST `GET /upgrade` + `POST /check`. Scheduler
