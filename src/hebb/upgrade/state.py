@@ -106,9 +106,17 @@ def update(home_dir: Path, **changes: Any) -> UpgradeState:
 
 
 def _pid_alive(pid: int) -> bool:
-    """Best-effort liveness check for ``pid`` (POSIX + Windows via ``os.kill(0)``)."""
+    """Best-effort liveness check for ``pid``.
+
+    On POSIX, ``os.kill(pid, 0)`` is the standard probe. On Windows it is NOT a
+    probe: signal ``0`` is ``CTRL_C_EVENT``, so ``os.kill(pid, 0)`` would send a
+    Ctrl+C to the process group (interrupting us). Windows uses the process
+    handle instead.
+    """
     if pid <= 0:
         return False
+    if os.name == "nt":  # pragma: no cover - Windows-only
+        return _win_pid_alive(pid)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -118,6 +126,27 @@ def _pid_alive(pid: int) -> bool:
     except OSError:
         return False
     return True
+
+
+def _win_pid_alive(pid: int) -> bool:  # pragma: no cover - Windows-only
+    """Windows liveness probe via ``OpenProcess`` + ``GetExitCodeProcess``."""
+    import ctypes
+
+    process_query_limited_information = 0x1000
+    still_active = 259
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
+    kernel32.OpenProcess.restype = ctypes.c_void_p
+    kernel32.OpenProcess.argtypes = (ctypes.c_ulong, ctypes.c_int, ctypes.c_ulong)
+    handle = kernel32.OpenProcess(process_query_limited_information, 0, pid)
+    if not handle:
+        return False
+    try:
+        code = ctypes.c_ulong()
+        if kernel32.GetExitCodeProcess(ctypes.c_void_p(handle), ctypes.byref(code)) == 0:
+            return True  # could not query — assume alive rather than reap a live run
+        return code.value == still_active
+    finally:
+        kernel32.CloseHandle(ctypes.c_void_p(handle))
 
 
 def reconcile_stale(home_dir: Path, max_age_seconds: int = STALE_UPGRADE_SECONDS) -> bool:

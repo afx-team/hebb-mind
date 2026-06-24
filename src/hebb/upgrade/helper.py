@@ -26,7 +26,7 @@ from pathlib import Path
 from hebb import __version__
 from hebb.upgrade import state as upgrade_state
 from hebb.upgrade.installer import Method, build_command
-from hebb.upgrade.state import LastUpgrade
+from hebb.upgrade.state import LastUpgrade, _pid_alive
 
 logger = logging.getLogger(__name__)
 
@@ -67,18 +67,6 @@ def _terminate_parent(pid: int, grace: float) -> None:
         except (ProcessLookupError, PermissionError, OSError):
             return
         time.sleep(2.0)
-
-
-def _pid_alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    except OSError:
-        return False
-    return True
 
 
 def _service_op(op: str) -> bool:
