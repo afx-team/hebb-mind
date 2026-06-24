@@ -806,6 +806,62 @@ class TestFormatTurnMemory:
         assert "[Tools]" not in result
         assert "[MCP]" not in result
 
+    def test_default_timestamp_is_second_precision(self):
+        """The auto-generated prefix never carries sub-second digits."""
+        result = format_turn_memory(TurnSummary(user_input="hi"))
+        prefix = result.splitlines()[0]
+        assert prefix.startswith("[") and prefix.endswith("]")
+        # ISO second-precision has no '.' fractional-seconds group.
+        assert "." not in prefix
+
+    def test_explicit_millisecond_timestamp_truncated(self):
+        """A transcript-style ms-precision ``...Z`` timestamp is truncated.
+
+        Regression for #38: an explicit ``timestamp`` was passed through
+        verbatim, leaking millisecond precision into the stored prefix.
+        """
+        result = format_turn_memory(
+            TurnSummary(user_input="hi"),
+            timestamp="2026-06-17T03:15:16.123Z",
+        )
+        assert result.startswith("[2026-06-17T03:15:16+00:00]")
+
+    def test_explicit_microsecond_timestamp_truncated(self):
+        result = format_turn_memory(
+            TurnSummary(user_input="hi"),
+            timestamp="2026-06-17T03:15:16.123456+00:00",
+        )
+        assert result.startswith("[2026-06-17T03:15:16+00:00]")
+
+    def test_explicit_second_timestamp_preserved(self):
+        """An already-clean timestamp passes through unchanged."""
+        result = format_turn_memory(
+            TurnSummary(user_input="hi"),
+            timestamp="2026-06-17T03:15:16+00:00",
+        )
+        assert result.startswith("[2026-06-17T03:15:16+00:00]")
+
+    def test_explicit_timestamp_preserves_offset(self):
+        """A non-UTC offset survives truncation (only sub-seconds are dropped)."""
+        result = format_turn_memory(
+            TurnSummary(user_input="hi"),
+            timestamp="2026-06-17T03:15:16.500+05:30",
+        )
+        assert result.startswith("[2026-06-17T03:15:16+05:30]")
+
+    def test_malformed_timestamp_strips_subseconds_without_raising(self):
+        """A timestamp ``fromisoformat`` cannot parse still loses sub-seconds.
+
+        The fallback path must never raise — a bad timestamp cannot be allowed
+        to abort the Stop hook's memory write.
+        """
+        result = format_turn_memory(
+            TurnSummary(user_input="hi"),
+            timestamp="not-a-real-2026-06-17T03:15:16.123 timestamp",
+        )
+        # Fractional seconds are gone; the rest is preserved verbatim.
+        assert result.startswith("[not-a-real-2026-06-17T03:15:16 timestamp]")
+
 
 class TestStopHook:
     def test_noop_without_transcript(self, monkeypatch: pytest.MonkeyPatch):
