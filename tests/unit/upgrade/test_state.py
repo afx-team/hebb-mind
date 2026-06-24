@@ -75,3 +75,68 @@ def test_state_with_last_upgrade_roundtrip(tmp_path: Path) -> None:
     assert loaded.last_upgrade is not None
     assert loaded.last_upgrade.status == "success"
     assert loaded.last_upgrade.method == "pipx"
+
+
+def _in_progress(**extra: object) -> UpgradeState:
+    base = UpgradeState(
+        upgrade_in_progress=True,
+        last_upgrade=LastUpgrade(
+            from_version="0.1.0",
+            to_version="0.2.0",
+            started_at="2000-01-01T00:00:00+00:00",
+            status="in_progress",
+            method="pip",
+        ),
+    )
+    return base.model_copy(update=extra)
+
+
+def test_reconcile_noop_when_not_in_progress(tmp_path: Path) -> None:
+    upgrade_state.save(tmp_path, UpgradeState(upgrade_in_progress=False))
+    assert upgrade_state.reconcile_stale(tmp_path) is False
+
+
+def test_reconcile_resets_when_helper_pid_dead(tmp_path: Path) -> None:
+    # Future started_at so the age path can't fire — only the dead-PID path can.
+    state = _in_progress(
+        upgrade_helper_pid=999_999,
+        last_upgrade=LastUpgrade(
+            from_version="0.1.0",
+            to_version="0.2.0",
+            started_at="2999-01-01T00:00:00+00:00",
+            status="in_progress",
+            method="pip",
+        ),
+    )
+    upgrade_state.save(tmp_path, state)
+    assert upgrade_state.reconcile_stale(tmp_path) is True
+    loaded = upgrade_state.load(tmp_path)
+    assert loaded.upgrade_in_progress is False
+    assert loaded.upgrade_helper_pid is None
+    assert loaded.last_upgrade is not None
+    assert loaded.last_upgrade.status == "failed"
+
+
+def test_reconcile_resets_by_age_when_no_pid(tmp_path: Path) -> None:
+    upgrade_state.save(tmp_path, _in_progress())  # started_at = year 2000
+    assert upgrade_state.reconcile_stale(tmp_path) is True
+    assert upgrade_state.load(tmp_path).upgrade_in_progress is False
+
+
+def test_reconcile_keeps_fresh_live_upgrade(tmp_path: Path) -> None:
+    from datetime import datetime, timezone
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    state = _in_progress(
+        last_upgrade=LastUpgrade(
+            from_version="0.1.0",
+            to_version="0.2.0",
+            started_at=now_iso,
+            status="in_progress",
+            method="pip",
+        ),
+    )
+    upgrade_state.save(tmp_path, state)
+    # No pid recorded + a fresh start time → a live upgrade we must not disturb.
+    assert upgrade_state.reconcile_stale(tmp_path) is False
+    assert upgrade_state.load(tmp_path).upgrade_in_progress is True

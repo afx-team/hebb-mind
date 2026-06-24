@@ -85,6 +85,8 @@ export const previewForgetting = (id, params) => request('POST', `/api/v1/admin/
 /* Upgrade */
 export const getUpgradeState = () => request('GET', '/api/v1/admin/upgrade');
 export const forceUpgradeCheck = () => request('POST', '/api/v1/admin/upgrade/check');
+export const applyUpgrade = () => request('POST', '/api/v1/admin/upgrade/apply');
+export const dismissUpgrade = () => request('POST', '/api/v1/admin/upgrade/dismiss');
 
 /* Claude Code memory documents */
 export const listCCProjects = () => request('GET', '/api/v1/claude-memory/projects');

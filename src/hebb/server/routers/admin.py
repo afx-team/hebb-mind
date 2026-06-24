@@ -271,6 +271,54 @@ async def restart_service() -> dict[str, Any]:
     }
 
 
+@router.post("/shutdown")
+async def shutdown_service() -> dict[str, Any]:
+    """Stop the OS-managed service without restarting it.
+
+    Used by the upgrade helper to take the daemon down while it replaces the
+    package on disk (``/restart`` brings it straight back up). Returns
+    immediately; the stop is dispatched ~1s later so the HTTP response flushes
+    first. When no installed service is found in any scope, falls back to an
+    in-process exit.
+    """
+    from hebb.utils.service_manager import (
+        ServiceError,
+        ServiceNotInstalledError,
+        UnsupportedPlatformError,
+        get_manager,
+    )
+
+    try:
+        get_manager(scope="user")
+    except UnsupportedPlatformError as exc:
+        raise HTTPException(status_code=501, detail=str(exc))
+
+    async def _do_shutdown() -> None:
+        await asyncio.sleep(1.0)
+        for scope in ("user", "system"):
+            try:
+                manager = get_manager(scope=scope)
+                if manager.status().installed:
+                    manager.stop()
+                    return
+            except ServiceNotInstalledError:
+                continue
+            except ServiceError as exc:
+                logger.error("ServiceError during shutdown (scope=%s): %s", scope, exc)
+                continue
+            except Exception:
+                logger.exception("Unexpected error during shutdown (scope=%s)", scope)
+                continue
+        # No installed service to stop. Do NOT os._exit here: if this process is
+        # wrapped by an external KeepAlive supervisor, exiting just triggers an
+        # immediate respawn (a no-op at best, a flap loop at worst). A
+        # serviceless daemon has nothing to "shut down" via this path.
+        logger.warning("Shutdown requested but no installed service found; leaving process running")
+
+    asyncio.create_task(_do_shutdown())
+    return {"message": "Shutdown scheduled", "poll": "/health"}
+
+
 @router.get("/stats")
 async def get_stats(
     memory_store: MemoryStore = Depends(get_memory_store),
