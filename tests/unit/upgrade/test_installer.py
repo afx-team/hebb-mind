@@ -21,6 +21,9 @@ def test_detect_editable(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_detect_pipx(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(installer, "_is_editable_install", lambda: False)
     monkeypatch.setattr(sys, "executable", "/home/u/.local/pipx/venvs/hebb-mind/bin/python")
+    # Pin the tool path so the command is deterministic regardless of whether
+    # pipx happens to be on PATH in the test environment.
+    monkeypatch.setattr(installer.shutil, "which", lambda _name: "/opt/bin/pipx")
     assert installer.detect_method() == "pipx"
     cmd = installer.build_command("pipx")
     assert cmd.auto_upgradable is True
@@ -30,6 +33,9 @@ def test_detect_pipx(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_detect_uv_tool(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(installer, "_is_editable_install", lambda: False)
     monkeypatch.setattr(sys, "executable", "/home/u/.local/share/uv/tools/hebb-mind/bin/python")
+    # uv is not preinstalled on CI runners — pin its path so build_command
+    # produces the uv argv instead of refusing.
+    monkeypatch.setattr(installer.shutil, "which", lambda _name: "/opt/bin/uv")
     assert installer.detect_method() == "uv-tool"
     cmd = installer.build_command("uv-tool")
     assert cmd.argv[-3:] == ["tool", "upgrade", "hebb-mind"]
@@ -64,6 +70,8 @@ def test_pip_honors_index_url_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_uv_honors_index_url_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HEBB_PYPI_INDEX_URL", "https://mirror.example/simple")
+    # uv may not be on PATH (e.g. CI) — pin it so the uv command is built.
+    monkeypatch.setattr(installer.shutil, "which", lambda _name: "/opt/bin/uv")
     cmd = installer.build_command("uv-tool")
     assert cmd.env.get("UV_INDEX_URL") == "https://mirror.example/simple"
 
