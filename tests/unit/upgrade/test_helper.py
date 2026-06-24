@@ -79,8 +79,10 @@ def test_terminate_parent_no_sigkill_on_windows(monkeypatch) -> None:
 
     monkeypatch.setattr(helper.os, "kill", fake_kill)
     helper._terminate_parent(4321, grace=0.0)
-    assert helper.signal.SIGTERM in sent
-    assert helper.signal.SIGKILL not in sent
+    # Only SIGTERM may be sent on Windows. Asserting equality (rather than
+    # "SIGKILL not in sent") also avoids referencing signal.SIGKILL, which does
+    # not exist on Windows and would itself AttributeError here.
+    assert sent == [helper.signal.SIGTERM]
 
 
 def test_spawn_detached_builds_expected_argv(monkeypatch, tmp_path: Path) -> None:

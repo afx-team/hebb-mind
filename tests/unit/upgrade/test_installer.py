@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 
 import pytest
@@ -82,18 +83,30 @@ def test_is_system_python_false_in_venv(monkeypatch: pytest.MonkeyPatch) -> None
     assert installer._is_system_python() is False
 
 
+# The system-root checks use Path.resolve(), whose drive semantics differ by OS
+# (a POSIX-looking "/usr" becomes "c:/usr" on Windows and vice-versa), so the
+# positive cases are split per platform.
+@pytest.mark.skipif(os.name == "nt", reason="POSIX system roots")
 def test_is_system_python_true_for_system_interpreter(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(sys, "prefix", "/usr")
     monkeypatch.setattr(sys, "base_prefix", "/usr")
     assert installer._is_system_python() is True
 
 
-def test_is_system_python_case_insensitive(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Detection must be case-insensitive so an uppercase system prefix (seen on
-    # Windows, e.g. C:\PROGRAM FILES) is never misread as user-writable. Use a
-    # POSIX uppercase root here since Path.resolve() drive semantics differ by OS.
+@pytest.mark.skipif(os.name == "nt", reason="POSIX system roots")
+def test_is_system_python_case_insensitive_posix(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Detection must be case-insensitive so an uppercase system prefix is never
+    # misread as user-writable.
     monkeypatch.setattr(sys, "prefix", "/USR/local")
     monkeypatch.setattr(sys, "base_prefix", "/USR/local")
+    assert installer._is_system_python() is True
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows system roots")
+def test_is_system_python_case_insensitive_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Uppercase "C:\PROGRAM FILES" must still be recognized as system-managed.
+    monkeypatch.setattr(sys, "prefix", "C:\\PROGRAM FILES\\Python312")
+    monkeypatch.setattr(sys, "base_prefix", "C:\\PROGRAM FILES\\Python312")
     assert installer._is_system_python() is True
 
 
