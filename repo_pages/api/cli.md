@@ -189,14 +189,24 @@ The hooks are recall-and-capture, not consolidation. `recall` and `prompt` **rea
 
 ## hebb codex
 
-Codex CLI integration via `codex mcp add`/`remove`. Codex registers MCP servers globally — there is no per-project scope, so only `--scope user` (global) is supported.
+Native Codex integration with MCP plus `SessionStart`, `UserPromptSubmit`,
+and `Stop` hooks. Project scope writes `.codex/config.toml` and
+`.codex/hooks.json`; user scope uses `codex mcp add` and
+`~/.codex/hooks.json`.
 
 ```bash
-hebb codex install   [--scope user]   # default: user (global-only)
-hebb codex uninstall
+hebb codex install   [--scope project|user]   # default: project; current project
+hebb codex uninstall [--scope project|user]   # default: project; current project
+hebb codex recall    # SessionStart hook entry point
+hebb codex prompt    # UserPromptSubmit hook entry point
+hebb codex stop      # Stop hook entry point
 ```
 
-Verify with `codex mcp list`.
+`--scope user` means user-level configuration for the current OS user and
+applies to all of that user's Codex projects. Omitting it is equivalent to
+`--scope project`, which writes only the current directory's `.codex/`.
+
+Verify MCP with `codex mcp list` and review hooks with `/hooks`.
 
 ## hebb config
 

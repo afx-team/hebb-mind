@@ -105,7 +105,7 @@ pipx install hebb-mind                 # 推荐方式（隔离的 CLI 安装）
 pipx install 'hebb-mind[pg]'           # 启用 PostgreSQL/pgvector
 pipx upgrade hebb-mind                 # 后续升级
 hebb claude-code install --scope user  # Claude Code：基于 hooks 的召回 + 回合写入
-hebb codex install --scope user        # Codex：MCP 记忆工具
+hebb codex install                     # Codex：项目级 MCP + 自动记忆 hooks
 ```
 
 Docker、一键脚本、源码安装详见 [安装指南](https://afx-team.github.io/hebb-mind/zh/guide/installation.html)。

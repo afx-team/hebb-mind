@@ -105,7 +105,7 @@ pipx install hebb-mind                 # recommended (isolated CLI install)
 pipx install 'hebb-mind[pg]'           # + PostgreSQL/pgvector
 pipx upgrade hebb-mind                 # upgrade later
 hebb claude-code install --scope user  # Claude Code: hooks-based recall + turn capture
-hebb codex install --scope user        # Codex: MCP memory tools
+hebb codex install                     # Codex: project MCP + automatic memory hooks
 ```
 
 Docker, one-line install, and source build: [Installation Guide](https://afx-team.github.io/hebb-mind/guide/installation.html).

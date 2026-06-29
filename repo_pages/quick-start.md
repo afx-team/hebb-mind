@@ -155,7 +155,7 @@ For Docker, see [Storage Backends](./advanced/storage-backends.md#docker-deploym
 
 ```bash
 hebb claude-code install --scope user   # Claude Code: hooks-based auto memory
-hebb codex install                       # Codex: MCP memory tools (global-only)
+hebb codex install                       # Codex: project MCP + automatic memory hooks
 codex mcp list                           # verify
 ```
 

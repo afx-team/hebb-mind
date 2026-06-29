@@ -91,7 +91,7 @@ def setup_cmd(ctx: click.Context, language: str, region: str, profile: str) -> N
     console.print("  Install background service: [cyan]hebb service install[/]")
     console.print("  Open Web Console:           [cyan]hebb console[/]")
     console.print("  Claude Code setup:          [cyan]hebb claude-code install --scope user[/]")
-    console.print("  Codex setup:                [cyan]hebb codex install --scope user[/]")
+    console.print("  Codex project setup:        [cyan]hebb codex install[/]")
     console.print("  Check health:               [cyan]hebb doctor[/]")
 
 

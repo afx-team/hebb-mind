@@ -37,7 +37,7 @@ features:
     details: Single-page app for memory CRUD, search, partitions, and graph view. Lives at http://localhost:8321/ — no separate deploy.
   - icon: 🔌
     title: REST + MCP + Claude Code hooks
-    details: Three-line install gives Claude Code cross-session memory; hebb codex install adds the same as MCP tools. REST docs at /docs.
+    details: Three-line install gives Claude Code or Codex automatic cross-session recall and turn capture, backed by MCP memory tools. REST docs at /docs.
 ---
 
 <div class="hippo-home">

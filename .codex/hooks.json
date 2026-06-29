@@ -6,8 +6,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hebb claude-code recall",
-            "timeout": 30
+            "command": "hebb codex recall",
+            "timeout": 30,
+            "statusMessage": "Recalling Hebb Mind context"
           }
         ]
       }
@@ -17,8 +18,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hebb claude-code prompt",
-            "timeout": 10
+            "command": "hebb codex prompt",
+            "timeout": 10,
+            "statusMessage": "Searching Hebb Mind"
           }
         ]
       }
@@ -28,8 +30,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hebb claude-code stop",
-            "timeout": 30
+            "command": "hebb codex stop",
+            "timeout": 30,
+            "statusMessage": "Saving turn to Hebb Mind"
           }
         ]
       }

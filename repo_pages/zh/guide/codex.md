@@ -1,74 +1,118 @@
 ---
-description: "通过 MCP 为 Codex CLI 接入持久记忆：注册 hebb-mcp 服务后，Codex 可在编码会话中自动存储、召回与巩固记忆，跨会话保留偏好与项目事实。"
+description: "通过 Codex 原生生命周期 hooks 与 MCP 接入自动持久记忆：支持项目级召回、回合写入、搜索、存储和巩固。"
 ---
 
 # Codex 集成
 
-Hebb Mind 通过 MCP 工具集成 Codex。Codex 可以在需要时调用 `write_memory`、`search_memory`、`consolidate` 和 `ingest_conversation`。
+Hebb Mind 通过 Codex 原生生命周期 hooks 与 MCP 完成集成：
+`SessionStart` 召回跨会话上下文，`UserPromptSubmit` 检索与当前提示相关的
+记忆，`Stop` 自动记录已完成的回合。MCP 另外提供 `write_memory`、
+`search_memory`、`consolidate` 和 `ingest_conversation` 显式操作。
 
 ## 前提条件
 
-需要已安装 Codex CLI（`hebb codex install` 内部通过 `codex mcp add` 注册 MCP 服务）。可用 `codex --version` 确认。
+- `codex` CLI 已在 `PATH` 中。
+- Hebb Mind 已安装并初始化。
+- 已安装后台服务；hooks 和 MCP 会把请求转发到本地 REST API。
 
-## 安装
+## 项目级安装
+
+在需要启用记忆的项目中执行：
 
 ```bash
-pipx install hebb-mind         # 后续升级用 `pipx upgrade hebb-mind`
+pipx install hebb-mind
 hebb setup
-hebb service install           # 注册并启动后台服务（MCP 工具会访问它）
+hebb service install
 hebb codex install
 ```
 
-::: warning 务必先 `hebb service install`
-Codex 里的 MCP 工具会把请求 POST 到本地的 `127.0.0.1:8321` 服务。如果跳过 `hebb service install`，第一次让 Codex 记东西时，工具调用会以一个不透明的连接错误失败 —— 而提示「Run: hebb service install」只打在 MCP 服务的 stderr 里，Codex 界面上看不到。
-:::
+默认 scope 是 `project`。安装器写入：
 
-没装 `pipx`？参考 [安装 → 如果还没装 pipx](./installation.md#如果还没装-pipx)。
+- `.codex/config.toml`：项目级 `hebb` MCP server
+- `.codex/hooks.json`：自动召回与回合写入 hooks
 
-验证：
+已有的其他 Codex 配置和 hooks 会被保留。重复安装只替换 Hebb Mind
+管理的条目。
+
+`--scope` 控制配置写到哪里：
+
+| 命令 | 生效范围 | 写入位置 |
+|---|---|---|
+| `hebb codex install` | 当前项目 | `.codex/config.toml` 和 `.codex/hooks.json` |
+| `hebb codex install --scope project` | 当前项目 | 同上 |
+| `hebb codex install --scope user` | 当前 OS 用户的所有 Codex 项目 | Codex 用户级 MCP 配置和 `~/.codex/hooks.json` |
+
+## 激活与验证
+
+Codex 只会在可信项目中加载项目配置，同时命令 hooks 必须经过显式审核。
+在该项目中新建 Codex thread，然后执行：
+
+```text
+/hooks
+```
+
+审核并信任三个 Hebb hooks。随后在终端验证 MCP：
 
 ```bash
 codex mcp list
 ```
 
-## 作用域
+## 用户级安装
 
-Codex 通过 `codex mcp add` **全局**注册 MCP 服务，没有按项目的作用域，因此本命令是全局唯一的（`--scope` 只接受 `user`，且为默认值）。
-
-## Codex 原生命令
-
-如果希望直接管理 MCP server，请填 `hebb-mcp` 的**绝对路径**（GUI / launchd 下 `PATH` 往往不含 pipx 的 bin 目录，裸命令会静默启动失败）。先用 `which hebb-mcp`（Windows：`where hebb-mcp`）查出路径：
+如需在所有项目中启用 Hebb Mind：
 
 ```bash
-codex mcp add hebb -- "$(which hebb-mcp)"
+hebb codex install --scope user
 ```
 
-远程 Hebb Mind 服务：
+该命令通过 `codex mcp add` 注册 MCP，并把 hooks 写入
+`~/.codex/hooks.json`。用户级 hooks 同样需要通过 `/hooks` 审核。
+
+## 生命周期行为
+
+| 事件 | Hebb 命令 | 行为 |
+|---|---|---|
+| `SessionStart` | `hebb codex recall` | 注入最近的跨会话上下文和偏好 |
+| `UserPromptSubmit` | `hebb codex prompt` | 注入与当前提示相关的记忆 |
+| `Stop` | `hebb codex stop` | 解析 Codex rollout 并写入已完成回合 |
+
+Hook 失败时会退化为空操作，因此 Hebb 服务异常不会阻断 Codex。下一次
+hook 或 MCP 启动时会请求已安装的系统服务管理器启动 Hebb Mind。
+
+## MCP 工具
+
+仍然可以显式要求 Codex 操作记忆：
+
+- “记住这个项目使用 pnpm，不使用 npm。”
+- “从长期记忆中查找认证方案的决策。”
+- “巩固今天收集的记忆。”
+
+可以在 `AGENTS.md` 中规定哪些决策需要持久保存，但常规跨会话召回和
+回合写入已经不再依赖模型主动决定调用 MCP。
+
+## 远程 Hebb Mind 服务
+
+远程服务可以直接注册为用户级 MCP：
 
 ```bash
-codex mcp add hebb --env HEBB_URL=http://192.168.1.100:8321 -- "$(which hebb-mcp)"
+codex mcp add hebb \
+  --env HEBB_URL=http://192.168.1.100:8321 \
+  -- "$(which hebb-mcp)"
 ```
 
-## 在 Codex 中使用
-
-装好后，在 Codex 对话里用自然语言即可触发记忆工具，无需手写 API 调用。例如：
-
-- **存储**：「记住这个项目用 pnpm，不用 npm。」
-- **召回**：「这个项目的包管理器是什么？」
-- **整理**：「把刚才这些记忆巩固一下。」
-
-为了让 Codex 知道**何时**该动用长期记忆，建议在项目说明里加一句指引：
-
-```text
-当需要记住或召回持久的用户偏好、项目事实或跨会话决策时，使用 Hebb Mind MCP server。
-```
-
-## 能力边界
-
-Codex 通过 MCP 工具进行显式记忆操作。Claude Code 额外支持 hooks，可以在会话生命周期中自动召回记忆、并在回合结束时写入。Codex 当前没有同等的 hooks 流程。
+如需 hooks 使用同一远程服务，还需在启动 Codex 的环境中导出
+`HEBB_URL`。
 
 ## 卸载
 
+卸载当前项目集成：
+
 ```bash
 hebb codex uninstall
+```
+
+卸载用户级集成：
+
+```bash
+hebb codex uninstall --scope user
 ```

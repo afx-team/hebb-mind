@@ -158,7 +158,7 @@ Docker 部署见 [存储后端](./advanced/storage-backends.md#docker-deployment
 
 ```bash
 hebb claude-code install --scope user      # Claude Code：hooks 自动记忆
-hebb codex install                         # Codex：MCP 记忆工具（仅全局）
+hebb codex install                         # Codex：项目级 MCP + 自动记忆 hooks
 codex mcp list                             # 验证
 ```
 

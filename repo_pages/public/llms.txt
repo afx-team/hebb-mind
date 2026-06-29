@@ -18,7 +18,7 @@ Headline benchmark results (reproducible via the `eval/` harness): LongMemEval r
 - [Configuration](https://afx-team.github.io/hebb-mind/guide/configuration.html): One `hebb.json` controls everything — CLI config commands, workspace resolution, embedding model, and LLM/consolidation setup.
 - [Switch the Embedding Model](https://afx-team.github.io/hebb-mind/guide/switch-embedding-model.html): Use local sentence-transformers or a LiteLLM API embedding provider, handle dimension changes, and re-embed with resume.
 - [Claude Code Integration](https://afx-team.github.io/hebb-mind/guide/claude-code.html): Give Claude Code cross-session memory via the MCP server plus session hooks for automatic recall, turn capture, and consolidation.
-- [Codex Integration](https://afx-team.github.io/hebb-mind/guide/codex.html): Give the Codex CLI persistent memory over MCP via the `hebb-mcp` server.
+- [Codex Integration](https://afx-team.github.io/hebb-mind/guide/codex.html): Give Codex automatic cross-session recall and turn capture with native hooks, plus explicit memory tools over MCP.
 - [MCP Integration](https://afx-team.github.io/hebb-mind/guide/mcp-integration.html): Connect Claude Code, Codex, Cursor, and Claude Desktop to long-term memory over MCP — write, recall, and consolidate.
 - [Web Console](https://afx-team.github.io/hebb-mind/guide/web-console.html): Browser UI bundled with the service (port 8321) — memory CRUD, hybrid search, partitions, a knowledge-graph view, and live config.
 - [Migration from mem0 / Letta / Zep](https://afx-team.github.io/hebb-mind/guide/migration.html): Concept and API mapping, before/after code, data import, and an honest gap analysis.
