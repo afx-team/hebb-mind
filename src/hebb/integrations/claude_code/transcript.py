@@ -22,13 +22,20 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from hebb.ingest.noise import clean_user_input, is_greeting_only
 
 logger = logging.getLogger(__name__)
+
+# Matches the fractional-seconds group of an ISO-8601 timestamp (the only
+# ``.<digits>`` run in such a string). Used to strip sub-second precision on
+# the fallback path when full parsing fails.
+_SUBSECOND_RE = re.compile(r"\.\d+")
 
 # Truncation limits (characters) for the stored summary.
 _MAX_USER_LEN = 500
@@ -164,19 +171,22 @@ def format_turn_memory(
     answer-generation time. Without this, every memory looks
     time-of-event-less.
 
+    The prefix is always second-precision: sub-second digits are noise the
+    LLM never uses, so an explicit ``timestamp`` is truncated rather than
+    trusted verbatim (transcript message fields carry millisecond precision).
+
     Args:
         summary: The turn summary to format.
         session_id: Optional session identifier.
         timestamp: ISO-8601 timestamp (default: now in UTC). Pass an
             explicit value when replaying historical turns so the prefix
-            reflects when the conversation actually happened.
+            reflects when the conversation actually happened. Any sub-second
+            precision is dropped before it reaches the prefix.
 
     Returns:
         A human-readable string suitable for storing as a memory.
     """
-    from datetime import datetime, timezone
-
-    ts = timestamp or datetime.now(timezone.utc).isoformat(timespec="seconds")
+    ts = _second_precision(timestamp) if timestamp else datetime.now(timezone.utc).isoformat(timespec="seconds")
     parts: list[str] = [f"[{ts}]"]
 
     if summary.user_input:
@@ -197,6 +207,32 @@ def format_turn_memory(
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def _second_precision(timestamp: str) -> str:
+    """Truncate an ISO-8601 timestamp to whole-second precision.
+
+    Memory prefixes must never carry microseconds/milliseconds — sub-second
+    precision is noise the LLM does not use when resolving relative dates.
+    Callers may pass timestamps lifted straight from transcript message
+    fields, which arrive with millisecond precision and a trailing ``Z``
+    (e.g. ``2026-06-17T03:15:16.123Z``). ``datetime.fromisoformat`` cannot
+    parse a bare ``Z`` on Python 3.10 (the floor we support), so normalize it
+    to ``+00:00`` first; if parsing still fails, fall back to a plain
+    sub-second strip so a malformed timestamp never aborts a memory write.
+
+    Args:
+        timestamp: An ISO-8601 timestamp string of any sub-second precision.
+
+    Returns:
+        The same instant rendered at second precision.
+    """
+    raw = timestamp.strip()
+    candidate = f"{raw[:-1]}+00:00" if raw[-1:] in ("Z", "z") else raw
+    try:
+        return datetime.fromisoformat(candidate).isoformat(timespec="seconds")
+    except ValueError:
+        return _SUBSECOND_RE.sub("", raw)
 
 
 def _is_sidechain(msg: dict[str, Any]) -> bool:
