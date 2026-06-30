@@ -126,7 +126,7 @@ def _add_cli_check(table: Table, name: str, command: list[str]) -> None:
         table.add_row(f"{name} MCP", "[WARN]", str(exc))
         return
     status = "[OK]" if result.returncode == 0 and "hebb" in result.stdout else "[WARN]"
-    install_cmd = "hebb claude-code install --scope user" if name == "claude" else "hebb codex install --scope user"
+    install_cmd = "hebb claude-code install --scope user" if name == "claude" else "hebb codex install"
     detail = "hebb configured" if status == "[OK]" else f"Run: {install_cmd}"
     table.add_row(f"{name} MCP", status, detail)
 

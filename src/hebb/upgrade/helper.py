@@ -56,7 +56,7 @@ def _terminate_parent(pid: int, grace: float) -> None:
         time.sleep(0.5)
     # SIGKILL does not exist on Windows (signal module has only SIGTERM there);
     # referencing it would raise AttributeError before the loop even starts.
-    signals = [signal.SIGTERM]
+    signals: list[signal.Signals] = [signal.SIGTERM]
     if os.name != "nt" and hasattr(signal, "SIGKILL"):
         signals.append(signal.SIGKILL)
     for sig in signals:

@@ -3,67 +3,85 @@
 from __future__ import annotations
 
 import shutil
-import subprocess
 
 import click
-
-from hebb.utils.cli_paths import hebb_mcp_command, shell_quote
 
 
 @click.group("codex")
 def codex() -> None:
-    """Codex integration — configure Hebb Mind as an MCP server."""
+    """Codex integration — native MCP and lifecycle hooks."""
 
 
 @codex.command("install")
 @click.option(
     "--scope",
-    type=click.Choice(["user"]),
-    default="user",
+    type=click.Choice(["project", "user"]),
+    default="project",
     show_default=True,
-    help="Codex stores MCP servers globally in its config; only 'user' (global) is supported.",
+    help=(
+        "Where to install: 'project' writes this repo's .codex/ config; "
+        "'user' writes the current user's global Codex config for all projects."
+    ),
 )
 def install(scope: str) -> None:
-    """Install Hebb Mind MCP into Codex.
+    """Install Hebb Mind MCP and lifecycle hooks into Codex.
 
-    Codex registers MCP servers globally via ``codex mcp add`` — there is no
-    per-project scope, so this command is global-only.
+    Project scope writes ``.codex/config.toml`` and ``.codex/hooks.json``.
+    User scope registers MCP through ``codex mcp add`` and writes the user
+    hooks file.
     """
     _ensure_codex()
 
-    # Resolve absolute path to hebb-mcp — Codex launches the MCP server as a
-    # subprocess whose PATH may not include `pip install --user` bin dirs.
-    mcp_argv = hebb_mcp_command()
-    # Replace any prior entry so a fresh install picks up a moved binary.
-    subprocess.run(["codex", "mcp", "remove", "hebb"], capture_output=True, check=False)
-    result = subprocess.run(["codex", "mcp", "add", "hebb", "--", *mcp_argv], check=False)
-    if result.returncode != 0:
-        raise click.ClickException("codex mcp add failed")
+    from hebb.integrations.codex.install import handle
 
-    click.secho("Installed hebb MCP server for Codex.", fg="green")
-    click.echo(f"  MCP: {shell_quote(mcp_argv)}")
-    click.echo("Verify with: codex mcp list")
+    handle(scope)
 
 
 @codex.command("uninstall")
 @click.option(
     "--scope",
-    type=click.Choice(["user"]),
-    default="user",
+    type=click.Choice(["project", "user"]),
+    default="project",
     show_default=True,
-    help="Codex stores MCP servers globally in its config; only 'user' (global) is supported.",
+    help=(
+        "Where to remove from: 'project' removes this repo's .codex/ config; "
+        "'user' removes the current user's global Codex config."
+    ),
 )
 def uninstall(scope: str) -> None:
-    """Remove Hebb Mind MCP from Codex (global-only)."""
+    """Remove Hebb Mind MCP and lifecycle hooks from Codex."""
     _ensure_codex()
 
-    result = subprocess.run(["codex", "mcp", "remove", "hebb"], check=False)
-    if result.returncode != 0:
-        raise click.ClickException("codex mcp remove failed")
+    from hebb.integrations.codex.uninstall import handle
 
-    click.secho("Removed hebb MCP server from Codex.", fg="green")
+    handle(scope)
+
+
+@codex.command("recall")
+def recall() -> None:
+    """Recall cross-session memories for a Codex SessionStart hook."""
+    from hebb.integrations.codex.recall import handle_session_start
+
+    handle_session_start()
+
+
+@codex.command("prompt")
+def prompt() -> None:
+    """Recall prompt-relevant memories for a UserPromptSubmit hook."""
+    from hebb.integrations.codex.recall import handle_prompt
+
+    handle_prompt()
+
+
+@codex.command("stop")
+def stop() -> None:
+    """Record the completed Codex turn from a Stop hook."""
+    from hebb.integrations.codex.stop import handle
+
+    handle()
 
 
 def _ensure_codex() -> None:
+    """Raise a user-facing error when the Codex CLI is unavailable."""
     if not shutil.which("codex"):
         raise click.ClickException("codex CLI not found on PATH")

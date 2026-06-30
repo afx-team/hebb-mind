@@ -78,7 +78,7 @@ If the service runs on a non-default address, set the URL explicitly:
 Recommended:
 
 ```bash
-hebb codex install   # Codex registers MCP servers globally (global-only)
+hebb codex install   # project MCP + lifecycle hooks (default)
 codex mcp list
 ```
 

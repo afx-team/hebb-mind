@@ -111,5 +111,5 @@ hebb config set pg_url postgresql://user:pass@localhost/hebb
 
 - [配置](./configuration.md) — 完整配置项说明
 - [Claude Code](./claude-code.md) — Claude Code 跨会话自动记忆
-- [Codex](./codex.md) — Codex MCP 记忆工具
+- [Codex](./codex.md) — Codex 自动记忆 hooks 与 MCP 工具
 - [MCP 集成](./mcp-integration.md) — 在任意 MCP 客户端中使用 Hebb Mind

@@ -13,6 +13,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      3. Merge to main — publish.yml ships to PyPI on the pyproject.toml change
         and tags the release. -->
 
+## [0.3.0] - 2026-06-29
+
+### Added
+
+- **Codex-native memory integration**: `hebb codex install` now installs native
+  Codex MCP plus lifecycle hooks. Project scope is the default and writes
+  `.codex/config.toml` and `.codex/hooks.json`; `--scope user` registers MCP
+  through `codex mcp add` and writes user-level hooks.
+- **Codex lifecycle hooks**: `SessionStart` and `UserPromptSubmit` recall
+  relevant memories, while `Stop` captures the completed Codex turn into Hebb
+  Mind with Codex-specific metadata.
+- **Codex transcript parser**: rollout JSONL parsing now extracts the latest
+  user/assistant turn, tool calls, MCP calls, timestamps, and turn index for
+  reliable Stop-hook ingestion.
+
+### Documentation
+
+- Refreshed Codex public docs, quick starts, MCP integration notes, and CLI
+  reference in English and Chinese to document project-level install, user-level
+  install, hook trust flow, and the `--scope` behavior.
+
 ## [0.2.1] - 2026-06-24
 
 ### Added

@@ -111,5 +111,5 @@ See [Storage Backends](../advanced/storage-backends.md) for details.
 
 - [Configuration](./configuration.md) — full config reference
 - [Claude Code](./claude-code.md) — automatic cross-session memory for Claude Code
-- [Codex](./codex.md) — MCP memory tools for Codex
+- [Codex](./codex.md) — automatic memory hooks and MCP tools for Codex
 - [MCP Integration](./mcp-integration.md) — use Hebb Mind as MCP tools in any client

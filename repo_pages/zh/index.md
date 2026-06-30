@@ -37,7 +37,7 @@ features:
     details: 单页应用，覆盖记忆 CRUD、检索、分区、图谱视图。直接位于 http://localhost:8321/，无需另行部署。
   - icon: 🔌
     title: REST + MCP + Claude Code Hooks
-    details: 三行命令为 Claude Code 启用跨会话记忆；hebb codex install 一键将能力以 MCP 工具形式接入 Codex。REST 文档位于 /docs。
+    details: 三行命令为 Claude Code 或 Codex 启用自动跨会话召回、回合写入与 MCP 记忆工具。REST 文档位于 /docs。
 ---
 
 <div class="hippo-home">

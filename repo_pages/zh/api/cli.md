@@ -187,14 +187,22 @@ hebb claude-code stop        # Stop 钩子：记录本轮对话
 
 ## hebb codex
 
-Codex CLI 集成（封装 `codex mcp add/remove`）。Codex 只在全局注册 MCP server，没有按项目区分的 scope，因此这两个命令均为全局生效。
+Codex 原生 MCP 与生命周期 hooks 集成。项目 scope 写入
+`.codex/config.toml` 和 `.codex/hooks.json`；用户 scope 通过
+`codex mcp add` 注册 MCP，并写入 `~/.codex/hooks.json`。
 
 ```bash
-hebb codex install     # 仅支持全局（--scope user，默认且唯一取值）
-hebb codex uninstall   # 全局卸载
+hebb codex install   [--scope project|user]   # 默认 project；当前项目
+hebb codex uninstall [--scope project|user]   # 默认 project；当前项目
+hebb codex recall    # SessionStart hook 入口
+hebb codex prompt    # UserPromptSubmit hook 入口
+hebb codex stop      # Stop hook 入口
 ```
 
-可通过 `codex mcp list` 验证。
+`--scope user` 表示当前 OS 用户级配置，对该用户的所有 Codex 项目生效；
+不加时等价于 `--scope project`，只写当前目录的 `.codex/`。
+
+通过 `codex mcp list` 验证 MCP，并在 Codex 中通过 `/hooks` 审核 hooks。
 
 ## hebb config
 

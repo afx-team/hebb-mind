@@ -78,7 +78,7 @@ hebb claude-code install --scope user
 推荐：
 
 ```bash
-hebb codex install   # Codex 全局注册 MCP 服务（仅全局）
+hebb codex install   # 项目级 MCP + 生命周期 hooks（默认）
 codex mcp list
 ```
 
