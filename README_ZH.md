@@ -81,6 +81,13 @@ curl -X POST http://localhost:8321/api/v1/search \
   <img src="repo_pages/public/web-console-hero.jpg" alt="Hebb Mind Web 控制台 — 分区记忆与标签图谱" width="760">
 </p>
 
+在 Web 控制台中使用 **Agent 同步**，可把 Hebb Mind 作为 Claude Code 与 Codex 的共享记忆中转站。它会收集两类工具的本机会话历史，显示已同步与待同步回合，并把待处理回合导入 Hebb Mind 数据库。同一流程也可通过 CLI 使用：
+
+```bash
+hebb agent-sync list --host codex
+hebb agent-sync sync --host codex --dry-run
+```
+
 ### 完整体验（5 分钟）— 启用 LLM 巩固
 
 记忆巩固、冲突解决、标签提取需要一个 LLM 后端。开关由 `llm_model` 决定 —— 未设置前这些接口为 no-op（详见 [#consolidation-no-op](https://afx-team.github.io/hebb-mind/zh/troubleshooting.html)）。托管 provider 还需要 `llm_api_key`；本地模型（例如通过 `llm_base_url` 接入的 Ollama）则不需要。
@@ -106,6 +113,8 @@ pipx install 'hebb-mind[pg]'           # 启用 PostgreSQL/pgvector
 pipx upgrade hebb-mind                 # 后续升级
 hebb claude-code install --scope user  # Claude Code：基于 hooks 的召回 + 回合写入
 hebb codex install                     # Codex：项目级 MCP + 自动记忆 hooks
+hebb agent-sync list                   # 查看 Claude Code / Codex 会话同步状态
+hebb agent-sync sync --dry-run         # 预览历史会话导入
 ```
 
 Docker、一键脚本、源码安装详见 [安装指南](https://afx-team.github.io/hebb-mind/zh/guide/installation.html)。

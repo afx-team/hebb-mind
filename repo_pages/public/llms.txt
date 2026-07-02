@@ -19,6 +19,7 @@ Headline benchmark results (reproducible via the `eval/` harness): LongMemEval r
 - [Switch the Embedding Model](https://afx-team.github.io/hebb-mind/guide/switch-embedding-model.html): Use local sentence-transformers or a LiteLLM API embedding provider, handle dimension changes, and re-embed with resume.
 - [Claude Code Integration](https://afx-team.github.io/hebb-mind/guide/claude-code.html): Give Claude Code cross-session memory via the MCP server plus session hooks for automatic recall, turn capture, and consolidation.
 - [Codex Integration](https://afx-team.github.io/hebb-mind/guide/codex.html): Give Codex automatic cross-session recall and turn capture with native hooks, plus explicit memory tools over MCP.
+- [Agent Sync](https://afx-team.github.io/hebb-mind/guide/agent-sync.html): Use Hebb Mind as the shared memory hub for Claude Code and Codex by collecting local session history and syncing pending turns.
 - [MCP Integration](https://afx-team.github.io/hebb-mind/guide/mcp-integration.html): Connect Claude Code, Codex, Cursor, and Claude Desktop to long-term memory over MCP — write, recall, and consolidate.
 - [Web Console](https://afx-team.github.io/hebb-mind/guide/web-console.html): Browser UI bundled with the service (port 8321) — memory CRUD, hybrid search, partitions, a knowledge-graph view, and live config.
 - [Migration from mem0 / Letta / Zep](https://afx-team.github.io/hebb-mind/guide/migration.html): Concept and API mapping, before/after code, data import, and an honest gap analysis.
@@ -39,7 +40,7 @@ Headline benchmark results (reproducible via the `eval/` harness): LongMemEval r
 - [Knowledge Graph API](https://afx-team.github.io/hebb-mind/api/graph.html): Inspect tags, query neighbors by depth, find shortest paths, and export nodes and edges.
 - [Admin API](https://afx-team.github.io/hebb-mind/api/admin.html): Trigger consolidation/forgetting, read stats, restart, and poll health/status.
 - [Config API](https://afx-team.github.io/hebb-mind/api/config.html): Read and update config at runtime — LLM and embedding settings, masked secrets, connectivity tests.
-- [CLI Reference](https://afx-team.github.io/hebb-mind/api/cli.html): The `hebb` command — setup, model download, background service, MCP/Claude Code wiring, and config.
+- [CLI Reference](https://afx-team.github.io/hebb-mind/api/cli.html): The `hebb` command — setup, model download, background service, MCP/Claude Code/Codex wiring, Agent Sync, and config.
 
 ## Advanced
 

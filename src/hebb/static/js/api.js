@@ -88,6 +88,16 @@ export const forceUpgradeCheck = () => request('POST', '/api/v1/admin/upgrade/ch
 export const applyUpgrade = () => request('POST', '/api/v1/admin/upgrade/apply');
 export const dismissUpgrade = () => request('POST', '/api/v1/admin/upgrade/dismiss');
 
+/* Agent session sync */
+export const listAgentSessions = (params = {}) => {
+  const q = new URLSearchParams();
+  if (params.host) q.set('host', params.host);
+  if (params.limit != null) q.set('limit', params.limit);
+  return request('GET', `/api/v1/agent-sync/sessions?${q}`);
+};
+export const syncAgentSessions = (params = {}) =>
+  request('POST', '/api/v1/agent-sync/sync', params);
+
 /* Claude Code memory documents */
 export const listCCProjects = () => request('GET', '/api/v1/claude-memory/projects');
 export const listCCFiles = (project) =>

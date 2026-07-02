@@ -170,6 +170,7 @@ class TestInstallHook:
         monkeypatch.setattr(install.shutil, "which", fake_which)
         monkeypatch.setattr(install.subprocess, "run", fake_run)
         monkeypatch.setattr(install, "_find_settings_path", lambda scope: settings_path)
+        monkeypatch.chdir(tmp_path)
 
         install.handle("user")
 
@@ -211,6 +212,7 @@ class TestInstallHook:
         # Pin sys.executable to a known absolute path for deterministic asserts.
         monkeypatch.setattr("hebb.utils.cli_paths.sys.executable", "/opt/py/bin/python3")
         monkeypatch.setattr(install, "_find_settings_path", lambda scope: settings_path)
+        monkeypatch.chdir(tmp_path)
 
         install.handle("user")
 
@@ -248,6 +250,7 @@ class TestInstallHook:
         )
         monkeypatch.setattr(install.shutil, "which", lambda name: f"/bin/{name}" if name != "claude" else None)
         monkeypatch.setattr(install, "_find_settings_path", lambda scope: settings_path)
+        monkeypatch.chdir(tmp_path)
 
         install.handle("user")
 
@@ -276,6 +279,7 @@ class TestInstallHook:
 
         monkeypatch.setattr(install.shutil, "which", fake_which)
         monkeypatch.setattr(install, "_find_settings_path", lambda scope: settings_path)
+        monkeypatch.chdir(tmp_path)
 
         install.handle("user")
 

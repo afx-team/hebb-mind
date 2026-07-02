@@ -156,6 +156,8 @@ For Docker, see [Storage Backends](./advanced/storage-backends.md#docker-deploym
 ```bash
 hebb claude-code install --scope user   # Claude Code: hooks-based auto memory
 hebb codex install                       # Codex: project MCP + automatic memory hooks
+hebb agent-sync list                     # See local Claude Code / Codex sessions
+hebb agent-sync sync --dry-run           # Preview historical session import
 codex mcp list                           # verify
 ```
 
@@ -169,7 +171,9 @@ For raw MCP clients (Cursor, etc.), register `hebb-mcp` by its **absolute path**
 }
 ```
 
-Details: [MCP Integration](./guide/mcp-integration.md) · [Claude Code Integration](./guide/claude-code.md) · [Codex Integration](./guide/codex.md)
+Hooks capture future turns. To backfill existing Claude Code or Codex conversations into the shared Hebb Mind database, use [Agent Sync](./guide/agent-sync.md) from the Web Console or CLI.
+
+Details: [MCP Integration](./guide/mcp-integration.md) · [Claude Code Integration](./guide/claude-code.md) · [Codex Integration](./guide/codex.md) · [Agent Sync](./guide/agent-sync.md)
 
 ## Next steps
 

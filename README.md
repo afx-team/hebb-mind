@@ -81,6 +81,13 @@ Open <http://localhost:8321/> for the Web Console.
   <img src="repo_pages/public/web-console-hero.jpg" alt="Hebb Mind Web Console — partitioned memories and tag graph" width="760">
 </p>
 
+Use **Agent Sync** in the Web Console to make Hebb Mind the shared memory hub for Claude Code and Codex. It collects local session history from both tools, shows synced vs pending turns, and imports pending turns into the Hebb Mind database. The same workflow is available from the CLI:
+
+```bash
+hebb agent-sync list --host codex
+hebb agent-sync sync --host codex --dry-run
+```
+
 ### Full experience (5 min) — enable LLM consolidation
 
 Consolidation, conflict resolution, and tag extraction need an LLM backend. The gate is `llm_model` — until it's set, those endpoints are a no-op (see [#consolidation-no-op](https://afx-team.github.io/hebb-mind/troubleshooting.html)). A hosted provider also needs `llm_api_key`; a local model (e.g. Ollama via `llm_base_url`) does not.
@@ -106,6 +113,8 @@ pipx install 'hebb-mind[pg]'           # + PostgreSQL/pgvector
 pipx upgrade hebb-mind                 # upgrade later
 hebb claude-code install --scope user  # Claude Code: hooks-based recall + turn capture
 hebb codex install                     # Codex: project MCP + automatic memory hooks
+hebb agent-sync list                   # Audit Claude Code / Codex session sync status
+hebb agent-sync sync --dry-run         # Preview historical session import
 ```
 
 Docker, one-line install, and source build: [Installation Guide](https://afx-team.github.io/hebb-mind/guide/installation.html).

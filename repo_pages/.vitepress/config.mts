@@ -313,6 +313,7 @@ function guideSidebar(prefix = '') {
         { text: prefix ? '切换 Embedding 模型' : 'Switch Embedding Model', link: `${prefix}/guide/switch-embedding-model` },
         { text: 'Claude Code', link: `${prefix}/guide/claude-code` },
         { text: 'Codex', link: `${prefix}/guide/codex` },
+        { text: prefix ? 'Agent 同步' : 'Agent Sync', link: `${prefix}/guide/agent-sync` },
         { text: prefix ? 'MCP 集成' : 'MCP Integration', link: `${prefix}/guide/mcp-integration` },
         { text: prefix ? 'Web 控制台' : 'Web Console', link: `${prefix}/guide/web-console` },
         { text: prefix ? '从其他系统迁移' : 'Migration from mem0 / Letta / Zep', link: `${prefix}/guide/migration` },

@@ -55,6 +55,16 @@ class TurnSummary:
     turn: int | None = None
 
 
+@dataclass
+class TurnRecord:
+    """A parsed conversation turn with source metadata."""
+
+    summary: TurnSummary
+    timestamp: str | None = None
+    session_id: str | None = None
+    cwd: str | None = None
+
+
 def extract_last_turn(transcript_path: str | Path) -> TurnSummary | None:
     """Extract the last user→assistant turn from a Claude Code JSONL transcript.
 
@@ -65,33 +75,9 @@ def extract_last_turn(transcript_path: str | Path) -> TurnSummary | None:
         A ``TurnSummary`` or ``None`` if the transcript cannot be read or
         contains no complete turn.
     """
-    path = Path(transcript_path)
-    if not path.is_file():
-        logger.debug("Transcript not found: %s", path)
-        return None
-
-    messages: list[dict[str, Any]] = []
     try:
-        with open(path, encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    obj = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                # Drop subagent (Task tool) lines: the Stop hook records the
-                # human turn, not a subagent's internal turns. Filtering here —
-                # the single point where the transcript is loaded — fixes the
-                # user-input anchor, the turn index, and the tool/mcp lists at
-                # once, since the rest of the parser then only sees main-agent
-                # messages.
-                if _is_sidechain(obj):
-                    continue
-                messages.append(obj)
+        messages = _load_main_messages(Path(transcript_path))
     except OSError:
-        logger.debug("Could not read transcript: %s", path, exc_info=True)
         return None
 
     if not messages:
@@ -149,6 +135,65 @@ def extract_last_turn(transcript_path: str | Path) -> TurnSummary | None:
     summary.mcps = _dedup(summary.mcps)
 
     return summary
+
+
+def extract_turns(transcript_path: str | Path) -> list[TurnRecord]:
+    """Extract all complete user-to-assistant turns from a Claude Code JSONL transcript.
+
+    Args:
+        transcript_path: Path to the session ``.jsonl`` file.
+
+    Returns:
+        Parsed turn records in transcript order. Low-signal user prompts and
+        incomplete turns without assistant output are omitted.
+    """
+    messages = _load_main_messages(Path(transcript_path))
+    if not messages:
+        return []
+
+    human_indices = [i for i, msg in enumerate(messages) if msg.get("type") == "user" and _raw_user_text(msg)]
+    records: list[TurnRecord] = []
+
+    for pos, user_idx in enumerate(human_indices):
+        user_msg = messages[user_idx]
+        user_text = _extract_user_text(user_msg)
+        if not user_text:
+            continue
+
+        next_user_idx = human_indices[pos + 1] if pos + 1 < len(human_indices) else len(messages)
+        segment = messages[user_idx + 1 : next_user_idx]
+
+        summary = TurnSummary(user_input=user_text, turn=pos)
+        for msg in segment:
+            if msg.get("type") == "assistant":
+                _extract_assistant(msg, summary, text=False)
+
+        for msg in reversed(segment):
+            if msg.get("type") == "assistant":
+                candidate = TurnSummary()
+                _extract_assistant(msg, candidate, text=True)
+                if candidate.assistant_output:
+                    summary.assistant_output = candidate.assistant_output
+                    break
+
+        summary.tools = _dedup(summary.tools)
+        summary.mcps = _dedup(summary.mcps)
+        if not summary.assistant_output:
+            continue
+
+        timestamp = user_msg.get("timestamp")
+        session_id = user_msg.get("sessionId") or user_msg.get("session_id")
+        cwd = user_msg.get("cwd")
+        records.append(
+            TurnRecord(
+                summary=summary,
+                timestamp=timestamp if isinstance(timestamp, str) else None,
+                session_id=session_id if isinstance(session_id, str) else None,
+                cwd=cwd if isinstance(cwd, str) else None,
+            )
+        )
+
+    return records
 
 
 def format_turn_memory(
@@ -213,6 +258,44 @@ def _is_sidechain(msg: dict[str, Any]) -> bool:
         ``True`` if the line is a subagent sidechain message.
     """
     return bool(msg.get("isSidechain", False))
+
+
+def _load_main_messages(path: Path) -> list[dict[str, Any]]:
+    """Load valid main-agent transcript lines.
+
+    Args:
+        path: Claude Code session JSONL path.
+
+    Returns:
+        Parsed JSON objects excluding subagent sidechain records.
+
+    Raises:
+        OSError: If the file cannot be read.
+    """
+    if not path.is_file():
+        logger.debug("Transcript not found: %s", path)
+        return []
+
+    messages: list[dict[str, Any]] = []
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                # Drop subagent (Task tool) lines: the Stop hook records the
+                # human turn, not a subagent's internal turns. Filtering here
+                # keeps the anchor, turn index, and tool lists main-agent only.
+                if isinstance(obj, dict) and not _is_sidechain(obj):
+                    messages.append(obj)
+    except OSError:
+        logger.debug("Could not read transcript: %s", path, exc_info=True)
+        raise
+    return messages
 
 
 def _is_storable_user_text(cleaned: str) -> bool:
