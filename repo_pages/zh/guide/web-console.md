@@ -1,10 +1,10 @@
 ---
-description: "随服务内置的单页控制台，在浏览器里浏览、检索、编辑 AI Agent 记忆，提供混合检索、知识图谱视图与免改 JSON 的在线配置，与 REST API 同端口 8321。"
+description: "随服务内置的单页控制台，在浏览器里浏览、检索、同步、调试 AI Agent 记忆，提供 Agent 同步、混合检索、知识图谱视图与在线配置，与 REST API 同端口 8321。"
 ---
 
 # Web 控制台
 
-Web 控制台是一个随 Hebb Mind 一同分发的单页应用。它让你可浏览地查看自己的记忆、提供一个接入与 API 同源混合检索的搜索框、一个知识图谱视图，以及一个无需手改 JSON 即可调整配置的设置面板。
+Web 控制台是一个随 Hebb Mind 一同分发的单页应用。它让你可浏览地查看自己的记忆，提供 Claude Code 与 Codex 会话历史的 Agent 同步、接入与 API 同源混合检索的搜索框、知识图谱视图，以及无需手改 JSON 即可调整配置的设置面板。
 
 ## 访问
 
@@ -40,7 +40,7 @@ flowchart LR
 
 ## 功能导览
 
-侧边栏围绕记忆生命周期组织。前四项 —— **记忆管理**、**记忆激活**、**记忆巩固**、**记忆遗忘** —— 即写入 → 召回 → 巩固 → 遗忘的闭环；一条分隔线把它们与 **CC 记忆**、**系统设置**，以及一个指向**文档**站点的外链隔开。每一项都是一个哈希路由，可以直接深链跳转。
+侧边栏围绕记忆生命周期组织。**记忆管理**、**记忆激活**、**Agent 同步**、**记忆巩固**、**记忆遗忘** 覆盖浏览/写入 → 召回 → 跨 agent 同步 → 巩固 → 遗忘；一条分隔线把它们与 **系统设置**，以及一个指向**文档**站点的外链隔开。每一项都是一个哈希路由，可以直接深链跳转。
 
 ### 记忆管理（`#manage`）
 
@@ -59,6 +59,17 @@ flowchart LR
 
 端到端的召回。顶部的**召回测试**让你做一次语义检索，每次查询都可用 `relevance`、`importance`、`recency` 三个滑块逐项调权，并渲染带分数的结果。下方是全局**召回参数** —— 召回流水线开关、cross-encoder 重排，以及默认评分权重 —— 于是你可以针对真实查询调参，再把有效的设置固化下来。
 
+### Agent 同步（`#agent-sync`）
+
+Claude Code 与 Codex 的跨 agent 记忆中转站。
+
+- 选择 **全部软件**、**Claude Code** 或 **Codex**。
+- 按 **来源软件 → Hebb Mind → 可被 Claude Code / Codex 使用** 理解页面流程。
+- 检查同步队列：项目、会话文件路径、已同步回合、待同步回合与更新时间。
+- 点击 **同步待处理** 导入当前筛选范围内的所有待处理回合，或点击单个会话的 **同步**。
+
+这是让 Hebb Mind 成为不同 agent 工具之间共享记忆层的主界面。对应 CLI 命令是 `hebb agent-sync list` 与 `hebb agent-sync sync`；详见 [Agent 同步](./agent-sync.md)。
+
 ### 记忆巩固（`#consolidate`）
 
 巩固会每天按 cron 自动运行。本页提供一个**立即整理**触发器，可按需运行并实时流式输出运行日志，另有历次巩固的**运行记录**与**巩固配置**。
@@ -69,10 +80,6 @@ flowchart LR
 
 <!-- TODO(asset): 截一张「记忆管理 → 图谱」标签页渲染出非平凡图（5+ 个标签簇）的图，存为 repo_pages/public/console-graph.png，然后取消下面图片的注释。 -->
 <!-- ![Graph view](../../public/console-graph.png) -->
-
-### CC 记忆（`#cc-memory`）
-
-直接在磁盘上浏览并编辑 Claude Code 基于文件的记忆文档。
 
 ### 系统设置（`#system`）
 
@@ -104,10 +111,18 @@ curl -X POST http://localhost:8321/api/v1/admin/consolidate
 
 **不重启就切换 LLM 模型。** 「系统设置 → LLM」→ 填入一个 LiteLLM 字符串（例如 `anthropic/claude-3-haiku-20240307`）→ 保存。如果该字段显示 `restart_required`，运行 `hebb service restart`。
 
+**补录 Claude Code 或 Codex 会话。** 打开「Agent 同步」→ 选择来源软件 → 点击「同步待处理」。无界面环境可用：
+
+```bash
+hebb agent-sync list --host codex
+hebb agent-sync sync --host codex --dry-run
+hebb agent-sync sync --host codex
+```
+
 ## 控制台 vs CLI vs API 怎么选
 
-- **控制台** —— 探索、调权重、检查写入是否正常、做演示。
-- **CLI（`hebb …`）** —— 安装、配置、运行服务、设置集成。
+- **控制台** —— 探索、调权重、检查写入是否正常、同步 agent 会话、做演示。
+- **CLI（`hebb …`）** —— 安装、配置、运行服务、设置集成，以及在无界面环境中运行同一套 Agent 同步流程。
 - **REST API** —— 一切程序化的场景：CI、自定义 UI。
 
 三者同时操作同一个工作区。从其中一处做的更新，会在另外两处下次刷新时显现。

@@ -36,8 +36,8 @@ features:
     title: 内置 Web 控制台
     details: 单页应用，覆盖记忆 CRUD、检索、分区、图谱视图。直接位于 http://localhost:8321/，无需另行部署。
   - icon: 🔌
-    title: REST + MCP + Claude Code Hooks
-    details: 三行命令为 Claude Code 或 Codex 启用自动跨会话召回、回合写入与 MCP 记忆工具。REST 文档位于 /docs。
+    title: REST + MCP + Agent 同步
+    details: Claude Code 与 Codex 可通过 hooks 自动召回和写入回合，通过 MCP 显式操作记忆，并通过 Agent 同步把历史会话补写进共享记忆中转站。
 ---
 
 <div class="hippo-home">

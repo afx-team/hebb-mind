@@ -7,9 +7,9 @@ import { t, getLang, setLang } from './i18n.js';
 import { runCleanups } from './lifecycle.js';
 import { renderManage } from './components/manage.js';
 import { renderActivate } from './components/activate.js';
+import { renderAgentSync } from './components/agent-sync.js';
 import { renderConsolidate } from './components/consolidate.js';
 import { renderForget } from './components/forget.js';
-import { renderCCMemory } from './components/cc-memory.js';
 import { renderSystem } from './components/system.js';
 import { mountUpgradeBanner } from './components/upgrade-banner.js';
 
@@ -23,10 +23,14 @@ const statusText = document.querySelector('.status-text');
 const pages = {
   manage: renderManage,
   activate: renderActivate,
+  'agent-sync': renderAgentSync,
   consolidate: renderConsolidate,
   forget: renderForget,
-  'cc-memory': renderCCMemory,
   system: renderSystem,
+};
+
+const pageAliases = {
+  'cc-memory': 'agent-sync',
 };
 
 const DEFAULT_PAGE = 'manage';
@@ -44,6 +48,11 @@ function updateNavLabels() {
 }
 
 function navigate(page, sub) {
+  const requestedPage = page;
+  page = pageAliases[page] || page;
+  if (requestedPage !== page) {
+    history.replaceState(null, '', sub ? `#${page}/${sub}` : `#${page}`);
+  }
   if (!pages[page]) { page = DEFAULT_PAGE; sub = null; }
   currentPage = page;
   currentSub = sub || null;

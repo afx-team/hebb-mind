@@ -114,6 +114,34 @@ hebb console            # open in browser
 hebb console --print    # print URL only (CI / SSH friendly)
 ```
 
+## hebb agent-sync
+
+Collect local Claude Code and Codex session history, show sync state, and import pending turns into Hebb Mind. This is the CLI counterpart to the Web Console **Agent Sync** page and uses the same `/api/v1/agent-sync/*` endpoints.
+
+```bash
+hebb agent-sync list [--host all|claude-code|codex] [--limit 100] [--json] [--url URL]
+hebb agent-sync sync [--host all|claude-code|codex] [--id SESSION_ID]... [--limit 100] [--dry-run] [--json] [--url URL]
+```
+
+| Option | Applies to | Description |
+|--------|------------|-------------|
+| `--host` | `list`, `sync` | Filter to one source. `claude-code` maps to the API host `claude_code`. |
+| `--limit` | `list`, `sync` | Maximum sessions to scan. |
+| `--id` | `sync` | Sync only specific opaque session ids returned by `list --json`. May be repeated. |
+| `--dry-run` | `sync` | Report pending turns without writing memories. |
+| `--json` | `list`, `sync` | Print the raw API payload for scripts. |
+| `--url` | `list`, `sync` | Override the server URL, useful for dev servers on non-default ports. |
+
+Common workflow:
+
+```bash
+hebb agent-sync list --host codex
+hebb agent-sync sync --host codex --dry-run
+hebb agent-sync sync --host codex
+```
+
+Synced turns land in `mem_hippocampus` with `source` set to `sync:codex` or `sync:claude_code`, then follow the normal consolidation and recall lifecycle. See [Agent Sync](../guide/agent-sync.md) for the full workflow.
+
 ## hebb doctor
 
 Run a one-shot health check covering Python version, config file, workspace, LLM, embedding model cache, web console assets, server reachability, and Claude Code / Codex MCP registration.

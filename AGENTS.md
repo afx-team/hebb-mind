@@ -113,6 +113,10 @@ def test_retrieve_returns_sorted_memories():
 
 ## Conventions (SHOULD)
 
+### UI / CLI Parity
+- New Web Console features **SHOULD** have a corresponding `hebb` CLI command for the same core workflow.
+- If CLI parity is intentionally skipped, document why the feature is UI-only or why a CLI would not be useful.
+
 ### Visual Documentation
 - Use **mermaid diagrams** for architecture, data flow, and component relationships
 - Example:
