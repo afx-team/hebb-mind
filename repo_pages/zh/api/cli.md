@@ -112,6 +112,34 @@ hebb console            # 浏览器打开
 hebb console --print    # 只打印 URL（适合 CI/SSH）
 ```
 
+## hebb agent-sync
+
+收集本机 Claude Code 与 Codex 会话历史，显示同步状态，并将待处理回合导入 Hebb Mind。这是 Web 控制台 **Agent 同步** 页面的 CLI 对应能力，使用同一组 `/api/v1/agent-sync/*` 端点。
+
+```bash
+hebb agent-sync list [--host all|claude-code|codex] [--limit 100] [--json] [--url URL]
+hebb agent-sync sync [--host all|claude-code|codex] [--id SESSION_ID]... [--limit 100] [--dry-run] [--json] [--url URL]
+```
+
+| 选项 | 适用于 | 说明 |
+|------|--------|------|
+| `--host` | `list`, `sync` | 只处理某个来源。`claude-code` 会映射到 API host `claude_code`。 |
+| `--limit` | `list`, `sync` | 最大扫描会话数。 |
+| `--id` | `sync` | 只同步 `list --json` 返回的指定会话 id，可重复传入。 |
+| `--dry-run` | `sync` | 只报告待处理回合，不写入记忆。 |
+| `--json` | `list`, `sync` | 输出原始 API payload，便于脚本处理。 |
+| `--url` | `list`, `sync` | 覆盖服务地址，适合开发服务使用非默认端口时传入。 |
+
+常用流程：
+
+```bash
+hebb agent-sync list --host codex
+hebb agent-sync sync --host codex --dry-run
+hebb agent-sync sync --host codex
+```
+
+同步后的回合会写入 `mem_hippocampus`，`source` 为 `sync:codex` 或 `sync:claude_code`，随后继续走正常的巩固与召回生命周期。完整流程见 [Agent 同步](../guide/agent-sync.md)。
+
 ## hebb doctor
 
 对 Python 版本、配置文件、workspace、LLM、embedding 模型缓存、Web 控制台资源、服务可达性、Claude Code / Codex MCP 注册逐项检查，输出 `[OK]`/`[WARN]`/`[FAIL]`。

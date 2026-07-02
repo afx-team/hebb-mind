@@ -198,6 +198,7 @@ def create_app() -> FastAPI:
 
     from hebb.server.routers import (
         admin,
+        agent_sync,
         claude_memory,
         config,
         forgetting,
@@ -214,6 +215,7 @@ def create_app() -> FastAPI:
     app.include_router(memories.router, prefix="/api/v1", tags=["memories"])
     app.include_router(search.router, prefix="/api/v1", tags=["search"])
     app.include_router(graph.router, prefix="/api/v1", tags=["graph"])
+    app.include_router(agent_sync.router, prefix="/api/v1/agent-sync", tags=["agent-sync"])
     app.include_router(claude_memory.router, prefix="/api/v1/claude-memory", tags=["claude-memory"])
     app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
     app.include_router(config.router, prefix="/api/v1/admin", tags=["config"])

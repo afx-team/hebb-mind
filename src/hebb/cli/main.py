@@ -5,6 +5,7 @@ from __future__ import annotations
 import click
 
 from hebb import __version__
+from hebb.cli.commands.agent_sync import agent_sync_cmd
 from hebb.cli.commands.config import config_cmd
 from hebb.cli.commands.console import console_cmd
 from hebb.cli.commands.doctor import doctor_cmd
@@ -28,6 +29,7 @@ def main() -> None:
 
 
 main.add_command(setup_cmd, "setup")
+main.add_command(agent_sync_cmd)
 main.add_command(service_cmd, "service")
 main.add_command(status_cmd, "status")
 main.add_command(console_cmd, "console")

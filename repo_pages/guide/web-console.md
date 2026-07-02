@@ -1,10 +1,10 @@
 ---
-description: "Browse, search, and edit your AI agent memory in the browser: the Hebb Mind Web Console bundles hybrid retrieval, a knowledge graph view, and live config on port 8321."
+description: "Browse, search, sync, and tune AI agent memory in the browser: the Hebb Mind Web Console bundles Agent Sync, hybrid retrieval, a knowledge graph view, and live config on port 8321."
 ---
 
 # Web Console
 
-The Web Console is a single-page app that ships inside the Hebb Mind binary. It gives you a browseable view of your memories, a search box wired to the same hybrid retrieval that powers the API, a graph view of your knowledge graph, and a settings panel for changing config without touching JSON.
+The Web Console is a single-page app that ships inside the Hebb Mind binary. It gives you a browseable view of your memories, Agent Sync for Claude Code and Codex session history, a search box wired to the same hybrid retrieval that powers the API, a graph view of your knowledge graph, and a settings panel for changing config without touching JSON.
 
 ## Access
 
@@ -40,7 +40,7 @@ The whole stack reads from your resolved workspace (run `hebb config get workspa
 
 ## Tour
 
-The sidebar is organised around the memory lifecycle. The first four entries — **Manage**, **Activate**, **Consolidate**, **Forget** — are the write → recall → consolidate → forget loop; a divider separates them from **CC Memory**, **System**, and a link out to the **Docs**. Each entry is a hash route, so you can deep-link straight to it.
+The sidebar is organised around the memory lifecycle. **Manage**, **Activate**, **Agent Sync**, **Consolidate**, and **Forget** cover browse/write → recall → cross-agent sync → consolidate → forget; a divider separates them from **System** and a link out to the **Docs**. Each entry is a hash route, so you can deep-link straight to it.
 
 ### Manage (`#manage`)
 
@@ -59,6 +59,17 @@ If the stat band reads zero on a fresh install, you're probably in the wrong wor
 
 Recall, end to end. A **recall test** at the top lets you run a semantic search with per-query sliders for `relevance`, `importance`, and `recency`, and renders the scored results. Below it sit the global **recall parameters** — the recall-pipeline toggles, cross-encoder rerank, and the default scoring weights — so you can tune against real queries and then persist what works.
 
+### Agent Sync (`#agent-sync`)
+
+The cross-agent memory hub for Claude Code and Codex.
+
+- Choose **All software**, **Claude Code**, or **Codex**.
+- Read the flow as **Source software → Hebb Mind → Available to Claude Code / Codex**.
+- Inspect the sync queue: project, transcript path, synced turns, pending turns, and update time.
+- Click **Sync pending** to import all pending turns for the current filter, or **Sync** on one session.
+
+This is the primary UI for making Hebb Mind the shared memory layer across agent tools. The matching CLI commands are `hebb agent-sync list` and `hebb agent-sync sync`; see [Agent Sync](./agent-sync.md).
+
 ### Consolidate (`#consolidate`)
 
 Consolidation runs automatically on a daily cron. This page gives you an **Organize now** trigger to run it on demand and stream the run log live, the **run records** of past consolidations, and the **consolidation config**.
@@ -69,10 +80,6 @@ The forgetting counterpart of Consolidate. A **Clean up now** trigger runs a swe
 
 <!-- TODO(asset): screenshot of the Manage → Graph tab with a non-trivial graph rendered (5+ tag clusters). Save as repo_pages/public/console-graph.png, then uncomment the image below. -->
 <!-- ![Graph view](../public/console-graph.png) -->
-
-### CC Memory (`#cc-memory`)
-
-Browse and edit Claude Code's file-based memory documents directly on disk.
 
 ### System (`#system`)
 
@@ -104,10 +111,18 @@ This requires an LLM key — see [Troubleshooting](../troubleshooting.md#consoli
 
 **Change the LLM model without restarting.** System → LLM → enter a LiteLLM string (e.g. `anthropic/claude-3-haiku-20240307`) → save. If the field shows `restart_required`, run `hebb service restart`.
 
+**Backfill Claude Code or Codex sessions.** Open Agent Sync → pick the source software → click **Sync pending**. For headless use:
+
+```bash
+hebb agent-sync list --host codex
+hebb agent-sync sync --host codex --dry-run
+hebb agent-sync sync --host codex
+```
+
 ## When to use the Console vs. the CLI vs. the API
 
-- **Console** — exploration, tuning weights, sanity-checking ingest, demos.
-- **CLI (`hebb …`)** — install, configuration, running the server, integration setup.
+- **Console** — exploration, tuning weights, sanity-checking ingest, syncing agent sessions, demos.
+- **CLI (`hebb …`)** — install, configuration, running the server, integration setup, and the same Agent Sync workflow in headless form.
 - **REST API** — anything programmatic, CI, custom UIs.
 
 All three operate on the same workspace simultaneously. Updates from one show up in the others on next refresh.

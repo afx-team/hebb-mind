@@ -212,7 +212,9 @@ def test_codex_stop_writes_native_metadata(monkeypatch) -> None:
         "turn": 2,
         "turn_id": "turn-3",
     }
-    assert payload["content"].startswith("[2026-06-29T01:02:03.456Z]")
+    # Codex transcript timestamps arrive with millisecond precision, but stored
+    # memory prefixes follow the shared second-precision formatter contract.
+    assert payload["content"].startswith("[2026-06-29T01:02:03+00:00]")
 
 
 def test_codex_stop_deduplicates_session_turn(monkeypatch) -> None:

@@ -159,6 +159,8 @@ Docker 部署见 [存储后端](./advanced/storage-backends.md#docker-deployment
 ```bash
 hebb claude-code install --scope user      # Claude Code：hooks 自动记忆
 hebb codex install                         # Codex：项目级 MCP + 自动记忆 hooks
+hebb agent-sync list                       # 查看本机 Claude Code / Codex 会话
+hebb agent-sync sync --dry-run             # 预览历史会话导入
 codex mcp list                             # 验证
 ```
 
@@ -172,7 +174,9 @@ codex mcp list                             # 验证
 }
 ```
 
-详见：[MCP 集成](./guide/mcp-integration.md) · [Claude Code 集成](./guide/claude-code.md) · [Codex 集成](./guide/codex.md)
+Hooks 捕获未来回合。要把已有 Claude Code 或 Codex 对话补写进共享的 Hebb Mind 数据库，请在 Web 控制台或 CLI 使用 [Agent 同步](./guide/agent-sync.md)。
+
+详见：[MCP 集成](./guide/mcp-integration.md) · [Claude Code 集成](./guide/claude-code.md) · [Codex 集成](./guide/codex.md) · [Agent 同步](./guide/agent-sync.md)
 
 ## 下一步
 

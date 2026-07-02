@@ -24,6 +24,8 @@ class CodexTurn:
 
     summary: TurnSummary
     timestamp: str | None = None
+    session_id: str | None = None
+    cwd: str | None = None
 
 
 def extract_last_turn(
@@ -86,7 +88,84 @@ def extract_last_turn(
         turn=len(user_indices) - 1,
     )
     timestamp = user_record.get("timestamp")
-    return CodexTurn(summary=summary, timestamp=timestamp if isinstance(timestamp, str) else None)
+    session_id, cwd = _session_meta(records)
+    return CodexTurn(
+        summary=summary,
+        timestamp=timestamp if isinstance(timestamp, str) else None,
+        session_id=session_id,
+        cwd=cwd,
+    )
+
+
+def extract_turns(transcript_path: str | Path) -> list[CodexTurn]:
+    """Extract all complete user-to-assistant turns from a Codex rollout JSONL.
+
+    Args:
+        transcript_path: Path to a Codex rollout JSONL file.
+
+    Returns:
+        Parsed turns in transcript order. Codex setup records such as
+        ``AGENTS.md`` and ``environment_context`` user messages are skipped,
+        while turn indexes still match the raw rollout user-message count used
+        by the Stop hook.
+
+    Raises:
+        OSError: If the transcript cannot be read.
+    """
+    records = _load_records(Path(transcript_path))
+    raw_user_indices = [index for index, record in enumerate(records) if _raw_user_text(record)]
+    session_id, cwd = _session_meta(records)
+    turns: list[CodexTurn] = []
+
+    for pos, user_index in enumerate(raw_user_indices):
+        user_record = records[user_index]
+        raw_user = _raw_user_text(user_record)
+        if _is_context_user_text(raw_user):
+            continue
+        user_text = _clean_user_text(raw_user)
+        if not user_text:
+            continue
+
+        next_user_index = raw_user_indices[pos + 1] if pos + 1 < len(raw_user_indices) else len(records)
+        trailing = records[user_index + 1 : next_user_index]
+        assistant_text = ""
+        for record in reversed(trailing):
+            candidate = _raw_assistant_text(record)
+            if candidate:
+                assistant_text = _normalize_assistant(candidate)
+                break
+        if not assistant_text:
+            continue
+
+        tools: list[str] = []
+        mcps: list[str] = []
+        for record in trailing:
+            name = _tool_name(record)
+            if not name:
+                continue
+            if name.startswith("mcp__"):
+                mcps.append(name)
+            else:
+                tools.append(name)
+
+        summary = TurnSummary(
+            user_input=user_text,
+            assistant_output=assistant_text,
+            tools=_dedup(tools),
+            mcps=_dedup(mcps),
+            turn=pos,
+        )
+        timestamp = user_record.get("timestamp")
+        turns.append(
+            CodexTurn(
+                summary=summary,
+                timestamp=timestamp if isinstance(timestamp, str) else None,
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    return turns
 
 
 def _load_records(path: Path) -> list[dict[str, Any]]:
@@ -107,6 +186,21 @@ def _payload(record: dict[str, Any]) -> dict[str, Any]:
     """Return a record payload as a mapping."""
     payload = record.get("payload")
     return payload if isinstance(payload, dict) else {}
+
+
+def _session_meta(records: list[dict[str, Any]]) -> tuple[str | None, str | None]:
+    """Return session id and cwd from the first Codex session metadata record."""
+    for record in records:
+        if record.get("type") != "session_meta":
+            continue
+        payload = _payload(record)
+        session_id = payload.get("id")
+        cwd = payload.get("cwd")
+        return (
+            session_id if isinstance(session_id, str) else None,
+            cwd if isinstance(cwd, str) else None,
+        )
+    return None, None
 
 
 def _message_text(record: dict[str, Any], *, role: str, block_type: str) -> str:
@@ -130,6 +224,18 @@ def _message_text(record: dict[str, Any], *, role: str, block_type: str) -> str:
 def _raw_user_text(record: dict[str, Any]) -> str:
     """Return human input text from a Codex message record."""
     return _message_text(record, role="user", block_type="input_text")
+
+
+def _is_context_user_text(raw: str) -> bool:
+    """Return whether a Codex user-message record is setup context, not user intent."""
+    stripped = raw.lstrip()
+    return stripped.startswith(
+        (
+            "# AGENTS.md instructions for ",
+            "<environment_context>",
+            "<codex_internal_context",
+        )
+    )
 
 
 def _raw_assistant_text(record: dict[str, Any]) -> str:
