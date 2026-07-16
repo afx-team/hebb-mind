@@ -41,3 +41,15 @@ def test_close_emits_final_event() -> None:
     bar.close()
 
     assert events[-1] == (4, 4, "final")
+
+
+def test_silent_progress_suppresses_native_tqdm_output(capsys) -> None:
+    progress_cls = make_progress_tqdm(lambda _done, _total, _desc: None, silent=True)
+    bar = progress_cls(total=2, desc="Downloading bytes")
+
+    bar.update(1)
+    bar.close()
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""

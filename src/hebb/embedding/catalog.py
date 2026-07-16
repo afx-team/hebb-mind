@@ -80,7 +80,9 @@ MODEL_DIMS: dict[str, int] = {
 # Skipping these in ``snapshot_download`` roughly halves the bytes pulled for
 # repos that ship ONNX/OpenVINO/TensorFlow exports alongside the torch weights.
 # NOTE: keep ``*.bin`` and ``*.safetensors`` — ``model_dir_complete`` requires a
-# real weight file (``model.safetensors`` OR ``pytorch_model.bin``).
+# real weight file (``model.safetensors`` OR ``pytorch_model.bin``). The helper
+# below conditionally excludes the exact redundant .bin filename only for
+# built-in repositories verified to publish safetensors.
 PREFETCH_IGNORE_PATTERNS: tuple[str, ...] = (
     "*.onnx",
     "onnx/**",
@@ -91,6 +93,23 @@ PREFETCH_IGNORE_PATTERNS: tuple[str, ...] = (
     "*.ckpt",
     "*.msgpack",
     "*.pb",
+)
+
+# These built-in models publish a safetensors checkpoint alongside redundant
+# framework-specific copies. Prefer the safe format while retaining
+# ``pytorch_model.bin`` for BGE-M3 and unknown/custom repositories that may not
+# publish safetensors at all.
+_SAFETENSORS_MODELS = frozenset(
+    {
+        "all-MiniLM-L6-v2",
+        "sentence-transformers/all-MiniLM-L6-v2",
+        "intfloat/multilingual-e5-small",
+        "BAAI/bge-large-en-v1.5",
+    }
+)
+_REDUNDANT_TORCH_WEIGHT_PATTERNS: tuple[str, ...] = (
+    "pytorch_model.bin",
+    "rust_model.ot",
 )
 
 
@@ -273,13 +292,14 @@ def prefetch_model(
     workspace: Path,
     hf_endpoint: str | None = None,
     progress_callback: ProgressCallback | None = None,
+    suppress_native_progress: bool = False,
 ) -> Path:
     """Download a HuggingFace model into the Hebb Mind workspace.
 
-    Redundant weight variants (ONNX, OpenVINO, TensorFlow, msgpack) are skipped
-    via :data:`PREFETCH_IGNORE_PATTERNS`; the PyTorch ``*.bin`` / ``*.safetensors``
-    weights plus config, tokenizer, and sentence-transformers module files are
-    always fetched.
+    Redundant weight variants (ONNX, OpenVINO, TensorFlow, msgpack) are skipped.
+    Built-in repositories verified to publish safetensors also skip duplicate
+    ``pytorch_model.bin`` / ``rust_model.ot`` copies, while repositories without
+    safetensors retain their PyTorch ``*.bin`` checkpoint.
 
     Args:
         model_id: HuggingFace repository ID.
@@ -288,6 +308,8 @@ def prefetch_model(
         progress_callback: Optional callback receiving (bytes_done, bytes_total,
             current_file_desc) on every tqdm tick. Used by the web console to
             surface real-time download progress.
+        suppress_native_progress: Hide HuggingFace's tqdm rendering when the
+            callback is displayed by another terminal progress UI.
 
     Returns:
         Local model directory.
@@ -321,12 +343,15 @@ def prefetch_model(
     snapshot_kwargs: dict = {
         "repo_id": model_id,
         "local_dir": str(local_dir),
-        "ignore_patterns": list(PREFETCH_IGNORE_PATTERNS),
+        "ignore_patterns": _prefetch_ignore_patterns(model_id),
     }
     if progress_callback is not None:
         from hebb.embedding.progress import make_progress_tqdm
 
-        snapshot_kwargs["tqdm_class"] = make_progress_tqdm(progress_callback)
+        snapshot_kwargs["tqdm_class"] = make_progress_tqdm(
+            progress_callback,
+            silent=suppress_native_progress,
+        )
 
     try:
         snapshot_download(**snapshot_kwargs)
@@ -340,6 +365,21 @@ def prefetch_model(
         _hf_const.HF_HUB_OFFLINE = old_offline_const
 
     return local_dir
+
+
+def _prefetch_ignore_patterns(model_id: str) -> list[str]:
+    """Return safe redundant-file exclusions for one model repository.
+
+    Args:
+        model_id: HuggingFace repository ID.
+
+    Returns:
+        Ignore patterns that retain at least one supported PyTorch checkpoint.
+    """
+    patterns = list(PREFETCH_IGNORE_PATTERNS)
+    if model_id in _SAFETENSORS_MODELS:
+        patterns.extend(_REDUNDANT_TORCH_WEIGHT_PATTERNS)
+    return patterns
 
 
 def _detect_locale(environ: dict[str, str]) -> str | None:

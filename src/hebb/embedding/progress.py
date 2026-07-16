@@ -20,11 +20,38 @@ invocation in a bare ``except`` to enforce that.
 """
 
 
-def make_progress_tqdm(callback: ProgressCallback) -> type:
-    """Return a tqdm subclass that calls ``callback`` on every update."""
+class _SilentProgressOutput:
+    """Discard tqdm rendering while preserving its internal counters."""
+
+    def write(self, text: str) -> int:
+        return len(text)
+
+    def flush(self) -> None:
+        return None
+
+
+_SILENT_PROGRESS_OUTPUT = _SilentProgressOutput()
+
+
+def make_progress_tqdm(callback: ProgressCallback, *, silent: bool = False) -> type:
+    """Return a tqdm subclass that calls ``callback`` on every update.
+
+    Args:
+        callback: Consumer of byte progress updates.
+        silent: Suppress tqdm's own terminal rendering when another UI renders
+            the callback events.
+
+    Returns:
+        A tqdm-compatible progress class.
+    """
     from tqdm import tqdm  # type: ignore[import-untyped]
 
     class ProgressTqdm(tqdm):  # type: ignore[misc]
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            if silent:
+                kwargs["file"] = _SILENT_PROGRESS_OUTPUT
+            super().__init__(*args, **kwargs)
+
         def update(self, n: int | float = 1) -> bool | None:
             ret = super().update(n)
             try:

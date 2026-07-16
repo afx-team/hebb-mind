@@ -132,12 +132,33 @@ class TestPrefetchIgnorePatterns:
         # Redundant heavy variants are skipped.
         assert "*.onnx" in ignored
         assert "openvino/**" in ignored
-        # The actual weight files must NEVER be excluded — model_dir_complete
-        # requires safetensors OR pytorch_model.bin.
-        assert "*.safetensors" not in ignored
+        # This built-in model ships three equivalent checkpoints; retain only
+        # safetensors so the advertised ~90MB download remains accurate.
+        assert "pytorch_model.bin" in ignored
+        assert "rust_model.ot" in ignored
+        # Never use a broad pattern that would also exclude custom/BGE-M3
+        # repositories whose only supported checkpoint is a .bin file.
         assert "*.bin" not in ignored
+        assert "*.safetensors" not in ignored
         assert "model.safetensors" not in ignored
+
+    def test_prefetch_keeps_bin_for_model_without_safetensors(self, tmp_path: Path, monkeypatch) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_snapshot_download(**kwargs: object) -> str:
+            captured.update(kwargs)
+            return str(kwargs["local_dir"])
+
+        import huggingface_hub
+
+        monkeypatch.setattr(huggingface_hub, "snapshot_download", fake_snapshot_download)
+
+        catalog.prefetch_model("BAAI/bge-m3", tmp_path)
+
+        ignored = captured["ignore_patterns"]
+        assert isinstance(ignored, list)
         assert "pytorch_model.bin" not in ignored
+        assert "*.bin" not in ignored
 
 
 def test_region_auto_prefers_official_when_faster(monkeypatch) -> None:

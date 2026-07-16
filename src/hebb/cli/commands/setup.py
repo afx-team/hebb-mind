@@ -7,6 +7,15 @@ from pathlib import Path
 import click
 from click.core import ParameterSource
 from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    DownloadColumn,
+    Progress,
+    TaskProgressColumn,
+    TextColumn,
+    TimeRemainingColumn,
+    TransferSpeedColumn,
+)
 
 from hebb.config.init import default_init_target, initialize_workspace
 from hebb.config.loader import find_config_file, load_settings, update_config_field
@@ -71,8 +80,11 @@ def setup_cmd(ctx: click.Context, language: str, region: str, profile: str) -> N
         if workspace_model_available(workspace, model_id):
             console.print(f"[green]Model already present:[/] {model_cache_dir(workspace, model_id)}")
         else:
-            console.print(f"[cyan]Downloading embedding model[/] ({_download_tier_hint(model_id)})...")
-            model_path = prefetch_model(model_id, workspace, hf_endpoint=region_selection.hf_endpoint)
+            model_path = _prefetch_with_progress(
+                model_id,
+                workspace,
+                hf_endpoint=region_selection.hf_endpoint,
+            )
             console.print(f"[green]Model ready:[/] {model_path}")
         dimension = _verify_model(model_id, hf_endpoint=region_selection.hf_endpoint)
         console.print(f"[green]Embedding verified:[/] dim={dimension}")
@@ -131,6 +143,68 @@ def _download_tier_hint(model_id: str) -> str:
     if model_id in {"BAAI/bge-large-en-v1.5", "BAAI/bge-m3"}:
         return "best 1-2GB"
     return "size varies"
+
+
+def _prefetch_with_progress(model_id: str, workspace: Path, *, hf_endpoint: str | None) -> Path:
+    """Download one model while rendering live terminal byte progress.
+
+    Args:
+        model_id: HuggingFace repository ID of the model to download.
+        workspace: Resolved Hebb Mind workspace directory.
+        hf_endpoint: Optional HuggingFace-compatible endpoint.
+
+    Returns:
+        Local directory containing the downloaded model.
+
+    Raises:
+        Exception: Propagates download failures from :func:`prefetch_model`.
+    """
+    size_hint = _download_tier_hint(model_id)
+    columns = (
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        DownloadColumn(),
+        TransferSpeedColumn(),
+        TimeRemainingColumn(),
+    )
+    with Progress(*columns, console=console, transient=False) as progress:
+        task_id = progress.add_task(
+            f"[cyan]Downloading embedding model[/] [dim]({size_hint})[/]",
+            total=None,
+        )
+
+        def update_progress(bytes_done: int, bytes_total: int, current_file: str) -> None:
+            if _is_file_count_progress(current_file):
+                return
+            description = current_file.strip() or "Downloading embedding model"
+            progress.update(
+                task_id,
+                description=f"[cyan]{description}[/] [dim]({size_hint})[/]",
+                completed=bytes_done,
+                total=bytes_total or None,
+            )
+
+        return prefetch_model(
+            model_id,
+            workspace,
+            hf_endpoint=hf_endpoint,
+            progress_callback=update_progress,
+            suppress_native_progress=True,
+        )
+
+
+def _is_file_count_progress(description: str) -> bool:
+    """Return whether a HuggingFace tqdm event counts files rather than bytes.
+
+    Args:
+        description: Description emitted by the HuggingFace tqdm instance.
+
+    Returns:
+        ``True`` for the snapshot-level ``Fetching N files`` counter.
+    """
+    normalized = description.strip().lower()
+    return normalized.startswith("fetching ") and normalized.endswith(" files")
 
 
 def _persist_region(hf_endpoint: str | None, config_path: Path) -> None:
