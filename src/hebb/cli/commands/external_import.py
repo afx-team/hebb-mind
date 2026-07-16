@@ -34,6 +34,9 @@ def import_cmd(source: str, path: Path) -> None:
         source: External framework identifier selected by Click.
         path: Existing corpus path selected by Click.
 
+    Returns:
+        None.
+
     Raises:
         click.ClickException: If discovery, parsing, embedding, or storage fails.
     """

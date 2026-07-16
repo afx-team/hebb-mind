@@ -99,6 +99,44 @@ def test_hkuds_uses_schema_v1_metadata_and_skips_index_and_disabled() -> None:
     assert by_path[".openharness/memory/project-layout.md"].metadata["external_native_id"] == "mem-project-layout"
 
 
+def test_hkuds_preserves_identifier_formatting(tmp_path: Path) -> None:
+    memory_dir = tmp_path / ".openharness" / "memory"
+    memory_dir.mkdir(parents=True)
+    (memory_dir / "leading-zero-id.md").write_text(
+        '---\nschema_version: "01"\nid: 007\ntype: project\n---\n# Stable identifier\n',
+        encoding="utf-8",
+    )
+
+    [entry] = discover_external_entries("hkuds", tmp_path)
+
+    assert entry.metadata["external_native_id"] == "007"
+    assert entry.metadata["external_schema_version"] == "01"
+
+
+@pytest.mark.parametrize(
+    ("category", "expected_partition"),
+    [
+        ("workflow", PartitionType.PROCEDURAL.value),
+        ("postprocess", PartitionType.SEMANTIC.value),
+    ],
+)
+def test_hkuds_matches_procedural_categories_exactly(
+    tmp_path: Path,
+    category: str,
+    expected_partition: str,
+) -> None:
+    memory_dir = tmp_path / ".openharness" / "memory"
+    memory_dir.mkdir(parents=True)
+    (memory_dir / "category.md").write_text(
+        f"---\ntype: project\ncategory: {category}\n---\n# Category routing\n",
+        encoding="utf-8",
+    )
+
+    [entry] = discover_external_entries("hkuds", tmp_path)
+
+    assert entry.partition == expected_partition
+
+
 @pytest.mark.parametrize(
     ("source", "expected_count", "query", "content_prefix"),
     [

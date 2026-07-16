@@ -26,7 +26,16 @@ class ExternalImportError(ValueError):
 
 @dataclass(frozen=True)
 class ExternalMemoryEntry:
-    """One cleaned external document ready for Hebb Mind storage."""
+    """One cleaned external document ready for Hebb Mind storage.
+
+    Attributes:
+        content: Cleaned Markdown content to persist.
+        partition: Hebbian memory partition selected for the document.
+        importance: Normalized importance score from zero through ten.
+        tags: Deduplicated tags used for discovery and provenance.
+        metadata: External identity and source metadata.
+        source_path: Stable path relative to the imported corpus root.
+    """
 
     content: str
     partition: str
@@ -38,7 +47,13 @@ class ExternalMemoryEntry:
 
 @dataclass(frozen=True)
 class ImportSummary:
-    """Counts returned after importing one external corpus."""
+    """Counts returned after importing one external corpus.
+
+    Attributes:
+        discovered: Number of importable documents found.
+        imported: Number of new memories written.
+        skipped_existing: Number of documents skipped as already present.
+    """
 
     discovered: int
     imported: int
@@ -142,6 +157,7 @@ def import_external_corpus(source: str, path: str | Path, mind: HebbMind) -> Imp
 
 
 def _normalize_source(source: str) -> ExternalSource:
+    """Validate and normalize an external source identifier."""
     value = source.strip().lower()
     if value not in SUPPORTED_EXTERNAL_SOURCES:
         choices = ", ".join(SUPPORTED_EXTERNAL_SOURCES)
@@ -150,6 +166,7 @@ def _normalize_source(source: str) -> ExternalSource:
 
 
 def _discover_files(source: ExternalSource, root: Path) -> list[Path]:
+    """Dispatch deterministic file discovery for one source layout."""
     if root.is_file():
         return [root] if root.suffix.lower() == ".md" else []
     if source == "openhands":
@@ -160,6 +177,7 @@ def _discover_files(source: ExternalSource, root: Path) -> list[Path]:
 
 
 def _discover_openhands_files(root: Path) -> list[Path]:
+    """Find OpenHands skill and microagent Markdown documents."""
     bases = [
         root / ".openhands" / "skills",
         root / ".openhands" / "microagents",
@@ -181,6 +199,7 @@ def _discover_openhands_files(root: Path) -> list[Path]:
 
 
 def _discover_openclaw_files(root: Path) -> list[Path]:
+    """Find OpenClaw workspace and daily-memory Markdown documents."""
     workspaces = [root]
     nested_workspace = root / ".openclaw" / "workspace"
     if nested_workspace.is_dir():
@@ -202,6 +221,7 @@ def _discover_openclaw_files(root: Path) -> list[Path]:
 
 
 def _discover_hkuds_files(root: Path) -> list[Path]:
+    """Find HKUDS/OpenHarness schema-v1 memory documents."""
     directories = [directory for directory in (root / ".openharness" / "memory", root / "memory") if directory.is_dir()]
     if root.name.lower() == "memory" or not directories:
         directories.append(root)
@@ -224,6 +244,7 @@ def _build_entry(
     content: str,
     frontmatter: dict[str, Any],
 ) -> ExternalMemoryEntry:
+    """Build a routed entry with deterministic identity metadata."""
     partition, importance, source_tags = _route_entry(source, file_path, source_path, frontmatter)
     native_id = str(frontmatter.get("id") or "").strip()
     source_identity = native_id or source_path
@@ -264,6 +285,7 @@ def _route_entry(
     source_path: str,
     frontmatter: dict[str, Any],
 ) -> tuple[str, float, tuple[str, ...]]:
+    """Map source-specific metadata to a Hebbian partition and score."""
     if source == "openhands":
         return PartitionType.PROCEDURAL.value, 6.0, _frontmatter_tags(frontmatter)
 
@@ -279,7 +301,7 @@ def _route_entry(
 
     memory_type = str(frontmatter.get("type") or "").strip().lower()
     category = str(frontmatter.get("category") or "").strip().lower()
-    if any(token in category for token in _PROCEDURAL_CATEGORIES):
+    if category in _PROCEDURAL_CATEGORIES:
         partition = PartitionType.PROCEDURAL.value
     elif memory_type == "user":
         partition = PartitionType.PREFERENCE.value
@@ -294,6 +316,7 @@ def _route_entry(
 
 
 def _existing_external_keys(mind: HebbMind) -> set[str]:
+    """Collect existing import keys without unsafe post-pagination filters."""
     keys: set[str] = set()
     offset = 0
     page_size = 500
@@ -314,6 +337,7 @@ def _existing_external_keys(mind: HebbMind) -> set[str]:
 
 
 def _split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
+    """Split optional YAML-like frontmatter from a Markdown document."""
     lines = text.splitlines(keepends=True)
     if not lines or lines[0].strip() != "---":
         return {}, text
@@ -326,6 +350,7 @@ def _split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
 
 
 def _parse_frontmatter_lines(lines: list[str]) -> dict[str, Any]:
+    """Parse the supported deterministic frontmatter subset."""
     values: dict[str, Any] = {}
     index = 0
     while index < len(lines):
@@ -338,6 +363,10 @@ def _parse_frontmatter_lines(lines: list[str]) -> dict[str, Any]:
         key, raw_value = stripped.split(":", 1)
         key = key.strip()
         raw_value = raw_value.strip()
+        if key in {"id", "schema_version"} and raw_value and raw_value not in {"|", ">"}:
+            values[key] = _unquote(raw_value)
+            index += 1
+            continue
         if raw_value in {"|", ">"}:
             value, index = _parse_block_scalar(
                 lines,
@@ -359,6 +388,7 @@ def _parse_frontmatter_lines(lines: list[str]) -> dict[str, Any]:
 
 
 def _parse_block_list(lines: list[str], *, start: int) -> tuple[list[Any], int]:
+    """Parse a simple frontmatter block list and return its next index."""
     items: list[Any] = []
     index = start
     while index < len(lines):
@@ -382,6 +412,7 @@ def _parse_block_scalar(
     parent_indent: int,
     folded: bool,
 ) -> tuple[str, int]:
+    """Parse a literal or folded frontmatter block scalar."""
     content: list[str] = []
     index = start
     while index < len(lines):
@@ -395,10 +426,12 @@ def _parse_block_scalar(
 
 
 def _line_indent(line: str) -> int:
+    """Return the number of leading whitespace characters in a line."""
     return len(line) - len(line.lstrip())
 
 
 def _parse_frontmatter_value(raw: str) -> Any:
+    """Convert one scalar or inline-list frontmatter value."""
     if not raw:
         return ""
     lowered = raw.lower()
@@ -422,12 +455,14 @@ def _parse_frontmatter_value(raw: str) -> Any:
 
 
 def _unquote(value: str) -> str:
+    """Remove matching single or double quotes from a scalar."""
     if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
         return value[1:-1]
     return value
 
 
 def _frontmatter_tags(frontmatter: dict[str, Any]) -> tuple[str, ...]:
+    """Collect normalized tags and triggers from frontmatter."""
     values: list[str] = []
     for field in ("tags", "triggers"):
         raw = frontmatter.get(field)
@@ -439,6 +474,7 @@ def _frontmatter_tags(frontmatter: dict[str, Any]) -> tuple[str, ...]:
 
 
 def _unique_tags(values: tuple[str, ...] | list[str]) -> tuple[str, ...]:
+    """Normalize and deduplicate tags while preserving input order."""
     seen: set[str] = set()
     result: list[str] = []
     for value in values:
@@ -451,6 +487,7 @@ def _unique_tags(values: tuple[str, ...] | list[str]) -> tuple[str, ...]:
 
 
 def _clamped_importance(value: Any) -> float:
+    """Parse an importance score and clamp it to the supported range."""
     try:
         parsed = float(value)
     except (TypeError, ValueError):
@@ -459,6 +496,7 @@ def _clamped_importance(value: Any) -> float:
 
 
 def _as_bool(value: Any) -> bool:
+    """Interpret common frontmatter boolean representations."""
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
@@ -467,6 +505,7 @@ def _as_bool(value: Any) -> bool:
 
 
 def _relative_source_path(file_path: Path, root: Path) -> str:
+    """Return a stable POSIX-style path relative to the corpus root."""
     if root.is_file():
         return file_path.name
     try:
