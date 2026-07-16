@@ -28,13 +28,19 @@ class ExternalImportError(ValueError):
 class ExternalMemoryEntry:
     """One cleaned external document ready for Hebb Mind storage.
 
-    Attributes:
+    Args:
         content: Cleaned Markdown content to persist.
         partition: Hebbian memory partition selected for the document.
         importance: Normalized importance score from zero through ten.
         tags: Deduplicated tags used for discovery and provenance.
         metadata: External identity and source metadata.
         source_path: Stable path relative to the imported corpus root.
+
+    Returns:
+        An immutable external-memory entry.
+
+    Raises:
+        TypeError: If required constructor arguments are missing or unexpected.
     """
 
     content: str
@@ -49,10 +55,16 @@ class ExternalMemoryEntry:
 class ImportSummary:
     """Counts returned after importing one external corpus.
 
-    Attributes:
+    Args:
         discovered: Number of importable documents found.
         imported: Number of new memories written.
         skipped_existing: Number of documents skipped as already present.
+
+    Returns:
+        An immutable summary of one import operation.
+
+    Raises:
+        TypeError: If required constructor arguments are missing or unexpected.
     """
 
     discovered: int
