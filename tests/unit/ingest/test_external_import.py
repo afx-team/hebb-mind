@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
 from hebb import HebbMind
 from hebb.config.settings import Settings
 from hebb.constants import PartitionType
-from hebb.ingest.external import discover_external_entries, import_external_corpus
+from hebb.ingest.external import ExternalImportError, discover_external_entries, import_external_corpus
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "external"
 
@@ -31,10 +33,46 @@ def test_openhands_entries_are_cleaned_and_procedural() -> None:
     entries = discover_external_entries("openhands", FIXTURES / "openhands")
 
     assert {entry.partition for entry in entries} == {PartitionType.PROCEDURAL.value}
+    python_entry = next(entry for entry in entries if entry.source_path.endswith("python.md"))
+    assert {"python", "pytest"}.issubset(python_entry.tags)
     combined = "\n".join(entry.content for entry in entries)
     assert "fenced example" not in combined
     assert "system-reminder" not in combined
     assert "typed public functions" in combined
+
+
+def test_invalid_utf8_is_reported_as_external_import_error(tmp_path: Path) -> None:
+    skill_dir = tmp_path / ".openhands" / "skills"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "binary.md").write_bytes(b"\xff\xfe\x00\x80")
+
+    with pytest.raises(ExternalImportError, match="Could not read"):
+        discover_external_entries("openhands", tmp_path)
+
+
+def test_idempotency_scan_reaches_external_keys_after_full_pages() -> None:
+    entries = discover_external_entries("openhands", FIXTURES / "openhands")
+    existing_key = entries[0].metadata["external_key"]
+    ordinary = SimpleNamespace(metadata=SimpleNamespace(model_extra={}))
+    existing = SimpleNamespace(metadata=SimpleNamespace(model_extra={"external_key": existing_key}))
+
+    class PaginatedMind:
+        def __init__(self) -> None:
+            self.memories = [ordinary] * 500 + [existing]
+            self.added: list[str] = []
+
+        def list(self, *, offset: int, limit: int) -> tuple[list[Any], int]:
+            return self.memories[offset : offset + limit], len(self.memories)
+
+        def add(self, content: str, **_kwargs: Any) -> None:
+            self.added.append(content)
+
+    mind = PaginatedMind()
+    summary = import_external_corpus("openhands", FIXTURES / "openhands", mind)  # type: ignore[arg-type]
+
+    assert summary.imported == 1
+    assert summary.skipped_existing == 1
+    assert mind.added == [entries[1].content]
 
 
 def test_openclaw_routes_workspace_documents() -> None:

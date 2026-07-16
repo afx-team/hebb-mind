@@ -1,6 +1,11 @@
 ---
 name: python-guidelines
-triggers: [python, pytest]
+description: >
+  Python implementation and
+  verification guidance.
+triggers:
+- python
+- pytest
 ---
 
 # Python Guidelines

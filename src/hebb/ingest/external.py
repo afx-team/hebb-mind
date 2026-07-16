@@ -72,7 +72,7 @@ def discover_external_entries(source: str, path: str | Path) -> list[ExternalMem
     for file_path in files:
         try:
             raw = file_path.read_text(encoding="utf-8-sig")
-        except OSError as exc:
+        except (OSError, UnicodeDecodeError) as exc:
             raise ExternalImportError(f"Could not read {file_path}: {exc}") from exc
 
         frontmatter, body = _split_frontmatter(raw)
@@ -298,11 +298,13 @@ def _existing_external_keys(mind: HebbMind) -> set[str]:
     offset = 0
     page_size = 500
     while True:
+        # Do not add a tag filter here. SQLite applies tag filtering after
+        # LIMIT/OFFSET pagination, so filtering can miss older imported rows.
         memories, total = mind.list(offset=offset, limit=page_size)
         if not memories:
             break
         for memory in memories:
-            value = memory.metadata.model_dump().get("external_key")
+            value = (memory.metadata.model_extra or {}).get("external_key")
             if isinstance(value, str) and value:
                 keys.add(value)
         offset += len(memories)
@@ -318,15 +320,82 @@ def _split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     for index, line in enumerate(lines[1:], start=1):
         if line.strip() != "---":
             continue
-        values: dict[str, Any] = {}
-        for raw_line in lines[1:index]:
-            stripped = raw_line.strip()
-            if not stripped or stripped.startswith("#") or ":" not in stripped:
-                continue
-            key, raw_value = stripped.split(":", 1)
-            values[key.strip()] = _parse_frontmatter_value(raw_value.strip())
+        values = _parse_frontmatter_lines(lines[1:index])
         return values, "".join(lines[index + 1 :]).lstrip("\r\n")
     return {}, text
+
+
+def _parse_frontmatter_lines(lines: list[str]) -> dict[str, Any]:
+    values: dict[str, Any] = {}
+    index = 0
+    while index < len(lines):
+        raw_line = lines[index].rstrip("\r\n")
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#") or ":" not in stripped:
+            index += 1
+            continue
+
+        key, raw_value = stripped.split(":", 1)
+        key = key.strip()
+        raw_value = raw_value.strip()
+        if raw_value in {"|", ">"}:
+            value, index = _parse_block_scalar(
+                lines,
+                start=index + 1,
+                parent_indent=_line_indent(raw_line),
+                folded=raw_value == ">",
+            )
+            values[key] = value
+            continue
+        if not raw_value:
+            items, next_index = _parse_block_list(lines, start=index + 1)
+            values[key] = items if items else ""
+            index = next_index
+            continue
+
+        values[key] = _parse_frontmatter_value(raw_value)
+        index += 1
+    return values
+
+
+def _parse_block_list(lines: list[str], *, start: int) -> tuple[list[Any], int]:
+    items: list[Any] = []
+    index = start
+    while index < len(lines):
+        stripped = lines[index].strip()
+        if not stripped or stripped.startswith("#"):
+            index += 1
+            continue
+        if not stripped.startswith("-"):
+            break
+        raw_item = stripped[1:].strip()
+        if raw_item:
+            items.append(_parse_frontmatter_value(raw_item))
+        index += 1
+    return items, index
+
+
+def _parse_block_scalar(
+    lines: list[str],
+    *,
+    start: int,
+    parent_indent: int,
+    folded: bool,
+) -> tuple[str, int]:
+    content: list[str] = []
+    index = start
+    while index < len(lines):
+        raw_line = lines[index].rstrip("\r\n")
+        if raw_line.strip() and _line_indent(raw_line) <= parent_indent:
+            break
+        content.append(raw_line.strip())
+        index += 1
+    separator = " " if folded else "\n"
+    return separator.join(content).strip(), index
+
+
+def _line_indent(line: str) -> int:
+    return len(line) - len(line.lstrip())
 
 
 def _parse_frontmatter_value(raw: str) -> Any:
