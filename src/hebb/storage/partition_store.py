@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Any
 
@@ -34,17 +35,31 @@ def _row_to_partition(row: aiosqlite.Row) -> Partition:
 class SQLitePartitionStore:
     """SQLite-backed partition store."""
 
-    def __init__(self, db: aiosqlite.Connection) -> None:
+    def __init__(self, db: aiosqlite.Connection, write_lock: asyncio.Lock | None = None) -> None:
         self.db = db
+        # Shared process-level write lock (Issue #36). Same instance as
+        # ``SQLiteMemoryStore._write_lock`` and ``KnowledgeGraph.lock`` so
+        # partition mutations are serialised with all other writes.
+        self._write_lock = write_lock or asyncio.Lock()
+
+    async def _begin(self) -> None:
+        """Open an explicit immediate transaction (same pattern as SQLiteMemoryStore)."""
+        await self.db.execute("BEGIN IMMEDIATE")
 
     async def create(self, data: PartitionCreate, is_system: bool = False) -> Partition:
         now = _now_iso()
-        await self.db.execute(
-            """INSERT INTO partitions (id, name, description, enabled, is_system, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (data.id, data.name, data.description, int(data.enabled), int(is_system), now, now),
-        )
-        await self.db.commit()
+        async with self._write_lock:
+            await self._begin()
+            try:
+                await self.db.execute(
+                    """INSERT INTO partitions (id, name, description, enabled, is_system, created_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (data.id, data.name, data.description, int(data.enabled), int(is_system), now, now),
+                )
+                await self.db.commit()
+            except BaseException:
+                await self.db.rollback()
+                raise
         return await self.get(data.id)  # type: ignore[return-value]
 
     async def get(self, partition_id: str) -> Partition | None:
@@ -110,11 +125,17 @@ class SQLitePartitionStore:
         params.append(_now_iso())
         params.append(partition_id)
 
-        await self.db.execute(
-            f"UPDATE partitions SET {', '.join(updates)} WHERE id = ?",
-            params,
-        )
-        await self.db.commit()
+        async with self._write_lock:
+            await self._begin()
+            try:
+                await self.db.execute(
+                    f"UPDATE partitions SET {', '.join(updates)} WHERE id = ?",
+                    params,
+                )
+                await self.db.commit()
+            except BaseException:
+                await self.db.rollback()
+                raise
         return await self.get(partition_id)
 
     async def delete(self, partition_id: str) -> bool:
@@ -123,11 +144,17 @@ class SQLitePartitionStore:
         if not existing or existing.is_system:
             return False
 
-        await self.db.execute(
-            "DELETE FROM partitions WHERE id = ?",
-            (partition_id,),
-        )
-        await self.db.commit()
+        async with self._write_lock:
+            await self._begin()
+            try:
+                await self.db.execute(
+                    "DELETE FROM partitions WHERE id = ?",
+                    (partition_id,),
+                )
+                await self.db.commit()
+            except BaseException:
+                await self.db.rollback()
+                raise
         return True
 
     async def ensure_defaults(self) -> None:

@@ -173,6 +173,8 @@ async def trigger_forgetting(
             partitions_swept += 1
             memories = await memory_store.get_by_partition(partition.id)
             scanned += len(memories)
+            # Collect deletes to batch under the KG lock (Issue #36).
+            to_delete: list[str] = []
             for memory in memories:
                 # Recompute expiry from current access state so strengthened
                 # (recently recalled) memories survive, then persist for visibility.
@@ -186,10 +188,28 @@ async def trigger_forgetting(
                 )
                 await memory_store.update_expiry(memory.id, expires_at.isoformat())
                 if expires_at < now:
-                    await purge_memory(memory_store, kg, memory.id, save=False)
-                    deleted += 1
-        if deleted > 0:
-            kg.save()
+                    to_delete.append(memory.id)
+            if to_delete:
+                delete_impl = getattr(memory_store, "_delete_impl", None)
+                begin = getattr(memory_store, "_begin", None)
+                async with kg.lock:
+                    if callable(begin) and callable(delete_impl):
+                        await begin()
+                        try:
+                            for mid in to_delete:
+                                await delete_impl(mid, skip_tx=True)
+                                kg.remove_memory_from_tags(mid)
+                                deleted += 1
+                            await memory_store.db.commit()
+                        except BaseException:
+                            await memory_store.db.rollback()
+                            raise
+                    else:
+                        for mid in to_delete:
+                            await memory_store.delete(mid)
+                            kg.remove_memory_from_tags(mid)
+                            deleted += 1
+                    kg.save()
     except Exception as exc:
         # Record the failed sweep (mirrors the scheduled job) before surfacing
         # the error, so a manual run that errors mid-way still leaves a record.

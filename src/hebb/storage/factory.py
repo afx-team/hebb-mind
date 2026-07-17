@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
@@ -19,6 +20,9 @@ class StorageContext:
     memory_store: Any  # MemoryStore protocol
     partition_store: Any  # PartitionStore protocol
     close: Callable[[], Coroutine[Any, Any, None]]  # async cleanup
+    # Shared process-level write lock for SQLite backend (Issue #36).
+    # ``None`` for PostgreSQL (pool-based, no shared lock needed).
+    write_lock: asyncio.Lock | None = None
 
 
 async def create_stores(settings: Settings) -> StorageContext:
@@ -44,23 +48,30 @@ async def _create_sqlite(settings: Settings) -> StorageContext:
     from hebb.storage.sqlite_store import SQLiteMemoryStore
 
     db = await get_connection(settings.db_path, load_vec=settings.embedding_enabled)
-    # Resilient pragmas on the single shared connection. WAL is already set in
-    # get_connection; reaffirm it and add a busy_timeout so a concurrent writer
-    # (e.g. a background sweep) waits for the lock instead of failing fast with
-    # "database is locked". Serialization itself is handled by the store's
-    # in-process write lock (INT-2), not by re-architecting to a pool.
+    # Unified process-level write lock shared across SQLiteMemoryStore,
+    # SQLitePartitionStore, and KnowledgeGraph so that every SQL mutation
+    # and its corresponding graph mutation form a single crash-consistent
+    # critical section (Issue #36, audit C1). The lock prevents
+    # interleaving between background tasks (consolidation / forgetting)
+    # and request handlers that share the same connection.
+    shared_lock = asyncio.Lock()
     await db.execute("PRAGMA journal_mode=WAL")
     await db.execute("PRAGMA busy_timeout=5000")
     await initialize_schema(db, settings.embedding_dim, create_vec_table=settings.embedding_enabled)
 
-    memory_store = SQLiteMemoryStore(db)
-    partition_store = SQLitePartitionStore(db)
+    memory_store = SQLiteMemoryStore(db, write_lock=shared_lock)
+    partition_store = SQLitePartitionStore(db, write_lock=shared_lock)
 
     async def close() -> None:
         await db.close()
 
     logger.info("Storage backend: SQLite (%s)", settings.db_path)
-    return StorageContext(memory_store=memory_store, partition_store=partition_store, close=close)
+    return StorageContext(
+        memory_store=memory_store,
+        partition_store=partition_store,
+        close=close,
+        write_lock=shared_lock,
+    )
 
 
 async def _create_postgresql(settings: Settings) -> StorageContext:

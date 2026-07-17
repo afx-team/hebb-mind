@@ -336,14 +336,30 @@ class SchedulerManager:
                         await self.memory_store.update_expiry(mid, iso)
 
             # Batch-delete expired memories, then strip them from the graph and
-            # persist the graph once — all under the graph's shared lock so a
-            # concurrent consolidation can't interleave a save (C1).
+            # persist the graph once — all under the shared write lock so a
+            # concurrent consolidation can't interleave (Issue #36, C1).
+            # Multiple deletes are wrapped in a single BEGIN IMMEDIATE … COMMIT
+            # so the batch is atomic: either all sources are removed or none.
             if to_delete:
+                delete_impl = getattr(self.memory_store, "_delete_impl", None)
+                begin = getattr(self.memory_store, "_begin", None)
                 async with self.knowledge_graph.lock:
-                    for mid in to_delete:
-                        # save=False: the graph is persisted once after the loop.
-                        await purge_memory(self.memory_store, self.knowledge_graph, mid, save=False)
-                        total_deleted += 1
+                    if callable(begin) and callable(delete_impl):
+                        await begin()
+                        try:
+                            for mid in to_delete:
+                                await delete_impl(mid, skip_tx=True)
+                                self.knowledge_graph.remove_memory_from_tags(mid)
+                                total_deleted += 1
+                            await self.memory_store.db.commit()
+                        except BaseException:
+                            await self.memory_store.db.rollback()
+                            raise
+                    else:
+                        for mid in to_delete:
+                            await self.memory_store.delete(mid)
+                            self.knowledge_graph.remove_memory_from_tags(mid)
+                            total_deleted += 1
                     self.knowledge_graph.save()
 
             logger.info("Forgetting job complete: %d memories deleted", total_deleted)

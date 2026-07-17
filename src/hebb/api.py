@@ -224,7 +224,7 @@ class HebbMind:
             raise StorageError(f"Failed to seed default partitions: {exc}") from exc
 
         kg_path_value = self.settings.kg_path
-        self._knowledge_graph = KnowledgeGraph(Path(kg_path_value))
+        self._knowledge_graph = KnowledgeGraph(Path(kg_path_value), lock=ctx.write_lock)
         self._searcher = MemorySearcher(store=ctx.memory_store, embedder=embedder, graph=self._knowledge_graph)
 
     def close(self) -> None:

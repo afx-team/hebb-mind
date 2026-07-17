@@ -18,13 +18,19 @@ if TYPE_CHECKING:
 
 
 async def purge_memory(
-    store: MemoryStore,
-    kg: KnowledgeGraph,
+    store: "MemoryStore",
+    kg: "KnowledgeGraph",
     memory_id: str,
     *,
     save: bool = True,
 ) -> bool:
     """Delete a memory from every store: SQL rows, vec0, FTS5, and the graph.
+
+    When the store exposes a ``_write_lock`` (SQLite backend, Issue #36), the
+    SQL delete and the graph mutation are performed inside a single critical
+    section so they form one crash-consistent unit. For backends without a
+    shared lock (PostgreSQL pool), the SQL delete runs independently and the
+    graph mutation is guarded by ``kg.lock``.
 
     Args:
         store: Memory store; deletes ``memories`` + ``memory_embeddings`` +
@@ -41,8 +47,20 @@ async def purge_memory(
         Graph cleanup runs regardless of the row's existence, so a pre-existing
         orphan referencing ``memory_id`` is still swept.
     """
-    deleted = await store.delete(memory_id)
-    kg.remove_memory_from_tags(memory_id)
-    if save:
-        kg.save()
+    # SQLite backend: _write_lock is the shared process-level lock (= kg.lock).
+    # Acquire it once so the SQL delete + KG mutation form one critical section.
+    shared_lock = getattr(store, "_write_lock", None)
+    if shared_lock is not None and hasattr(store, "_delete_impl"):
+        async with shared_lock:
+            deleted = await store._delete_impl(memory_id)  # type: ignore[attr-defined]
+            kg.remove_memory_from_tags(memory_id)
+            if save:
+                kg.save()
+    else:
+        # PostgreSQL pool backend: no shared lock; KG guarded by its own lock.
+        deleted = await store.delete(memory_id)
+        async with kg.lock:
+            kg.remove_memory_from_tags(memory_id)
+            if save:
+                kg.save()
     return deleted

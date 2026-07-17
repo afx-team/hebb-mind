@@ -12,8 +12,8 @@ from hebb.scheduler.manager import SchedulerManager
 
 class TestSchedulerManager:
     @pytest.fixture
-    def scheduler(self, settings, memory_store, partition_store, tmp_path):
-        kg = KnowledgeGraph(tmp_path / "kg.json")
+    def scheduler(self, settings, memory_store, partition_store, shared_lock, tmp_path):
+        kg = KnowledgeGraph(tmp_path / "kg.json", lock=shared_lock)
         embedder = NoopEmbedder(384)
         return SchedulerManager(
             settings=settings,

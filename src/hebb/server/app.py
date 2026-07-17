@@ -79,8 +79,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Ensure default partitions
     await ctx.partition_store.ensure_defaults()
 
-    # Knowledge graph
-    kg = KnowledgeGraph(Path(settings.kg_path))  # kg_path already resolved to absolute
+    # Knowledge graph — shares the process-level write lock (Issue #36) so
+    # SQL mutations and graph mutations cannot interleave.
+    kg = KnowledgeGraph(Path(settings.kg_path), lock=ctx.write_lock)  # kg_path already resolved to absolute
     app.state.knowledge_graph = kg
 
     # Optional cross-encoder reranker (None when settings.rerank_enabled=False).
