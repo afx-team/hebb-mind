@@ -2,17 +2,30 @@
 
 from __future__ import annotations
 
+import asyncio
+from pathlib import Path
+
 import pytest
 from apscheduler.triggers.cron import CronTrigger
 
+from hebb.config.settings import Settings
 from hebb.embedding.local import NoopEmbedder
 from hebb.graph.knowledge_graph import KnowledgeGraph
 from hebb.scheduler.manager import SchedulerManager
+from hebb.storage.partition_store import SQLitePartitionStore
+from hebb.storage.sqlite_store import SQLiteMemoryStore
 
 
 class TestSchedulerManager:
     @pytest.fixture
-    def scheduler(self, settings, memory_store, partition_store, shared_lock, tmp_path):
+    def scheduler(
+        self,
+        settings: Settings,
+        memory_store: SQLiteMemoryStore,
+        partition_store: SQLitePartitionStore,
+        shared_lock: asyncio.Lock,
+        tmp_path: Path,
+    ) -> SchedulerManager:
         kg = KnowledgeGraph(tmp_path / "kg.json", lock=shared_lock)
         embedder = NoopEmbedder(384)
         return SchedulerManager(

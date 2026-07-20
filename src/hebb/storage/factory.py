@@ -63,6 +63,7 @@ async def _create_sqlite(settings: Settings) -> StorageContext:
     partition_store = SQLitePartitionStore(db, write_lock=shared_lock)
 
     async def close() -> None:
+        """Close the SQLite connection pool backing the storage context."""
         await db.close()
 
     logger.info("Storage backend: SQLite (%s)", settings.db_path)
@@ -98,6 +99,7 @@ async def _create_postgresql(settings: Settings) -> StorageContext:
     partition_store = PGPartitionStore(pool)
 
     async def close() -> None:
+        """Close the PostgreSQL connection pool backing the storage context."""
         await pool.close()
 
     logger.info("Storage backend: PostgreSQL (pool %d-%d)", settings.pg_pool_min, settings.pg_pool_max)

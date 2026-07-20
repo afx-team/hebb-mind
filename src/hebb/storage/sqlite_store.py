@@ -110,6 +110,17 @@ class SQLiteMemoryStore:
         return self._vec_dim
 
     async def create(self, data: MemoryCreate, embedding: _List[float] | None = None) -> Memory:
+        """Insert a memory row + (optional) embedding + FTS5 index in one transaction.
+
+        Args:
+            data: Memory fields to insert.
+            embedding: Optional embedding vector; length must match the declared
+                vec0 width or an ``EmbeddingDimensionError`` is raised (rolled back).
+
+        Returns:
+            The freshly created ``Memory`` (re-read by id so timestamps + defaults
+            reflect what landed in the row).
+        """
         async with self._write_lock:
             return await self._create_impl(data, embedding)
 
@@ -173,6 +184,7 @@ class SQLiteMemoryStore:
         return await self.get(memory_id)  # type: ignore[return-value]
 
     async def get(self, memory_id: str) -> Memory | None:
+        """Fetch a single memory by id, or ``None`` if no row matches."""
         cursor = await self.db.execute(
             "SELECT * FROM memories WHERE id = ?",
             (memory_id,),
@@ -187,6 +199,19 @@ class SQLiteMemoryStore:
         offset: int = 0,
         limit: int = 50,
     ) -> tuple[_List[Memory], int]:
+        """List memories optionally filtered by partition and tags, newest-first.
+
+        Args:
+            partition_id: When provided, restricts the result to one partition.
+            tags: When provided, keeps only memories whose tags intersect the set
+                (post-query JSON filter — not a SQL predicate, so the returned
+                ``total`` is the surviving count, not the pre-filter count).
+            offset: Result offset (LIMIT/OFFSET on the SQL side).
+            limit: Maximum rows to return.
+
+        Returns:
+            A ``(rows, total)`` pair sorted by ``created_at`` descending.
+        """
         conditions: _List[str] = []
         params: _List[Any] = []
 
@@ -218,6 +243,12 @@ class SQLiteMemoryStore:
         return memories, total
 
     async def update(self, memory_id: str, data: MemoryUpdate) -> Memory | None:
+        """Apply the non-None ``data`` fields in one transaction under the write lock.
+
+        Syncs the FTS5 index when ``content`` changed. Returns the updated memory
+        or ``None`` if no row matches ``memory_id`` (or if ``data`` carried no
+        fields to apply, in which case the existing row is returned unchanged).
+        """
         async with self._write_lock:
             return await self._update_impl(memory_id, data)
 
@@ -269,6 +300,13 @@ class SQLiteMemoryStore:
         return await self.get(memory_id)
 
     async def delete(self, memory_id: str) -> bool:
+        """Delete a memory row + its embedding row + its FTS5 row in one transaction.
+
+        Returns ``True`` if the base row existed (and was deleted), ``False``
+        if no row matched ``memory_id``. The embedding/FTS cleanup runs
+        unconditionally so a stale auxiliary row is swept even when the base row
+        was already gone.
+        """
         async with self._write_lock:
             return await self._delete_impl(memory_id)
 
@@ -507,6 +545,7 @@ class SQLiteMemoryStore:
         return {row["id"]: _row_to_memory(row) for row in rows}
 
     async def get_by_partition(self, partition_id: str) -> _List[Memory]:
+        """Fetch every memory in a partition, newest-first (no pagination, no count)."""
         cursor = await self.db.execute(
             "SELECT * FROM memories WHERE partition_id = ? ORDER BY created_at DESC",
             (partition_id,),
@@ -579,6 +618,12 @@ class SQLiteMemoryStore:
         return results
 
     async def delete_expired(self) -> _List[str]:
+        """Delete every memory whose ``expires_at`` has passed, in one transaction.
+
+        Returns the list of deleted memory ids (so callers can sync the
+        knowledge graph / run trackers afterwards). Embedding and FTS5 rows are
+        cleaned up alongside the base row.
+        """
         async with self._write_lock:
             return await self._delete_expired_impl()
 
@@ -619,6 +664,11 @@ class SQLiteMemoryStore:
         return expired_ids
 
     async def update_access(self, memory_id: str) -> None:
+        """Bump ``access_count`` and ``last_accessed_at`` for one memory in one transaction.
+
+        No-op (still commits) if no row matches ``memory_id``; callers that need
+        to know should ``get()`` first.
+        """
         async with self._write_lock:
             await self._update_access_impl(memory_id)
 
@@ -663,6 +713,13 @@ class SQLiteMemoryStore:
             raise
 
     async def update_embedding(self, memory_id: str, embedding: _List[float]) -> None:
+        """Overwrite a memory's embedding in one transaction.
+
+        The embedding's length must match the declared vec0 width, otherwise an
+        ``EmbeddingDimensionError`` is raised and nothing is written. An empty
+        embedding is silently skipped (the storage invariant is "0-dim if unset",
+        and a call with no values is treated as no-op).
+        """
         if not embedding:
             return
         expected = await self._get_vec_dim()
@@ -783,6 +840,7 @@ class SQLiteMemoryStore:
         return await self.get(memory_id)
 
     async def update_expiry(self, memory_id: str, expires_at: str) -> None:
+        """Set ``expires_at`` (ISO timestamp) for one memory in one transaction."""
         async with self._write_lock:
             await self._update_expiry_impl(memory_id, expires_at)
 

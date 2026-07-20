@@ -16,6 +16,7 @@ Covers the atomicity / serialization / dim-guard / batch-expiry fixes:
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 
 import pytest
 
@@ -31,7 +32,7 @@ def embedding_dim() -> int:
 
 
 @pytest.fixture
-async def store(tmp_path, embedding_dim: int) -> SQLiteMemoryStore:
+async def store(tmp_path, embedding_dim: int) -> AsyncIterator[SQLiteMemoryStore]:
     db = await get_connection(str(tmp_path / "audit.db"))
     await initialize_schema(db, embedding_dim)
     yield SQLiteMemoryStore(db)
@@ -41,7 +42,7 @@ async def store(tmp_path, embedding_dim: int) -> SQLiteMemoryStore:
 async def _count_memories(store: SQLiteMemoryStore) -> int:
     cursor = await store.db.execute("SELECT count(*) FROM memories")
     row = await cursor.fetchone()
-    return int(row[0]) if row else 0
+    return int(row[0]) if row is not None else 0
 
 
 class TestCreateAtomicity:
@@ -52,7 +53,7 @@ class TestCreateAtomicity:
         """A failure on the FTS insert must roll back the memories row too."""
         real_execute = store.db.execute
 
-        async def flaky_execute(sql, *args, **kwargs):  # type: ignore[no-untyped-def]
+        async def flaky_execute(sql: str, *args: object, **kwargs: object):
             if "memory_fts" in sql and sql.strip().upper().startswith("INSERT"):
                 raise RuntimeError("forced FTS failure")
             return await real_execute(sql, *args, **kwargs)
@@ -106,6 +107,7 @@ class TestCreateAtomicity:
         # FTS index stayed in lockstep with the base table.
         cursor = await store.db.execute("SELECT count(*) FROM memory_fts")
         row = await cursor.fetchone()
+        assert row is not None
         assert int(row[0]) == n
 
 
@@ -150,7 +152,7 @@ class TestConcurrentWriteConsolidateForget:
     @pytest.fixture
     async def shared_store_and_kg(
         self, tmp_path, embedding_dim: int
-    ) -> tuple[SQLiteMemoryStore, KnowledgeGraph, asyncio.Lock]:
+    ) -> AsyncIterator[tuple[SQLiteMemoryStore, KnowledgeGraph, asyncio.Lock]]:
         lock = asyncio.Lock()
         db = await get_connection(str(tmp_path / "stress.db"))
         await initialize_schema(db, embedding_dim)
@@ -161,52 +163,99 @@ class TestConcurrentWriteConsolidateForget:
 
     @pytest.mark.asyncio
     async def test_no_orphans_after_concurrent_operations(
-        self, shared_store_and_kg
+        self,
+        shared_store_and_kg: tuple[SQLiteMemoryStore, KnowledgeGraph, asyncio.Lock],
     ) -> None:
         store, kg, lock = shared_store_and_kg
 
         # Pre-populate: 10 memories with tags, half flagged for "forgetting".
         initial_ids: list[str] = []
         for i in range(10):
-            m = await store.create(
-                MemoryCreate(partition_id="p1", content=f"seed-{i}", tags=[f"tag-{i}"]),
-            )
-            initial_ids.append(m.id)
             async with lock:
+                await store._begin()
+                try:
+                    m = await store._create_impl(
+                        MemoryCreate(
+                            partition_id="p1", content=f"seed-{i}", tags=[f"tag-{i}"]
+                        ),
+                        skip_tx=True,
+                    )
+                    await store.db.commit()
+                except BaseException:
+                    await store.db.rollback()
+                    raise
                 kg.update_from_tags([f"tag-{i}"], m.id)
                 kg.save()
+            initial_ids.append(m.id)
 
         # IDs to be "forgotten" (first 5).
         forget_ids = initial_ids[:5]
 
         async def api_write() -> None:
-            """Simulate REST API writes interleaving with background tasks."""
+            """Simulate REST API writes interleaving with background tasks.
+
+            Uses the composite create path (``_create_impl`` + explicit BEGIN)
+            under the shared lock, with the KG mutation applied AFTER the commit
+            succeeds — mirroring the production ordering the review enforced
+            (Issue #36; Gemini review of in-memory graph divergence on rollback).
+            """
             for i in range(10):
-                m = await store.create(
-                    MemoryCreate(partition_id="p1", content=f"api-{i}", tags=[f"api-tag-{i}"]),
-                )
                 async with lock:
+                    await store._begin()
+                    try:
+                        m = await store._create_impl(
+                            MemoryCreate(
+                                partition_id="p1",
+                                content=f"api-{i}",
+                                tags=[f"api-tag-{i}"],
+                            ),
+                            skip_tx=True,
+                        )
+                        await store.db.commit()
+                    except BaseException:
+                        await store.db.rollback()
+                        raise
                     kg.update_from_tags([f"api-tag-{i}"], m.id)
                     kg.save()
 
         async def consolidation_sim() -> None:
-            """Simulate a consolidation step: create new + delete source (atomic)."""
+            """Simulate a consolidation step: create new + delete source in one
+            SQL transaction under the shared lock, then sync the KG afterwards."""
             for i in range(5):
                 source_id = initial_ids[5 + i]  # second half as consolidation sources
                 async with lock:
-                    new_mem = await store._create_impl(
-                        MemoryCreate(partition_id="p2", content=f"consolidated-{i}", tags=[f"con-tag-{i}"]),
-                    )
+                    await store._begin()
+                    try:
+                        new_mem = await store._create_impl(
+                            MemoryCreate(
+                                partition_id="p2",
+                                content=f"consolidated-{i}",
+                                tags=[f"con-tag-{i}"],
+                            ),
+                            skip_tx=True,
+                        )
+                        await store._delete_impl(source_id, skip_tx=True)
+                        await store.db.commit()
+                    except BaseException:
+                        await store.db.rollback()
+                        raise
                     kg.update_from_tags([f"con-tag-{i}"], new_mem.id)
                     kg.remove_memory_from_tags(source_id)
-                    await store._delete_impl(source_id)
                     kg.save()
 
         async def forgetting_sim() -> None:
-            """Simulate a forgetting sweep: delete expired memories (atomic)."""
+            """Simulate a forgetting sweep: delete expired memories in one SQL
+            transaction under the shared lock, then strip KG refs afterwards."""
             async with lock:
+                await store._begin()
+                try:
+                    for mid in forget_ids:
+                        await store._delete_impl(mid, skip_tx=True)
+                    await store.db.commit()
+                except BaseException:
+                    await store.db.rollback()
+                    raise
                 for mid in forget_ids:
-                    await store._delete_impl(mid)
                     kg.remove_memory_from_tags(mid)
                 kg.save()
 
@@ -226,11 +275,122 @@ class TestConcurrentWriteConsolidateForget:
         #    - forgetting_sim deleted 5 memories from p1.
         #    Initial: 10 in p1. After: 10 (api) + 0 (5 deleted by consolidation, 5 by forget) in p1,
         #    5 in p2.
-        p1_mems, p1_count = await store.list(partition_id="p1")
-        p2_mems, p2_count = await store.list(partition_id="p2")
+        _, p1_count = await store.list(partition_id="p1")
+        _, p2_count = await store.list(partition_id="p2")
         assert p1_count == 10, f"Expected 10 in p1, got {p1_count}"
         assert p2_count == 5, f"Expected 5 in p2, got {p2_count}"
 
         # 3. KG file can be loaded cleanly.
         kg2 = KnowledgeGraph(kg.path)
         assert kg2.graph.number_of_nodes() > 0
+
+    @pytest.mark.asyncio
+    async def test_rollback_on_injected_failure_in_consolidation(
+        self,
+        shared_store_and_kg: tuple[SQLiteMemoryStore, KnowledgeGraph, asyncio.Lock],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """An injected SQL failure mid-consolidation must leave both the SQL store
+        AND the in-memory KG unchanged — no half-applied rows, no half-stripped KG
+        refs (Issue #36; Gemini review of in-memory graph divergence on rollback).
+
+        Reproduces the exact ordering the consolidated fast-path now uses:
+        ``_begin`` → ``_create_impl(skip_tx=True)`` → ``_delete_impl(skip_tx=True)`` →
+        ``commit`` → KG mutations, with KG mutations running only after the commit
+        succeeds. If the delete fails, ``db.rollback()`` reverts SQL and the graph
+        must not have been mutated, so a reloaded graph matches the pre-failure
+        snapshot exactly.
+        """
+        store, kg, lock = shared_store_and_kg
+
+        # Seed one target memory (will be deleted during consolidation) tagged so
+        # we can assert the tag survives the rollback.
+        async with lock:
+            await store._begin()
+            try:
+                target = await store._create_impl(
+                    MemoryCreate(partition_id="p1", content="target", tags=["kept-tag"]),
+                    skip_tx=True,
+                )
+                await store.db.commit()
+            except BaseException:
+                await store.db.rollback()
+                raise
+            kg.update_from_tags(["kept-tag"], target.id)
+            kg.save()
+
+        # Snapshot SQL row count and on-disk KG state before injection.
+        rows_before = await _count_memories(store)
+        kg_before_path = kg.path
+        kg_before_text = kg_before_path.read_text() if kg_before_path.exists() else ""
+
+        # Inject a failure on the second SQL call inside the consolidation path
+        # (the source delete) so that the create has already executed but commit
+        # never happens.
+        original_delete = store._delete_impl
+        delete_calls = 0
+
+        async def flaky_delete(memory_id: str, *, skip_tx: bool = False) -> bool:
+            nonlocal delete_calls
+            delete_calls += 1
+            if delete_calls == 1:
+                raise RuntimeError("injected delete failure")
+            return await original_delete(memory_id, skip_tx=skip_tx)
+
+        monkeypatch.setattr(store, "_delete_impl", flaky_delete)
+
+        # Drive the same critical section the production path uses. The lock is
+        # acquired explicitly so the test exercises the real ordering.
+        with pytest.raises(RuntimeError, match="injected delete failure"):
+            async with lock:
+                await store._begin()
+                try:
+                    await store._create_impl(
+                        MemoryCreate(
+                            partition_id="p2",
+                            content="consolidated",
+                            tags=["new-tag"],
+                        ),
+                        skip_tx=True,
+                    )
+                    # This raises — the create must NOT commit.
+                    await store._delete_impl(target.id, skip_tx=True)
+                    await store.db.commit()
+                except BaseException:
+                    await store.db.rollback()
+                    raise
+                # These lines must NOT execute when the delete raises.
+                kg.update_from_tags(["new-tag"], "<new-id>")
+                kg.remove_memory_from_tags(target.id)
+                kg.save()
+
+        # 1. SQL row count unchanged: the rollback reverted the create.
+        assert await _count_memories(store) == rows_before, (
+            "rollback failed: rows committed despite the injected failure"
+        )
+        # 2. The seeded target row still exists.
+        assert await store.get(target.id) is not None, "target row was lost despite rollback"
+
+        # 3. KG on disk unchanged: save() never ran after the commit failed.
+        assert (
+            kg.path.read_text() if kg.path.exists() else ""
+        ) == kg_before_text, "KG was persisted despite the rollback"
+
+        # 4. In-memory KG state unchanged: the tag still references the target.
+        assert kg.get_tag("kept-tag") is not None, "KG lost the pre-failure tag"
+        referenced: list[str] = []
+        for node_id in kg.graph.nodes:
+            referenced.extend(kg.graph.nodes[node_id].get("memory_ids", []))
+        assert target.id in referenced, "KG dropped the target ref on rollback"
+
+        # 5. Reloaded KG from disk matches the in-memory graph — divergence would
+        #    not be self-healing, so the assertion catches it before the orphan
+        #    can be persisted by a later save.
+        reloaded = KnowledgeGraph(kg.path)
+        for node_id in kg.graph.nodes:
+            assert node_id in reloaded.graph.nodes, f"node {node_id} missing from reloaded KG"
+            in_mem_refs = set(kg.graph.nodes[node_id].get("memory_ids", []))
+            on_disk_refs = set(reloaded.graph.nodes[node_id].get("memory_ids", []))
+            assert in_mem_refs == on_disk_refs, (
+                f"in-memory KG diverged from on-disk KG for node {node_id}"
+            )

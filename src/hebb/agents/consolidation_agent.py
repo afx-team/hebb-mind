@@ -21,12 +21,19 @@ from hebb.graph.knowledge_graph import KnowledgeGraph
 from hebb.models.memory import Memory, MemoryCreate, MemoryMetadata, MemoryUpdate
 from hebb.storage.base import MemoryStore, PartitionStore
 from hebb.storage.purge import purge_memory
+from hebb.storage.sqlite_store import SQLiteMemoryStore
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class ConsolidationResult:
+    """Outcome of consolidating one memory or session batch.
+
+    Fields are populated for both success and failure so the run summary can
+    report progress, errors, and the produced memory's id alongside the source.
+    """
+
     original_memory_id: str
     target_partition: str = ""
     new_memory_id: str = ""
@@ -166,14 +173,18 @@ class ConsolidationAgent:
             # happen inside one critical section with a single transaction
             # (Issue #36 — crash-consistent across store + graph).
             embedding = await self.embedder.embed(consolidated_content)
-            create_impl = getattr(self.memory_store, "_create_impl", None)
-            delete_impl = getattr(self.memory_store, "_delete_impl", None)
-            begin = getattr(self.memory_store, "_begin", None)
-            if callable(create_impl) and callable(delete_impl) and callable(begin):
+            if isinstance(self.memory_store, SQLiteMemoryStore):
+                # SQLite: shared lock + single BEGIN wrapping both the create and
+                # source delete (Issue #36). KG mutations run AFTER the commit, so a
+                # SQL rollback can never diverge the in-memory graph (NetworkX has no
+                # transaction support; diverging would not be self-healing —
+                # reconcile() can drop a dead ref but not restore a lost forward ref).
+                # The narrow commit → save() crash window may leave a KG→SQL orphan
+                # that reconcile() sweeps on the next start.
                 async with self.kg.lock:
-                    await begin()
+                    await self.memory_store._begin()
                     try:
-                        new_memory = await create_impl(
+                        new_memory = await self.memory_store._create_impl(
                             data=MemoryCreate(
                                 content=consolidated_content,
                                 partition_id=target_partition,
@@ -185,16 +196,20 @@ class ConsolidationAgent:
                             embedding=embedding,
                             skip_tx=True,
                         )
-                        self.kg.update_from_tags(tags, new_memory.id)
-                        self.kg.remove_memory_from_tags(memory.id)
-                        await delete_impl(memory.id, skip_tx=True)
+                        await self.memory_store._delete_impl(memory.id, skip_tx=True)
                         await self.memory_store.db.commit()
                     except BaseException:
                         await self.memory_store.db.rollback()
                         raise
+                    # Commit succeeded — mutate the in-memory graph afterwards to
+                    # avoid rollback divergence (Issue #36; Gemini review).
+                    self.kg.update_from_tags(tags, new_memory.id)
+                    self.kg.remove_memory_from_tags(memory.id)
                     self.kg.save()
             else:
-                # Other backends (PG pool): no shared lock.
+                # Other backends (PG pool): no shared lock; kg.lock still guards the
+                # in-memory graph mutation. purge_memory acquires its own lock, so it
+                # is left outside this critical section to avoid double-acquire.
                 new_memory = await self.memory_store.create(
                     data=MemoryCreate(
                         content=consolidated_content,
@@ -206,7 +221,8 @@ class ConsolidationAgent:
                     ),
                     embedding=embedding,
                 )
-                self.kg.update_from_tags(tags, new_memory.id)
+                async with self.kg.lock:
+                    self.kg.update_from_tags(tags, new_memory.id)
                 await purge_memory(self.memory_store, self.kg, memory.id)
 
             result.target_partition = target_partition
@@ -391,10 +407,9 @@ class ConsolidationAgent:
                 # Create consolidated memory — embed() runs lock-free, then the
                 # SQL create + KG update happen in one critical section (Issue #36).
                 embedding = await self.embedder.embed(content)
-                create_impl = getattr(self.memory_store, "_create_impl", None)
-                if callable(create_impl):
+                if isinstance(self.memory_store, SQLiteMemoryStore):
                     async with kg_lock:
-                        new_memory = await create_impl(
+                        new_memory = await self.memory_store._create_impl(
                             data=MemoryCreate(
                                 content=content,
                                 partition_id=target_partition,
@@ -437,19 +452,20 @@ class ConsolidationAgent:
             # the sources: that is silent data loss with zero replacement. Keep
             # them in the working partition for the next consolidation pass.
             if results:
-                delete_impl = getattr(self.memory_store, "_delete_impl", None)
-                begin = getattr(self.memory_store, "_begin", None)
                 async with kg_lock:
-                    if callable(begin) and callable(delete_impl):
-                        await begin()
+                    if isinstance(self.memory_store, SQLiteMemoryStore):
+                        await self.memory_store._begin()
                         try:
                             for m in memories:
-                                await delete_impl(m.id, skip_tx=True)
-                                self.kg.remove_memory_from_tags(m.id)
+                                await self.memory_store._delete_impl(m.id, skip_tx=True)
                             await self.memory_store.db.commit()
                         except BaseException:
                             await self.memory_store.db.rollback()
                             raise
+                        # Commit succeeded — mutate the in-memory graph afterwards
+                        # to avoid rollback divergence (Issue #36; Gemini review).
+                        for m in memories:
+                            self.kg.remove_memory_from_tags(m.id)
                     else:
                         for m in memories:
                             await self.memory_store.delete(m.id)
@@ -474,18 +490,19 @@ class ConsolidationAgent:
                     preview,
                 )
                 async with kg_lock:
-                    delete_impl = getattr(self.memory_store, "_delete_impl", None)
-                    begin = getattr(self.memory_store, "_begin", None)
-                    if callable(begin) and callable(delete_impl):
-                        await begin()
+                    if isinstance(self.memory_store, SQLiteMemoryStore):
+                        await self.memory_store._begin()
                         try:
                             for m in memories:
-                                await delete_impl(m.id, skip_tx=True)
-                                self.kg.remove_memory_from_tags(m.id)
+                                await self.memory_store._delete_impl(m.id, skip_tx=True)
                             await self.memory_store.db.commit()
                         except BaseException:
                             await self.memory_store.db.rollback()
                             raise
+                        # Commit succeeded — mutate the in-memory graph afterwards
+                        # to avoid rollback divergence (Issue #36; Gemini review).
+                        for m in memories:
+                            self.kg.remove_memory_from_tags(m.id)
                     else:
                         for m in memories:
                             await self.memory_store.delete(m.id)
@@ -551,10 +568,11 @@ class ConsolidationAgent:
         # Use the composite impl that updates content + embedding in one
         # transaction. Only available on SQLiteMemoryStore; fall back to
         # the two-step approach for other backends.
-        impl = getattr(self.memory_store, "_update_content_and_embedding_impl", None)
-        if callable(impl):
+        if isinstance(self.memory_store, SQLiteMemoryStore):
             async with self.kg.lock:
-                await impl(conflict_id, MemoryUpdate(content=content), embedding)
+                await self.memory_store._update_content_and_embedding_impl(
+                    conflict_id, MemoryUpdate(content=content), embedding
+                )
         else:
             updated = await self.memory_store.update(conflict_id, MemoryUpdate(content=content))
             if updated is None:
@@ -705,13 +723,14 @@ class ConsolidationAgent:
                     await self._apply_conflict_update(conflict_id, consolidated_content)
                     result.conflicts_resolved += 1
                 elif resolution == "discard":
-                    delete_impl = getattr(self.memory_store, "_delete_impl", None)
                     async with kg_lock:
-                        self.kg.remove_memory_from_tags(memory.id)
-                        if callable(delete_impl):
-                            await delete_impl(memory.id)
+                        # Delete the SQL row first; mutate the graph only once the
+                        # delete has succeeded (a failed delete must not strip tags).
+                        if isinstance(self.memory_store, SQLiteMemoryStore):
+                            await self.memory_store._delete_impl(memory.id)
                         else:
                             await self.memory_store.delete(memory.id)
+                        self.kg.remove_memory_from_tags(memory.id)
                         self.kg.save()
                     result.success = True
                     result.target_partition = "discarded"
@@ -732,17 +751,16 @@ class ConsolidationAgent:
                 return result
 
             embedding = await self.embedder.embed(consolidated_content)
-            create_impl = getattr(self.memory_store, "_create_impl", None)
-            delete_impl = getattr(self.memory_store, "_delete_impl", None)
-            begin = getattr(self.memory_store, "_begin", None)
-            if callable(create_impl) and callable(delete_impl) and callable(begin):
-                # SQLite: shared lock + single BEGIN IMMEDIATE wrapping both the
-                # SQL create and SQL delete so they commit as one atomic unit
-                # (Issue #36 — crash-consistent across store + graph).
+            if isinstance(self.memory_store, SQLiteMemoryStore):
+                # SQLite: shared lock + single BEGIN wrapping both the create and
+                # source delete (Issue #36). KG mutations run AFTER the commit, so a
+                # SQL rollback can never diverge the in-memory graph; commit →
+                # save() crash orphan is self-healed by reconcile() (KG→SQL, not
+                # SQL→KG — reconcile can drop dead refs but cannot restore lost ones).
                 async with kg_lock:
-                    await begin()
+                    await self.memory_store._begin()
                     try:
-                        new_memory = await create_impl(
+                        new_memory = await self.memory_store._create_impl(
                             data=MemoryCreate(
                                 content=consolidated_content,
                                 partition_id=target_partition,
@@ -754,13 +772,13 @@ class ConsolidationAgent:
                             embedding=embedding,
                             skip_tx=True,
                         )
-                        self.kg.update_from_tags(tags, new_memory.id)
-                        self.kg.remove_memory_from_tags(memory.id)
-                        await delete_impl(memory.id, skip_tx=True)
+                        await self.memory_store._delete_impl(memory.id, skip_tx=True)
                         await self.memory_store.db.commit()
                     except BaseException:
                         await self.memory_store.db.rollback()
                         raise
+                    self.kg.update_from_tags(tags, new_memory.id)
+                    self.kg.remove_memory_from_tags(memory.id)
                     self.kg.save()
             else:
                 # Other backends (PG pool): no shared lock.

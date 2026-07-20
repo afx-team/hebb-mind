@@ -39,6 +39,12 @@ class NoCacheStaticFiles(StaticFiles):
     """
 
     async def get_response(self, path: str, scope: Scope) -> Response:
+        """Like ``StaticFiles.get_response`` but force ``Cache-Control: no-cache``.
+
+        The Web Console ships hashed asset names but the HTML entry points must
+        always be reloaded after an upgrade, so we override the default cache
+        header here.
+        """
         response = await super().get_response(path, scope)
         response.headers["Cache-Control"] = "no-cache"
         return response

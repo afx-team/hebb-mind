@@ -47,6 +47,16 @@ class SQLitePartitionStore:
         await self.db.execute("BEGIN IMMEDIATE")
 
     async def create(self, data: PartitionCreate, is_system: bool = False) -> Partition:
+        """Insert a new partition row under the write lock and return the created row.
+
+        Args:
+            data: Partition fields to insert.
+            is_system: When true the row is flagged as a non-deletable system partition
+                (defaults + per-scenario fixtures).
+
+        Returns:
+            The freshly created ``Partition`` (with memory_count populated).
+        """
         now = _now_iso()
         async with self._write_lock:
             await self._begin()
@@ -63,6 +73,12 @@ class SQLitePartitionStore:
         return await self.get(data.id)  # type: ignore[return-value]
 
     async def get(self, partition_id: str) -> Partition | None:
+        """Fetch a single partition by id with its current memory count.
+
+        Returns:
+            The ``Partition`` (with ``memory_count`` populated) or ``None`` if no
+            row matches ``partition_id``.
+        """
         cursor = await self.db.execute(
             "SELECT * FROM partitions WHERE id = ?",
             (partition_id,),
@@ -84,6 +100,11 @@ class SQLitePartitionStore:
         return partition
 
     async def list(self) -> list[Partition]:
+        """List every partition ordered so ``mem_hippocampus`` sorts first, then by creation time.
+
+        Each row carries its current ``memory_count`` (a separate COUNT query per
+        row; fine for the small partition cardinality we run with).
+        """
         cursor = await self.db.execute(
             "SELECT * FROM partitions ORDER BY (id = 'mem_hippocampus') DESC, created_at",
         )
@@ -102,6 +123,16 @@ class SQLitePartitionStore:
         return partitions
 
     async def update(self, partition_id: str, data: PartitionUpdate) -> Partition | None:
+        """Apply the non-None fields of ``data`` to the partition in one transaction.
+
+        Args:
+            partition_id: The partition to patch.
+            data: Only the provided (non-None) fields are written.
+
+        Returns:
+            The updated ``Partition``, the existing row unchanged if ``data`` had
+            nothing to apply, or ``None`` if no row matches ``partition_id``.
+        """
         existing = await self.get(partition_id)
         if not existing:
             return None
@@ -139,6 +170,12 @@ class SQLitePartitionStore:
         return await self.get(partition_id)
 
     async def delete(self, partition_id: str) -> bool:
+        """Delete a non-system partition row by id in one transaction.
+
+        Returns:
+            ``True`` when a non-system row was deleted, ``False`` when the id is
+            missing or refers to a system partition (those are protected).
+        """
         # Cannot delete system partitions
         existing = await self.get(partition_id)
         if not existing or existing.is_system:

@@ -9,9 +9,11 @@ stubs); layer- or module-specific helpers stay next to their tests.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import AsyncMock
 
+import aiosqlite
 import pytest
 import pytest_asyncio
 
@@ -51,7 +53,7 @@ def shared_lock() -> asyncio.Lock:
 
 
 @pytest_asyncio.fixture
-async def db(settings: Settings, shared_lock: asyncio.Lock):
+async def db(settings: Settings, shared_lock: asyncio.Lock) -> AsyncIterator[aiosqlite.Connection]:
     conn = await get_connection(settings.db_path)
     await initialize_schema(conn, settings.embedding_dim)
     yield conn
@@ -59,12 +61,16 @@ async def db(settings: Settings, shared_lock: asyncio.Lock):
 
 
 @pytest_asyncio.fixture
-async def memory_store(db, shared_lock: asyncio.Lock) -> SQLiteMemoryStore:
+async def memory_store(
+    db: aiosqlite.Connection, shared_lock: asyncio.Lock
+) -> SQLiteMemoryStore:
     return SQLiteMemoryStore(db, write_lock=shared_lock)
 
 
 @pytest_asyncio.fixture
-async def partition_store(db, shared_lock: asyncio.Lock) -> SQLitePartitionStore:
+async def partition_store(
+    db: aiosqlite.Connection, shared_lock: asyncio.Lock
+) -> SQLitePartitionStore:
     store = SQLitePartitionStore(db, write_lock=shared_lock)
     await store.ensure_defaults()
     return store
