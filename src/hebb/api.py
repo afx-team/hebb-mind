@@ -390,7 +390,7 @@ class HebbMind:
             weight_relevance=self.settings.weight_relevance if weight_relevance is None else weight_relevance,
         )
         try:
-            response = self._run(self._searcher.search(mq))
+            response = self._run(self._searcher.search(mq, rerank_floor_ratio=self.settings.rerank_floor_ratio))
         except HebbMindError:
             raise
         except Exception as exc:  # noqa: BLE001

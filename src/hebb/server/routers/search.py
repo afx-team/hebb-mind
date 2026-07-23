@@ -40,7 +40,7 @@ async def search_memories(
         updates["min_score"] = settings.recall_min_score
     if updates:
         query = query.model_copy(update=updates)
-    response = await searcher.search(query)
+    response = await searcher.search(query, rerank_floor_ratio=settings.rerank_floor_ratio)
 
     # Retrieval-induced strengthening: bump access for the memories we just
     # surfaced so the forgetting TTL / recency ranking treat them as alive

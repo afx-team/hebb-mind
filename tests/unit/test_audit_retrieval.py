@@ -185,6 +185,40 @@ async def test_no_rerank_floor_uses_composite_scale() -> None:
     assert [r.memory.id for r in resp.results] == [mem.id]
 
 
+async def test_custom_rerank_floor_ratio_tight() -> None:
+    """A higher ratio tightens the rerank-scale floor, dropping a marginal
+    sigmoid hit that the default 0.625 ratio would have let through."""
+    mem = _mem("the capital of sweden is stockholm")
+    searcher = _searcher_with_vector_hit(mem, reranker=FakeReranker(0.6))
+
+    query = MemoryQuery(query="what is the capital of sweden", min_score=0.8)
+
+    # Default ratio 0.625: rerank_floor = 0.8 * 0.625 = 0.5 → 0.6 survives.
+    resp = await searcher.search(query)
+    assert [r.memory.id for r in resp.results] == [mem.id]
+
+    # Custom ratio 0.9: rerank_floor = 0.8 * 0.9 = 0.72 → 0.6 is dropped.
+    resp = await searcher.search(query, rerank_floor_ratio=0.9)
+    assert resp.results == []
+
+
+async def test_custom_rerank_floor_ratio_lenient() -> None:
+    """A lower ratio relaxes the rerank-scale floor, letting a weak sigmoid
+    hit through that the default 0.625 ratio would have dropped."""
+    mem = _mem("a somewhat relevant note about nordic countries")
+    searcher = _searcher_with_vector_hit(mem, reranker=FakeReranker(0.35))
+
+    query = MemoryQuery(query="what is the capital of sweden", min_score=0.8)
+
+    # Default ratio 0.625: rerank_floor = 0.8 * 0.625 = 0.5 → 0.35 is dropped.
+    resp = await searcher.search(query)
+    assert resp.results == []
+
+    # Custom ratio 0.3: rerank_floor = 0.8 * 0.3 = 0.24 → 0.35 survives.
+    resp = await searcher.search(query, rerank_floor_ratio=0.3)
+    assert [r.memory.id for r in resp.results] == [mem.id]
+
+
 # ---------------------------------------------------------------------------
 # C6: graph channel respects partition_ids
 # ---------------------------------------------------------------------------
