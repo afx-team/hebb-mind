@@ -23,7 +23,9 @@ def test_setup_initializes_and_selects_english_model(monkeypatch, tmp_path: Path
     monkeypatch.setenv("LANG", "en_US.UTF-8")
     monkeypatch.setattr(
         "hebb.cli.commands.setup.prefetch_model",
-        lambda model_id, workspace, hf_endpoint=None: workspace / "models" / model_id,
+        lambda model_id, workspace, hf_endpoint=None, progress_callback=None, suppress_native_progress=False: (
+            workspace / "models" / model_id
+        ),
     )
     monkeypatch.setattr("hebb.cli.commands.setup._verify_model", lambda model_id, hf_endpoint: 384)
 
@@ -46,7 +48,9 @@ def test_setup_initializes_and_selects_chinese_model(monkeypatch, tmp_path: Path
     monkeypatch.setenv("LANG", "zh_CN.UTF-8")
     monkeypatch.setattr(
         "hebb.cli.commands.setup.prefetch_model",
-        lambda model_id, workspace, hf_endpoint=None: workspace / "models" / model_id,
+        lambda model_id, workspace, hf_endpoint=None, progress_callback=None, suppress_native_progress=False: (
+            workspace / "models" / model_id
+        ),
     )
     monkeypatch.setattr("hebb.cli.commands.setup._verify_model", lambda model_id, hf_endpoint: 384)
 
@@ -68,7 +72,9 @@ def test_setup_best_profile_selects_bge_english(monkeypatch, tmp_path: Path) -> 
     monkeypatch.setenv("LANG", "en_US.UTF-8")
     monkeypatch.setattr(
         "hebb.cli.commands.setup.prefetch_model",
-        lambda model_id, workspace, hf_endpoint=None: workspace / "models" / model_id,
+        lambda model_id, workspace, hf_endpoint=None, progress_callback=None, suppress_native_progress=False: (
+            workspace / "models" / model_id
+        ),
     )
     monkeypatch.setattr("hebb.cli.commands.setup._verify_model", lambda model_id, hf_endpoint: 1024)
 
@@ -88,7 +94,9 @@ def test_setup_explicit_language_and_region_are_independent(monkeypatch, tmp_pat
     monkeypatch.setenv("HEBB_HOME", str(home))
     monkeypatch.setattr(
         "hebb.cli.commands.setup.prefetch_model",
-        lambda model_id, workspace, hf_endpoint=None: workspace / "models" / model_id,
+        lambda model_id, workspace, hf_endpoint=None, progress_callback=None, suppress_native_progress=False: (
+            workspace / "models" / model_id
+        ),
     )
     monkeypatch.setattr("hebb.cli.commands.setup._verify_model", lambda model_id, hf_endpoint: 384)
 
@@ -118,7 +126,9 @@ def test_setup_keeps_custom_model_without_explicit_language(monkeypatch, tmp_pat
 
         monkeypatch.setattr(
             "hebb.cli.commands.setup.prefetch_model",
-            lambda model_id, workspace, hf_endpoint=None: workspace / "models" / model_id,
+            lambda model_id, workspace, hf_endpoint=None, progress_callback=None, suppress_native_progress=False: (
+                workspace / "models" / model_id
+            ),
         )
         monkeypatch.setattr("hebb.cli.commands.setup._verify_model", lambda model_id, hf_endpoint: 777)
         result = runner.invoke(setup_cmd, ["--region", "global"])
@@ -155,9 +165,50 @@ def test_setup_skips_prefetch_when_model_already_present(monkeypatch, tmp_path: 
     assert result.exit_code == 0, result.output
     assert called["prefetch"] is False
     assert "Model already present" in result.output
+    assert "Downloading embedding model" not in result.output
     config = json.loads((home / "hebb.json").read_text())
     assert config["embedding_model"] == "sentence-transformers/all-MiniLM-L6-v2"
     assert config["embedding_dim"] == 384
+
+
+def test_setup_renders_live_download_progress(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("HEBB_HOME", str(home))
+    _clear_locale_env(monkeypatch)
+    monkeypatch.setenv("LANG", "en_US.UTF-8")
+    monkeypatch.setattr("hebb.cli.commands.setup.workspace_model_available", lambda workspace, model_id: False)
+
+    callback_received = False
+
+    def fake_prefetch(
+        model_id: str,
+        workspace: Path,
+        hf_endpoint: str | None = None,
+        progress_callback=None,
+        suppress_native_progress: bool = False,
+    ) -> Path:
+        nonlocal callback_received
+        assert progress_callback is not None
+        assert suppress_native_progress is True
+        callback_received = True
+        progress_callback(512, 1024, "model.safetensors")
+        progress_callback(1024, 1024, "model.safetensors")
+        progress_callback(12, 12, "Fetching 12 files")
+        return workspace / "models" / model_id
+
+    monkeypatch.setattr("hebb.cli.commands.setup.prefetch_model", fake_prefetch)
+    monkeypatch.setattr("hebb.cli.commands.setup._verify_model", lambda model_id, hf_endpoint: 384)
+
+    runner = CliRunner()
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        result = runner.invoke(setup_cmd, ["--region", "global"])
+
+    assert result.exit_code == 0, result.output
+    assert callback_received is True
+    assert "model.safetensors" in result.output
+    assert "small ~90MB" in result.output
+    assert "100%" in result.output
+    assert "Fetching 12 files" not in result.output
 
 
 def test_initialize_workspace_uses_hebb_home(monkeypatch, tmp_path: Path) -> None:
