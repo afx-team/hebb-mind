@@ -219,6 +219,40 @@ async def _ensure_vec_table(db: aiosqlite.Connection, embedding_dim: int) -> Non
     await db.execute(_VEC_CREATE_SQL.format(dim=dim))
 
 
+async def _ensure_fallback_partition_column(db: aiosqlite.Connection) -> None:
+    """Ensure the non-vec0 fallback ``memory_embeddings`` table carries ``partition_id``.
+
+    Only acts on the regular (BLOB) fallback table — an existing vec0 virtual
+    table is migrated by :func:`_ensure_vec_table`. Writes always supply
+    ``partition_id`` (the partition-aware vector-KNN contract), so a fallback
+    table created before that contract needs an additive ``ALTER`` rather than
+    a destructive recreate, else every insert fails with
+    ``no such column: partition_id`` in vec0-unavailable environments.
+
+    Args:
+        db: Open database connection.
+    """
+    cursor = await db.execute(
+        "SELECT sql FROM sqlite_master WHERE name = 'memory_embeddings'"
+    )
+    row = await cursor.fetchone()
+    if not row or not row[0] or "USING vec0" in row[0]:
+        # vec0 virtual table (or absent) — schema maintained by _ensure_vec_table.
+        return
+
+    info_cursor = await db.execute("PRAGMA table_info(memory_embeddings)")
+    columns = {r[1] for r in await info_cursor.fetchall()}
+    if "partition_id" not in columns:
+        await db.execute(
+            "ALTER TABLE memory_embeddings "
+            "ADD COLUMN partition_id TEXT NOT NULL DEFAULT 'default'"
+        )
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_memory_embeddings_partition_id "
+        "ON memory_embeddings(partition_id)"
+    )
+
+
 async def initialize_schema(
     db: aiosqlite.Connection, embedding_dim: int = 384, *, create_vec_table: bool = True
 ) -> None:
@@ -267,10 +301,20 @@ async def initialize_schema(
             raise
         except Exception as e:
             logger.warning("Could not create vec0 table: %s. %s", e, _VEC_FIX_HINT)
-            # Fallback: regular table so embedding INSERT/DELETE still works
+            # Fallback: regular table so embedding INSERT/DELETE still works.
+            # Schema mirrors the vec0 contract (memory_id, partition_id,
+            # embedding) so partition-aware writes don't fail in
+            # vec0-unavailable environments.
             await db.execute(
-                "CREATE TABLE IF NOT EXISTS memory_embeddings (memory_id TEXT PRIMARY KEY, embedding BLOB)"
+                "CREATE TABLE IF NOT EXISTS memory_embeddings ("
+                "memory_id TEXT PRIMARY KEY, "
+                "partition_id TEXT NOT NULL DEFAULT 'default', "
+                "embedding BLOB)"
             )
+
+    # Additive migration for fallback tables created before the partition_id
+    # write contract (vec0 tables are skipped inside). Idempotent.
+    await _ensure_fallback_partition_column(db)
 
     # FTS5 full-text search table for keyword matching.
     # `porter unicode61` chains Porter stemming on top of unicode61 so that
