@@ -110,9 +110,9 @@ class MemorySearcher:
         # depend on different inputs, so they get independent dicts:
         #   * ``_corpus_size_cache``: keyed by the partition scope (corpus size
         #     depends only on which partitions are searched, not the query).
-        #   * ``_df_cache``: keyed by (sorted surface-token tuple, partition scope)
-        #     — DF depends on both the tokens and the partition, so the token set
-        #     MUST be in the key to stop one query overwriting another's DFs.
+        #   * ``_df_cache``: keyed by (token, partition scope) — DF depends on both
+        #     the token and the partition, so the token MUST be in the key to stop
+        #     one query's "alpha" frequency overwriting another's "beta".
         # Values are ``(result, expires_at)`` with ``expires_at`` a ``time.monotonic``
         # deadline. ``None`` / empty results are cached too, so an empty corpus or a
         # query with no DF-eligible tokens doesn't re-hit the store every call.
