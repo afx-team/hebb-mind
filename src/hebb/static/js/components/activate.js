@@ -28,7 +28,7 @@ function groupRecall() {
   return {
     titleKey: 'settings.group.recall',
     icon: '&#128269;',
-    keys: ['keyword_search_enabled', 'graph_search_enabled', 'lexical_boost_enabled', 'temporal_boost_enabled', 'graph_expansion_enabled', 'recall_min_score'],
+    keys: ['keyword_search_enabled', 'graph_search_enabled', 'lexical_boost_enabled', 'temporal_boost_enabled', 'graph_expansion_enabled', 'recall_min_score', 'rerank_floor_ratio'],
     hints: {
       keyword_search_enabled: t('recall.hint.keyword_search_enabled'),
       graph_search_enabled: t('recall.hint.graph_search_enabled'),
@@ -36,6 +36,7 @@ function groupRecall() {
       temporal_boost_enabled: t('recall.hint.temporal_boost_enabled'),
       graph_expansion_enabled: t('recall.hint.graph_expansion_enabled'),
       recall_min_score: t('recall.hint.recall_min_score'),
+      rerank_floor_ratio: t('recall.hint.rerank_floor_ratio'),
     },
   };
 }

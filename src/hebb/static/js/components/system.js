@@ -50,7 +50,7 @@ const GROUP_STORAGE = {
   titleKey: 'settings.group.storage',
   icon: '&#128451;',
   keys: ['storage_type', 'pg_url', 'pg_pool_min', 'pg_pool_max'],
-};
+  };
 const GROUP_WORKSPACE = {
   titleKey: 'settings.group.workspace',
   icon: '&#128193;',

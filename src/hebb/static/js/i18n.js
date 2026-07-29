@@ -294,6 +294,7 @@ const translations = {
     'settings.restart.issued': 'Restart issued. Waiting for service to come back…',
     'settings.restart.ok': 'Service restarted',
     'settings.restart.timeout': 'Service did not respond within 30s. Check `hebb status` in a terminal.',
+    'settings.error.range_0_1': '{key} must be between 0 and 1',
 
     // Upgrade
     'upgrade.available': 'Hebb Mind {latest} is available',
@@ -402,6 +403,7 @@ const translations = {
     'recall.hint.temporal_boost_enabled': 'Date-proximity boost when the query names a time',
     'recall.hint.graph_expansion_enabled': 'Expand top-k tags through the graph for related memories',
     'recall.hint.recall_min_score': 'Score floor (0–1) for strict recall (Claude Code hook + MCP). Results below are dropped; the test above is unaffected. Applies immediately, no restart.',
+    'recall.hint.rerank_floor_ratio': 'Floor ratio (0–1) mapping composite min_score to the rerank sigmoid scale. Default 0.625 ≈ 0.8 composite → 0.5 sigmoid. No restart required.',
     'recall.hint.rerank_enabled': 'Cross-encoder pass over the top candidates after hybrid retrieval. Scores are sigmoid-normalised to [0,1].',
     'recall.hint.rerank_provider': '\'local\' = sentence-transformers CrossEncoder',
     'recall.hint.rerank_model': 'Model name or HuggingFace repo id',
@@ -712,6 +714,7 @@ const translations = {
     'settings.restart.issued': '已发起重启，正在等待服务恢复…',
     'settings.restart.ok': '服务已重启',
     'settings.restart.timeout': '服务在 30 秒内未响应。请在终端运行 `hebb status` 检查。',
+    'settings.error.range_0_1': '{key} 必须在 0 到 1 之间',
 
     'upgrade.available': 'Hebb Mind {latest} 可用',
     'upgrade.current': '当前 {current}',
@@ -818,6 +821,7 @@ const translations = {
     'recall.hint.temporal_boost_enabled': '当查询包含时间时按日期临近度加权',
     'recall.hint.graph_expansion_enabled': '通过图谱扩展 top-k 标签以召回相关记忆',
     'recall.hint.recall_min_score': '严格召回（Claude Code 钩子 + MCP）的分数下限（0–1）。低于该值的结果会被丢弃；上方的测试不受影响。立即生效，无需重启。',
+    'recall.hint.rerank_floor_ratio': '分数下限映射比率（0–1）。将 composite 分数下限映射到重排 sigmoid 尺度。默认 0.625 表示 0.8 → 0.5。即时生效，无需重启。',
     'recall.hint.rerank_enabled': '在混合检索后对靠前候选执行交叉编码器重排。分数经 sigmoid 归一化到 [0,1]。',
     'recall.hint.rerank_provider': '\'local\' = sentence-transformers CrossEncoder',
     'recall.hint.rerank_model': '模型名称或 HuggingFace 仓库 id',
