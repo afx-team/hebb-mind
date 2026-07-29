@@ -132,7 +132,14 @@ class LocalEmbedder:
 
         # Import after env var is set — huggingface_hub caches offline
         # mode at import time.
-        from sentence_transformers import SentenceTransformer
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                "Local embedding needs the ML stack (sentence-transformers + torch). "
+                "Run `hebb setup` to install it, or `pip install hebb-mind[local]`, "
+                "or switch to an API provider: `hebb config set embedding_provider api`."
+            ) from e
 
         try:
             self._model = SentenceTransformer(load_target)

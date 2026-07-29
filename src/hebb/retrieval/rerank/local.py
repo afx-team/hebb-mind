@@ -55,8 +55,15 @@ class LocalReranker:
             # downloads and CrossEncoder raises.
             os.environ.pop("HF_HUB_OFFLINE", None)
 
-        from sentence_transformers import CrossEncoder
-        from torch.nn import Sigmoid
+        try:
+            from sentence_transformers import CrossEncoder
+            from torch.nn import Sigmoid
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                "Local reranker needs the ML stack (sentence-transformers + torch). "
+                "Run `hebb setup` to install it, or `pip install hebb-mind[local]`, "
+                "or disable rerank: `hebb config set rerank_enabled false`."
+            ) from e
 
         try:
             # No explicit max_length: CrossEncoder truncates long (query,

@@ -10,6 +10,7 @@ from pathlib import Path
 import click
 import httpx
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from hebb.config.loader import find_config_file, load_settings
@@ -31,6 +32,7 @@ def doctor_cmd() -> None:
     settings = _add_config_check(table)
     _add_static_check(table)
     if settings is not None:
+        _add_local_stack_check(table, settings)
         _add_model_check(table, settings)
         _add_service_check(table, settings)
     _add_cli_check(table, "claude", ["claude", "mcp", "list"])
@@ -78,6 +80,44 @@ def _add_model_check(table: Table, settings: Settings) -> None:
     if not cached:
         detail += ". Run: hebb model prefetch"
     table.add_row("Embedding", _status(cached), detail)
+
+
+def _local_stack_importable() -> bool:
+    """Return whether the local ML stack (sentence-transformers) imports."""
+    import importlib.util
+
+    return importlib.util.find_spec("sentence_transformers") is not None
+
+
+def _add_local_stack_check(table: Table, settings: Settings) -> None:
+    """Diagnose a configured local provider whose ML stack is not installed.
+
+    A lean install (no ``local`` extra) silently degrades to ``NoopEmbedder`` /
+    disabled rerank. Surface that loudly here with an actionable install hint,
+    ahead of the model-cache check — otherwise a missing stack makes
+    ``is_model_cached`` report "model not cached — run hebb model prefetch",
+    which then hard-fails on the unguarded huggingface_hub import.
+    """
+    needs_stack = (
+        (settings.embedding_enabled and settings.embedding_provider == "local")
+        or (settings.rerank_enabled and settings.rerank_provider == "local")
+    )
+    if not needs_stack:
+        return  # API-only / disabled configs never need the local stack.
+
+    if _local_stack_importable():
+        table.add_row("ML stack", _status(True), "sentence-transformers importable")
+    else:
+        # Escape the hint — rich would otherwise eat ``[local]`` as a markup tag
+        # and the user would see ``pip install hebb-mind`` (missing the extra).
+        table.add_row(
+            "ML stack",
+            _status(False),
+            escape(
+                "Local provider configured but sentence-transformers is missing. "
+                "Run: hebb setup  (or pip install hebb-mind[local])"
+            ),
+        )
 
 
 def _add_service_check(table: Table, settings: Settings) -> None:

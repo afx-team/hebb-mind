@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from hebb.embedding import catalog
 from hebb.embedding.catalog import ProbeResult, model_dir_complete, workspace_model_available
 
@@ -114,6 +116,9 @@ class TestModelDirComplete:
 
 class TestPrefetchIgnorePatterns:
     def test_prefetch_passes_ignore_patterns(self, tmp_path: Path, monkeypatch) -> None:
+        # prefetch_model imports huggingface_hub directly; skip cleanly under a
+        # lean install (no `local` extra) rather than hard-failing on import.
+        pytest.importorskip("huggingface_hub")
         captured: dict[str, object] = {}
 
         def fake_snapshot_download(**kwargs: object) -> str:
@@ -143,6 +148,7 @@ class TestPrefetchIgnorePatterns:
         assert "model.safetensors" not in ignored
 
     def test_prefetch_keeps_bin_for_model_without_safetensors(self, tmp_path: Path, monkeypatch) -> None:
+        pytest.importorskip("huggingface_hub")
         captured: dict[str, object] = {}
 
         def fake_snapshot_download(**kwargs: object) -> str:
