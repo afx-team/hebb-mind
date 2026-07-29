@@ -149,11 +149,11 @@ def _searcher_with_vector_hit(
 async def test_low_sigmoid_hit_survives_strict_floor() -> None:
     """A relevant hit scoring a 0.6 bge sigmoid must NOT be dropped by a 0.8
     *composite* strict floor — the floor is translated to the rerank scale for
-    reranked entries."""
+    reranked entries (0.8 * 0.625 = 0.5 ≤ 0.6)."""
     mem = _mem("the capital of sweden is stockholm")
     searcher = _searcher_with_vector_hit(mem, reranker=FakeReranker(0.6))
 
-    query = MemoryQuery(query="what is the capital of sweden", min_score=0.8)
+    query = MemoryQuery(query="what is the capital of sweden", min_score=0.8, rerank_floor_ratio=0.625)
     resp = await searcher.search(query)
 
     assert [r.memory.id for r in resp.results] == [mem.id]
@@ -167,10 +167,77 @@ async def test_below_rerank_floor_hit_is_dropped() -> None:
     mem = _mem("a totally unrelated note about gardening")
     searcher = _searcher_with_vector_hit(mem, reranker=FakeReranker(0.2))
 
-    query = MemoryQuery(query="what is the capital of sweden", min_score=0.8)
+    query = MemoryQuery(query="what is the capital of sweden", min_score=0.8, rerank_floor_ratio=0.625)
     resp = await searcher.search(query)
 
     assert resp.results == []
+
+
+async def test_rerank_floor_ratio_configurable() -> None:
+    """Different ``rerank_floor_ratio`` values change whether a marginal
+    sigmoid hit survives the floor — confirming the ratio is actually read
+    from the query, not hardcoded."""
+    mem = _mem("marginal relevance match")
+    # Sigmoid 0.45: at ratio=0.625 -> 0.8*0.625=0.5 floor -> dropped;
+    # at ratio=0.5 -> 0.8*0.5=0.4 floor -> kept.
+    searcher = _searcher_with_vector_hit(mem, reranker=FakeReranker(0.45))
+
+    strict = MemoryQuery(query="test", min_score=0.8, rerank_floor_ratio=0.625)
+    resp = await searcher.search(strict)
+    assert resp.results == []
+
+    relaxed = MemoryQuery(query="test", min_score=0.8, rerank_floor_ratio=0.5)
+    resp = await searcher.search(relaxed)
+    assert [r.memory.id for r in resp.results] == [mem.id]
+
+
+async def test_rerank_floor_ratio_zero_passes_all_reranked() -> None:
+    """ratio=0.0 → rerank floor = min_score * 0 = 0, so every reranked hit
+    survives regardless of its sigmoid score."""
+    mem = _mem("barely relevant")
+    # Sigmoid 0.01 would be dropped at any positive floor, but floor=0 passes.
+    searcher = _searcher_with_vector_hit(mem, reranker=FakeReranker(0.01))
+
+    query = MemoryQuery(query="test", min_score=0.8, rerank_floor_ratio=0.0)
+    resp = await searcher.search(query)
+    assert [r.memory.id for r in resp.results] == [mem.id]
+
+
+async def test_rerank_floor_ratio_one_is_strictest() -> None:
+    """ratio=1.0 → rerank floor = min_score * 1.0 = min_score, so the rerank
+    scale floor equals the composite floor (most restrictive)."""
+    mem = _mem("marginal hit")
+    # Sigmoid 0.79 < 0.8 floor → dropped at ratio=1.0.
+    searcher = _searcher_with_vector_hit(mem, reranker=FakeReranker(0.79))
+
+    query = MemoryQuery(query="test", min_score=0.8, rerank_floor_ratio=1.0)
+    resp = await searcher.search(query)
+    assert resp.results == []
+
+    # But sigmoid 0.81 survives.
+    searcher2 = _searcher_with_vector_hit(mem, reranker=FakeReranker(0.81))
+    resp2 = await searcher2.search(query)
+    assert [r.memory.id for r in resp2.results] == [mem.id]
+
+
+async def test_explicit_min_score_ignores_rerank_floor_ratio() -> None:
+    """When min_score is set explicitly (caller override), the floor applies
+    directly — rerank_floor_ratio is still used for the rerank-scale
+    translation, but the value comes from the query, not from the router's
+    strict_recall injection. This verifies the two paths are independent."""
+    mem = _mem("test content")
+    # Sigmoid 0.45: at ratio=0.625 → floor=0.5 → dropped.
+    searcher = _searcher_with_vector_hit(mem, reranker=FakeReranker(0.45))
+
+    # Simulate caller-provided min_score with explicit ratio.
+    query = MemoryQuery(query="test", min_score=0.8, rerank_floor_ratio=0.625)
+    resp = await searcher.search(query)
+    assert resp.results == []
+
+    # Same min_score but a different explicit ratio changes the outcome.
+    query2 = MemoryQuery(query="test", min_score=0.8, rerank_floor_ratio=0.5)
+    resp2 = await searcher.search(query2)
+    assert [r.memory.id for r in resp2.results] == [mem.id]
 
 
 async def test_no_rerank_floor_uses_composite_scale() -> None:

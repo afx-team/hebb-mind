@@ -139,6 +139,25 @@ class Settings(BaseModel):
         le=1.0,
         description="Min relevance score (0-1) for hook/MCP recall; results below are dropped (console Search unaffected)",
     )
+    # Floor translation ratio for the rerank scale: when strict_recall maps
+    # ``recall_min_score`` to the cross-encoder sigmoid range, this ratio is
+    # applied so the floor lives on the correct scale for reranked entries.
+    # Default 0.625 was derived from observation that a relevant cross-encoder
+    # hit clears ~0.5 sigmoid (0.8 * 0.625 = 0.5).
+    rerank_floor_ratio: float = Field(
+        default=0.625,
+        ge=0.0,
+        le=1.0,
+        description="Floor translation ratio for the rerank scale — applied when "
+        "strict_recall maps recall_min_score to the cross-encoder sigmoid range",
+    )
+    recall_hook_min_score: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Per-deployment min_score override for the recall hook; "
+        "None = use strict_recall (global recall_min_score)",
+    )
 
     # Retrieval-induced strengthening ("提取即强化" / testing effect): when a
     # /search returns hits, bump their access_count + last_accessed_at so the

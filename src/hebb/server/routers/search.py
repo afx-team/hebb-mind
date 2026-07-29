@@ -38,6 +38,11 @@ async def search_memories(
     # ``min_score`` on the request still wins.
     if query.strict_recall and "min_score" not in query.model_fields_set:
         updates["min_score"] = settings.recall_min_score
+        # Also fill the rerank-scale translation ratio when the caller did
+        # not explicitly pass it, so the searcher applies the correct scale
+        # for reranked entries.
+        if "rerank_floor_ratio" not in query.model_fields_set:
+            updates["rerank_floor_ratio"] = settings.rerank_floor_ratio
     if updates:
         query = query.model_copy(update=updates)
     response = await searcher.search(query)

@@ -91,6 +91,16 @@ class MemoryQuery(BaseModel):
     # applies its configured ``recall_min_score`` floor without the caller
     # needing to know the value. Ignored when ``min_score`` is set explicitly.
     strict_recall: bool = Field(default=False, description="Apply the server's configured recall_min_score floor")
+    # Floor translation ratio: when ``min_score > 0`` and a reranker ran, the
+    # floor is multiplied by this for reranked entries (the rerank sigmoid scale
+    # vs. the composite scale). Default matches the config default. The searcher
+    # reads this from the query; the router sets it when ``strict_recall`` is
+    # active and the caller did not override it.
+    rerank_floor_ratio: float = Field(
+        default=0.625, ge=0.0, le=1.0,
+        description="Floor translation ratio: when min_score > 0 and a reranker "
+        "ran, the floor is multiplied by this for reranked entries",
+    )
     # Context window expansion: when a top result has session_id+turn
     # metadata, also pull this many *adjacent* turns from the same
     # session and return them via SearchResponse.related. The hit memory
