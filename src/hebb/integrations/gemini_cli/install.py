@@ -28,7 +28,11 @@ def build_entry(mcp_argv: list[str]) -> dict[str, Any]:
 
 
 def handle() -> None:
-    """Install Hebb Mind MCP into Gemini CLI."""
+    """Install Hebb Mind MCP into Gemini CLI.
+
+    Raises:
+        click.ClickException: If the config file exists but cannot be parsed.
+    """
     mcp_argv = hebb_mcp_command()
     entry = build_entry(mcp_argv)
     path = config_path()

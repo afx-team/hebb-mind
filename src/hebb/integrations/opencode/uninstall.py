@@ -13,6 +13,9 @@ def handle(scope: str = "user") -> None:
 
     Args:
         scope: ``"project"`` or ``"user"``.
+
+    Raises:
+        click.ClickException: If the config file exists but cannot be parsed.
     """
     path = config_path(scope)
     changed = remove_server(path, SERVER_KEY, SERVER_NAME)

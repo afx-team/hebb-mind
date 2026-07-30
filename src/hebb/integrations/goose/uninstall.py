@@ -8,7 +8,11 @@ from hebb.integrations.goose.install import _remove_hebb_block, atomic_write, co
 
 
 def handle() -> None:
-    """Remove Hebb Mind MCP from Goose."""
+    """Remove Hebb Mind MCP from Goose.
+
+    Raises:
+        click.ClickException: If the config file exists but cannot be parsed.
+    """
     path = config_path()
     if not path.exists():
         click.echo("Hebb Mind was not configured for Goose.")

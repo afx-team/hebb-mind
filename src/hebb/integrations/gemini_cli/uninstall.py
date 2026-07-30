@@ -9,7 +9,11 @@ from hebb.integrations.gemini_cli.install import SERVER_KEY, SERVER_NAME, config
 
 
 def handle() -> None:
-    """Remove Hebb Mind MCP from Gemini CLI."""
+    """Remove Hebb Mind MCP from Gemini CLI.
+
+    Raises:
+        click.ClickException: If the config file exists but cannot be parsed.
+    """
     path = config_path()
     changed = remove_server(path, SERVER_KEY, SERVER_NAME)
 

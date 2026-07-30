@@ -45,6 +45,9 @@ def handle(scope: str = "user") -> None:
 
     Args:
         scope: ``"project"`` or ``"user"`` (default: ``"user"``).
+
+    Raises:
+        click.ClickException: If the config file exists but cannot be parsed.
     """
     mcp_argv = hebb_mcp_command()
     entry = build_entry(mcp_argv)

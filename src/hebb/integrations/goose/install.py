@@ -90,7 +90,13 @@ def atomic_write(path: Path, content: str) -> None:
 
 
 def handle() -> None:
-    """Install Hebb Mind MCP into Goose."""
+    """Install Hebb Mind MCP into Goose.
+
+    Raises:
+        click.ClickException: If the config file has an unsupported inline
+            ``extensions:`` key (e.g. ``extensions: {}``) that cannot be
+            safely extended.
+    """
     mcp_argv = hebb_mcp_command()
     path = config_path()
 
@@ -99,24 +105,38 @@ def handle() -> None:
 
     block = _build_yaml_block(mcp_argv)
 
-    # Ensure "extensions:" key exists as a standalone line
-    has_extensions_line = any(line.strip() == "extensions:" for line in cleaned.splitlines())
-    if not has_extensions_line:
+    # Match only a root-level (unindented) block-style "extensions:" header.
+    # An indented "extensions:" (nested under another key) or an inline form
+    # like "extensions: {}" should not trigger insertion.
+    has_extensions_block = any(line.rstrip("\r\n") == "extensions:" for line in cleaned.splitlines())
+    has_extensions_inline = any(
+        line.lstrip().startswith("extensions:") and line.rstrip("\r\n") != "extensions:"
+        for line in cleaned.splitlines()
+    )
+
+    if has_extensions_inline and not has_extensions_block:
+        raise click.ClickException(
+            f"Goose config has an inline 'extensions:' key that cannot be safely "
+            f"extended. Please convert it to block style (a line with just "
+            f"'extensions:') in {path}."
+        )
+
+    if not has_extensions_block:
         if cleaned and not cleaned.endswith("\n"):
             cleaned += "\n"
         cleaned += "extensions:\n" + block
     else:
-        # Insert hebb block right after "extensions:" line
+        # Insert hebb block right after the root-level "extensions:" line
         lines = cleaned.splitlines(keepends=True)
         output: list[str] = []
         inserted = False
         for line in lines:
             output.append(line)
-            if not inserted and line.strip() == "extensions:":
+            if not inserted and line.rstrip("\r\n") == "extensions:":
                 output.append(block)
                 inserted = True
         if not inserted:
-            # Fallback: extensions: was in a comment/substring, not a real line
+            # Fallback: should not happen given has_extensions_block check
             if cleaned and not cleaned.endswith("\n"):
                 cleaned += "\n"
             cleaned += "extensions:\n" + block
