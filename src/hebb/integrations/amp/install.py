@@ -7,7 +7,7 @@ from typing import Any
 
 import click
 
-from hebb.integrations._json_config import atomic_write, load_json
+from hebb.integrations._json_config import upsert_server
 from hebb.utils.cli_paths import hebb_mcp_command, shell_quote
 
 # Amp uses "amp.mcpServers" as the key (not "mcpServers")
@@ -50,16 +50,7 @@ def handle(scope: str = "user") -> None:
     entry = build_entry(mcp_argv)
     path = config_path(scope)
 
-    data = load_json(path)
-    servers = data.get(SERVER_KEY)
-    if not isinstance(servers, dict):
-        servers = {}
-        data[SERVER_KEY] = servers
-    servers[SERVER_NAME] = entry
-
-    import json
-
-    atomic_write(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    upsert_server(path, SERVER_KEY, SERVER_NAME, entry)
 
     click.secho(f"Installed Hebb Mind for Amp ({scope}).", fg="green")
     click.echo(f"  Config: {path}")

@@ -31,11 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation
 
 - Expanded MCP integration guide (`repo_pages/guide/mcp-integration.md` + zh
-  mirror) from 4 clients to a 19-client quick-connect matrix covering Amp,
-  Cline, Claude Desktop, Copilot, Cursor, Gemini CLI, Goose, Kiro, LM Studio,
-  opencode, VS Code, Warp, Windsurf, and UI-only clients (Antigravity, Factory,
-  Junie, Qodo Gen). Each entry includes the exact config file path, format, and
-  absolute-path guidance.
+  mirror) from 4 clients to a 19-client quick-connect matrix covering Claude
+  Code, Codex, Amp, Cline, Claude Desktop, Copilot, Cursor, Gemini CLI, Goose,
+  Kiro, LM Studio, opencode, VS Code, Warp, Windsurf, and UI-only clients
+  (Antigravity, Factory, Junie, Qodo Gen). Each entry includes the exact config
+  file path, format, and absolute-path guidance.
 
 ## [0.3.0] - 2026-06-29
 

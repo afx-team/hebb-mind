@@ -26,15 +26,17 @@ def _build_yaml_block(mcp_argv: list[str]) -> str:
     """
     cmd = mcp_argv[0]
     args = mcp_argv[1:]
-    args_yaml = "\n".join(f"      - {a}" for a in args) if args else "[]"
+    if args:
+        args_block = "    args:\n" + "\n".join(f"      - {a}" for a in args) + "\n"
+    else:
+        args_block = "    args: []\n"
     return (
         f"  {EXTENSION_NAME}:\n"
         f"    type: stdio\n"
         f"    name: {EXTENSION_NAME}\n"
         f"    enabled: true\n"
         f"    cmd: {cmd}\n"
-        f"    args:\n"
-        f"{args_yaml}\n"
+        f"{args_block}"
         f"    envs: {{}}\n"
         f"    timeout: 300\n"
     )
@@ -97,8 +99,9 @@ def handle() -> None:
 
     block = _build_yaml_block(mcp_argv)
 
-    # Ensure "extensions:" key exists
-    if "extensions:" not in cleaned:
+    # Ensure "extensions:" key exists as a standalone line
+    has_extensions_line = any(line.strip() == "extensions:" for line in cleaned.splitlines())
+    if not has_extensions_line:
         if cleaned and not cleaned.endswith("\n"):
             cleaned += "\n"
         cleaned += "extensions:\n" + block
@@ -112,7 +115,13 @@ def handle() -> None:
             if not inserted and line.strip() == "extensions:":
                 output.append(block)
                 inserted = True
-        cleaned = "".join(output)
+        if not inserted:
+            # Fallback: extensions: was in a comment/substring, not a real line
+            if cleaned and not cleaned.endswith("\n"):
+                cleaned += "\n"
+            cleaned += "extensions:\n" + block
+        else:
+            cleaned = "".join(output)
 
     atomic_write(path, cleaned)
 
