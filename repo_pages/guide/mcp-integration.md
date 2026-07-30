@@ -1,10 +1,10 @@
 ---
-description: "Connect Claude Code, Codex, Cursor, and Claude Desktop to long-term AI agent memory over MCP — write, recall via hybrid vector+keyword search, and consolidate."
+description: "Connect Claude Code, Codex, Cursor, Windsurf, VS Code, and 15+ MCP-compatible clients to long-term AI agent memory — write, recall via hybrid vector+keyword search, and consolidate."
 ---
 
 # MCP Integration
 
-Hebb Mind provides an MCP (Model Context Protocol) server that exposes memory operations as tools. Claude Code, Codex, Cursor, and other MCP-compatible clients can use it directly.
+Hebb Mind provides an MCP (Model Context Protocol) server that exposes memory operations as tools. Any MCP-compatible client can use it directly. Below is the full quick-connect matrix — find your client and paste the snippet.
 
 ## Prerequisites
 
@@ -24,27 +24,27 @@ hebb service install    # registers the background service (no admin by default)
 | `consolidate` | Trigger memory consolidation | none |
 | `ingest_conversation` | Ingest a conversation export (Claude Code JSONL / ChatGPT JSON / plain text) — auto-detects format, normalizes turns, stores each turn | `content`, `format_hint?`, `importance?` |
 
-## Configuration
-
-The MCP server automatically discovers the service address from `hebb.json`. For the common case (service running locally), no configuration is needed — just add the command.
+## Quick-Connect Matrix
 
 ::: tip Use the absolute path to `hebb-mcp`
-The snippets below show `command: "hebb-mcp"` for brevity, but a **bare** `hebb-mcp` can fail to launch under GUI-launched apps (Claude Desktop, Cursor) that don't inherit your shell `PATH` — the MCP server then silently never starts. Run `which hebb-mcp` (Windows: `where hebb-mcp`) and use the **absolute path** as the `command`. The `hebb claude-code install` / `hebb codex install` commands already do this for you.
+All snippets below use `/absolute/path/to/hebb-mcp` as a placeholder. A **bare** `hebb-mcp` can fail to launch under GUI-launched apps (Claude Desktop, Cursor, Windsurf, LM Studio, etc.) that don't inherit your shell `PATH`. Run `which hebb-mcp` (Windows: `where hebb-mcp`) and replace the placeholder with the real path. The `hebb claude-code install` / `hebb codex install` commands already resolve this for you.
 :::
 
-If the service runs on a remote host or non-default address, set `HEBB_URL`:
+If the Hebb Mind service runs on a remote host or non-default address, add an `env` block with `HEBB_URL`:
 
-### Claude Code
-
-Recommended:
-
-```bash
-hebb claude-code install --scope user
+```json
+"env": { "HEBB_URL": "http://192.168.1.100:8321" }
 ```
 
-MCP-only:
+### Clients with first-class installers
 
-Add to your project's `.mcp.json` (replace `/absolute/path/to/hebb-mcp` with the output of `which hebb-mcp`):
+#### Claude Code
+
+```bash
+hebb claude-code install --scope user   # hooks + MCP, absolute path auto-resolved
+```
+
+MCP-only (project-level `.mcp.json` or global `~/.claude.json`):
 
 ```json
 {
@@ -56,41 +56,44 @@ Add to your project's `.mcp.json` (replace `/absolute/path/to/hebb-mcp` with the
 }
 ```
 
-Or add globally in `~/.claude.json`.
-
-If the service runs on a non-default address, set the URL explicitly:
-
-```json
-{
-  "mcpServers": {
-    "hebb": {
-      "command": "/absolute/path/to/hebb-mcp",
-      "env": {
-        "HEBB_URL": "http://192.168.1.100:8321"
-      }
-    }
-  }
-}
-```
-
-### Codex
-
-Recommended:
+#### Codex
 
 ```bash
 hebb codex install   # project MCP + lifecycle hooks (default)
 codex mcp list
 ```
 
-Native Codex command (pass the absolute path so it resolves regardless of how Codex is launched):
+Native Codex command:
 
 ```bash
 codex mcp add hebb -- "$(which hebb-mcp)"
 ```
 
-### Claude Desktop
+### Clients with config snippets
 
-Add to `claude_desktop_config.json` (typically at `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS). Claude Desktop is a GUI app, so the **absolute path** to `hebb-mcp` (from `which hebb-mcp`) is required:
+#### Amp
+
+Amp CLI stores MCP servers in `.amp/settings.json` (project-scoped) or `~/.config/amp/settings.json` (global). Use the `amp mcp add` command:
+
+```bash
+amp mcp add hebb -- /absolute/path/to/hebb-mcp
+```
+
+Or edit `.amp/settings.json` directly:
+
+```json
+{
+  "amp.mcpServers": {
+    "hebb": {
+      "command": "/absolute/path/to/hebb-mcp"
+    }
+  }
+}
+```
+
+#### Claude Desktop
+
+Edit `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`; Windows: `%APPDATA%\Claude\claude_desktop_config.json`). Claude Desktop is a GUI app — the absolute path is required:
 
 ```json
 {
@@ -102,9 +105,186 @@ Add to `claude_desktop_config.json` (typically at `~/Library/Application Support
 }
 ```
 
-### Cursor
+#### Cline
 
-Open **Settings → Features → MCP** and add (Cursor is a GUI app — use the absolute path from `which hebb-mcp`):
+Cline reads MCP config from `~/.cline/mcp.json` (CLI) or the VS Code extension's `cline_mcp_settings.json`. Open the Cline panel → MCP Servers icon → Configure tab → Configure MCP Servers, and add:
+
+```json
+{
+  "mcpServers": {
+    "hebb": {
+      "command": "/absolute/path/to/hebb-mcp",
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+#### Copilot (VS Code)
+
+Copilot in VS Code uses the same `.vscode/mcp.json` as VS Code native MCP (see below). Alternatively, use the command palette:
+
+```
+MCP: Add Server → stdio → name: hebb → command: /absolute/path/to/hebb-mcp
+```
+
+#### Cursor
+
+Edit `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project-scoped). Open via **Settings → Tools & MCP → New MCP Server**, or create the file:
+
+```json
+{
+  "mcpServers": {
+    "hebb": {
+      "command": "/absolute/path/to/hebb-mcp"
+    }
+  }
+}
+```
+
+#### Gemini CLI
+
+Edit `~/.gemini/settings.json` and add a `mcpServers` entry:
+
+```json
+{
+  "mcpServers": {
+    "hebb": {
+      "command": "/absolute/path/to/hebb-mcp"
+    }
+  }
+}
+```
+
+#### Goose
+
+Edit `~/.config/goose/config.yaml` (macOS/Linux) or `%APPDATA%\Block\goose\config\config.yaml` (Windows). Add under `extensions`:
+
+```yaml
+extensions:
+  hebb:
+    type: stdio
+    name: hebb
+    enabled: true
+    cmd: /absolute/path/to/hebb-mcp
+    args: []
+    envs: {}
+    timeout: 300
+```
+
+Or use the CLI wizard: `goose configure` → Add Extension → Stdio Extension → name: `hebb`, command: `/absolute/path/to/hebb-mcp`.
+
+#### Kiro
+
+Edit `.kiro/settings/mcp.json` (workspace) or `~/.kiro/settings/mcp.json` (user-level). Open via command palette: **Kiro: Open workspace MCP config**:
+
+```json
+{
+  "mcpServers": {
+    "hebb": {
+      "command": "/absolute/path/to/hebb-mcp",
+      "args": [],
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+#### LM Studio
+
+LM Studio follows Cursor's `mcp.json` notation. The config file is at `~/.lmstudio/mcp.json` (macOS/Linux) or `%USERPROFILE%\.lmstudio\mcp.json` (Windows). Open via the **Program** tab → **Install → Edit mcp.json**:
+
+```json
+{
+  "mcpServers": {
+    "hebb": {
+      "command": "/absolute/path/to/hebb-mcp"
+    }
+  }
+}
+```
+
+#### opencode
+
+Edit `opencode.json` (project-level) or `~/.config/opencode/opencode.json` (global). Add under the `mcp` key:
+
+```json
+{
+  "mcp": {
+    "hebb": {
+      "type": "local",
+      "command": ["/absolute/path/to/hebb-mcp"],
+      "enabled": true
+    }
+  }
+}
+```
+
+Or use the CLI: `opencode mcp add` → name: `hebb`, type: `local`, command: `/absolute/path/to/hebb-mcp`.
+
+#### VS Code (native MCP)
+
+VS Code (1.102+) supports MCP natively. Edit `.vscode/mcp.json` (workspace) or open via command palette: **MCP: Open User Configuration**. Note: VS Code uses `"servers"` (not `"mcpServers"`):
+
+```json
+{
+  "servers": {
+    "hebb": {
+      "type": "stdio",
+      "command": "/absolute/path/to/hebb-mcp"
+    }
+  }
+}
+```
+
+Or from the command line:
+
+```bash
+code --add-mcp '{"name":"hebb","command":"/absolute/path/to/hebb-mcp"}'
+```
+
+#### Warp
+
+Warp supports MCP servers via Settings → MCP (GUI). Add a new stdio server:
+
+```json
+{
+  "mcpServers": {
+    "hebb": {
+      "command": "/absolute/path/to/hebb-mcp"
+    }
+  }
+}
+```
+
+#### Windsurf
+
+Edit `~/.codeium/windsurf/mcp_config.json` (macOS/Linux) or `%USERPROFILE%\.codeium\windsurf\mcp_config.json` (Windows). Open via command palette: **Windsurf: Configure MCP Servers**:
+
+```json
+{
+  "mcpServers": {
+    "hebb": {
+      "command": "/absolute/path/to/hebb-mcp"
+    }
+  }
+}
+```
+
+### Other clients
+
+The following clients support MCP but have UI-only or evolving configuration surfaces. Use the standard `mcpServers` JSON shape and paste it into the client's MCP settings UI:
+
+| Client | Config location | Notes |
+|--------|----------------|-------|
+| **Antigravity** | Editor MCP settings (UI) | Google's agentic IDE; configure via Settings → MCP |
+| **Factory** | Factory MCP config (UI) | Confirm format in Factory docs |
+| **Junie (JetBrains)** | IDE MCP settings (UI) | JetBrains AI assistant; Settings → Tools → MCP |
+| **Qodo Gen** | IDE plugin MCP config (UI) | VS Code extension; configure via plugin settings |
+
+For each, add:
 
 ```json
 {
@@ -119,7 +299,7 @@ Open **Settings → Features → MCP** and add (Cursor is a GUI app — use the 
 ## How It Works
 
 ```
-Claude Code / Codex / Cursor
+Claude Code / Codex / Cursor / Windsurf / VS Code / ...
         │ (stdio)
         v
   hebb-mcp (MCP server)
