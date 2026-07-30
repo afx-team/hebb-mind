@@ -17,6 +17,8 @@ Want a chatbot that remembers across runs?      ──→  02_persistent_chat.py
 Want your AI coding agent to use Hebb Mind?   ──→  03_mcp_quickstart.md
 Want to see (or reproduce) benchmark numbers?   ──→  04_benchmarks_locomo.md
 Want to plug Hebb Mind into LangChain?        ──→  05_langchain_adapter.py  (WIP)
+Want to wire Hebb Mind into LlamaIndex / CrewAI / AutoGen / LangGraph?
+                                              ──→  Python Framework Integration guide
 ```
 
 ## Table of contents
@@ -81,4 +83,6 @@ python examples/02_persistent_chat.py
 The audit (`reports/analysis/audit-examples.md`) lists the next examples we'd
 love to see: LangChain (#5 here is a starting skeleton), LlamaIndex, OpenAI
 Agents SDK, CrewAI, and a Jupyter walkthrough of the consolidation lifecycle.
+Copy-paste recipes for LlamaIndex / CrewAI / AutoGen / LangGraph live in the
+[Python Framework Integration guide](https://afx-team.github.io/hebb-mind/guide/framework-integrations.html);
 PRs welcome — please keep each example self-contained and under ~200 lines.
