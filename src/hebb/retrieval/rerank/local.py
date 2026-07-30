@@ -56,24 +56,26 @@ class LocalReranker:
             os.environ.pop("HF_HUB_OFFLINE", None)
 
         try:
-            from sentence_transformers import CrossEncoder
-            from torch.nn import Sigmoid
-        except ModuleNotFoundError as e:
-            raise ModuleNotFoundError(
-                "Local reranker needs the ML stack (sentence-transformers + torch). "
-                "Run `hebb setup` to install it, or `pip install hebb-mind[local]`, "
-                "or disable rerank: `hebb config set rerank_enabled false`."
-            ) from e
+            try:
+                from sentence_transformers import CrossEncoder
+                from torch.nn import Sigmoid
+            except ModuleNotFoundError as e:
+                raise ModuleNotFoundError(
+                    "Local reranker needs the ML stack (sentence-transformers + torch). "
+                    "Run `hebb setup` to install it, or `pip install hebb-mind[local]`, "
+                    "or disable rerank: `hebb config set rerank_enabled false`.",
+                    name=e.name,
+                ) from e
 
-        try:
             # No explicit max_length: CrossEncoder truncates long (query,
             # content) pairs to the tokenizer's model_max_length, which is the
             # model's own context window (512 for bge-reranker-base). Setting it
             # by hand only risks exceeding the model's position-embedding cap.
             self._model = CrossEncoder(model_name)
         finally:
-            # Always restore the caller's original offline setting,
-            # regardless of which path we took above.
+            # Always restore the caller's original offline setting, including
+            # when the optional import fails on a lean install (otherwise a
+            # missing-dependency ModuleNotFoundError leaks HF_HUB_OFFLINE).
             if old_offline is None:
                 os.environ.pop("HF_HUB_OFFLINE", None)
             else:

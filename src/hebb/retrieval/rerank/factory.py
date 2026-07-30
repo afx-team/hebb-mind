@@ -35,14 +35,17 @@ def create_reranker(settings: Settings) -> Reranker | None:
             top_n=settings.rerank_top_n,
             hf_endpoint=settings.hf_endpoint,
         )
-    except ModuleNotFoundError:
+    except ModuleNotFoundError as e:
         # Local ML stack missing — degrade loudly with an actionable hint
         # instead of a generic warning (a lean install otherwise silently
-        # loses rerank with no guidance).
+        # loses rerank with no guidance). Name the actually-missing module so a
+        # transitive culprit (tokenizers, huggingface_hub, safetensors, …) is
+        # surfaced rather than hidden behind a static message.
         logger.warning(
-            "Local rerank stack not installed (sentence-transformers missing). "
+            "Local rerank stack not installed (missing %s). "
             "Rerank disabled. Install it with `pip install hebb-mind[local]` or "
-            "`hebb setup`, or disable rerank (`hebb config set rerank_enabled false`)."
+            "`hebb setup`, or disable rerank (`hebb config set rerank_enabled false`).",
+            e.name or "a local-stack module",
         )
         return None
     except Exception:

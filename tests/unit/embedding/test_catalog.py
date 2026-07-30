@@ -166,6 +166,29 @@ class TestPrefetchIgnorePatterns:
         assert "pytorch_model.bin" not in ignored
         assert "*.bin" not in ignored
 
+    def test_prefetch_raises_actionable_error_without_huggingface_hub(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Cover the lean-install branch: when huggingface_hub is absent,
+        # prefetch_model must surface an actionable ImportError pointing at the
+        # `local` extra, not an opaque ModuleNotFoundError deep in the download
+        # path. Force the inner import to fail even when huggingface_hub is
+        # installed in the dev env (the sibling tests importorskip past this).
+        import builtins
+        from typing import Any
+
+        real_import = builtins.__import__
+
+        def _blocking_import(name: str, *args: object, **kwargs: object) -> Any:
+            if name == "huggingface_hub" or name.startswith("huggingface_hub."):
+                raise ModuleNotFoundError(f"No module named '{name}'")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", _blocking_import)
+
+        with pytest.raises(ImportError, match=r"hebb-mind\[local\]"):
+            catalog.prefetch_model("sentence-transformers/all-MiniLM-L6-v2", tmp_path)
+
 
 def test_region_auto_prefers_official_when_faster(monkeypatch) -> None:
     monkeypatch.setattr(

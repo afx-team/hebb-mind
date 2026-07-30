@@ -161,26 +161,26 @@ class LocalEmbedder:
                 os.environ["HF_HUB_OFFLINE"] = old_offline
 
         # Import after env var is set — huggingface_hub caches offline
-        # mode at import time.
+        # mode at import time. The optional import AND the model load share one
+        # try/finally so a missing-dependency ModuleNotFoundError also restores
+        # the caller's HF_HUB_OFFLINE (no env-var leak on a lean install).
         try:
-            from sentence_transformers import SentenceTransformer
-        except ModuleNotFoundError as e:
-            raise ModuleNotFoundError(
-                "Local embedding needs the ML stack (sentence-transformers + torch). "
-                "Run `hebb setup` to install it, or `pip install hebb-mind[local]`, "
-                "or switch to an API provider: `hebb config set embedding_provider api`."
-            ) from e
+            try:
+                from sentence_transformers import SentenceTransformer
+            except ModuleNotFoundError as e:
+                raise ModuleNotFoundError(
+                    "Local embedding needs the ML stack (sentence-transformers + torch). "
+                    "Run `hebb setup` to install it, or `pip install hebb-mind[local]`, "
+                    "or switch to an API provider: `hebb config set embedding_provider api`.",
+                    name=e.name,
+                ) from e
 
-        try:
             self._model = SentenceTransformer(load_target)
         finally:
-            # Restore env for non-offline case is already done above;
-            # for offline case, restore now.
-            if use_offline:
-                if old_offline is None:
-                    os.environ.pop("HF_HUB_OFFLINE", None)
-                else:
-                    os.environ["HF_HUB_OFFLINE"] = old_offline
+            if old_offline is None:
+                os.environ.pop("HF_HUB_OFFLINE", None)
+            else:
+                os.environ["HF_HUB_OFFLINE"] = old_offline
 
         self._dimension = self._model.get_sentence_embedding_dimension()
         logger.info("Embedding model ready: %s (dim=%d)", model_name, self._dimension)

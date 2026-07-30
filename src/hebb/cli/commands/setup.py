@@ -262,8 +262,8 @@ def _build_ml_stack_argv(
             raise click.ClickException(
                 "The local ML stack is missing and this is a uv-tool install "
                 "without `uv` on PATH. Run "
-                "`uv pip install --python <this-env> hebb-mind[local]` manually "
-                "(or add uv to PATH and re-run `hebb setup`)."
+                "`uv pip install --python <this-env> 'sentence-transformers>=3.0.0'` "
+                "manually (or add uv to PATH and re-run `hebb setup`)."
             )
         argv: list[str] = [uv, "pip", "install", "--python", sys.executable, requirement]
         if use_cpu_torch:
@@ -298,6 +298,7 @@ def _ensure_ml_stack(console: Console) -> None:
             here preserves the install-F8 rule (no ``embedding_provider=local``
             is persisted on failure) and surfaces a single CLI error.
     """
+    import importlib
     import os
     import subprocess
     import sys
@@ -307,16 +308,19 @@ def _ensure_ml_stack(console: Console) -> None:
 
     from hebb.upgrade.installer import _classify_executable, _is_system_python
 
-    console.print(
-        "[cyan]Installing local ML stack[/] [dim](sentence-transformers + CPU torch)[/]"
-    )
-
+    # Refuse a system-managed interpreter BEFORE printing the install banner,
+    # so the user doesn't see "Installing local ML stack" right before a hard
+    # refusal that never attempts the install.
     if _is_system_python():
         raise click.ClickException(
             "The local ML stack is missing and this is a system-managed Python, "
             "which Hebb Mind will not modify. Create a virtualenv first, then run "
             "`hebb setup` (or `pip install hebb-mind[local]`)."
         )
+
+    console.print(
+        "[cyan]Installing local ML stack[/] [dim](sentence-transformers + CPU torch)[/]"
+    )
 
     method = _classify_executable()  # pipx / uv-tool / pip
     use_cpu_torch = sys.platform != "darwin"
@@ -330,7 +334,15 @@ def _ensure_ml_stack(console: Console) -> None:
     except subprocess.CalledProcessError as exc:
         raise click.ClickException(
             f"Failed to install the local ML stack (pip exited {exc.returncode}). "
-            "Install it manually: `pip install hebb-mind[local]` "
+            "Install it manually: `pip install 'sentence-transformers>=3.0.0'` "
             "(on Linux, add `--extra-index-url https://download.pytorch.org/whl/cpu`), "
             "or set a mirror via HEBB_PYPI_INDEX_URL, then re-run `hebb setup`."
         ) from exc
+
+    # pip just installed sentence-transformers + torch into this interpreter's
+    # site-packages, but the import system's FileFinder cached the pre-install
+    # directory listing at process start. _verify_model imports
+    # sentence_transformers in this same process immediately after, so
+    # invalidate the cache or the stale finder can make the just-installed
+    # package look missing (ModuleNotFoundError despite a successful install).
+    importlib.invalidate_caches()
