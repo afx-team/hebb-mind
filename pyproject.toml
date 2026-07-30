@@ -34,7 +34,6 @@ dependencies = [
     "pysqlite3>=0.5.0; sys_platform == 'darwin'",
     "aiosqlite>=0.20.0",
     "numpy>=1.24.0",
-    "sentence-transformers>=3.0.0",
     "apscheduler>=3.10.0",
     "click>=8.0.0",
     "rich>=13.0.0",
@@ -52,6 +51,23 @@ pg = [
     "asyncpg>=0.29.0",
     "pgvector>=0.3.0",
 ]
+# Local embedding/rerank stack (sentence-transformers + transitive torch /
+# transformers / huggingface_hub). Kept out of core `dependencies` so a default
+# `pip install hebb-mind` stays lean and never pulls torch. Install explicitly
+# with `pip install hebb-mind[local]`, or let `hebb setup` install it on demand.
+# On Linux, pin the CPU-only torch wheel (avoids the ~2.5 GB CUDA wheel):
+#   pip install hebb-mind[local] --extra-index-url https://download.pytorch.org/whl/cpu
+local = [
+    "sentence-transformers>=3.0.0",
+]
+# Convenience alias: local embedding stack + PostgreSQL backend ("everything").
+full = [
+    "hebb-mind[local,pg]",
+]
+# `local` is pulled in so the dev install (used by CI and contributors) has the
+# ML stack — `slow` tests + mypy stay green under plain `pip install -e ".[dev]"`
+# (issue #42 acceptance criterion: CI green under `[dev,local]`). End-user default
+# `pip install hebb-mind` is unaffected and stays lean.
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
@@ -61,6 +77,7 @@ dev = [
     "datasets>=2.0.0",
     "pandas>=2.0.0",
     "scikit-learn>=1.3.0",
+    "hebb-mind[local]",
 ]
 
 [project.scripts]
@@ -113,7 +130,7 @@ asyncio_mode = "auto"
 # carry duplicate basenames across layers without "import file mismatch".
 addopts = "--import-mode=importlib --strict-markers -ra"
 markers = [
-    "slow: needs the local sentence-transformers model (deselect with '-m \"not slow\"')",
+    "slow: needs the `local` extra (sentence-transformers + a downloaded model; deselect with '-m \"not slow\"')",
     "integration: in-process multi-module test (FastAPI TestClient / CliRunner / real sqlite)",
     "e2e: spawns the hebb / hebb-mcp entrypoints (subprocess) or touches OS services",
 ]
@@ -138,6 +155,9 @@ disallow_untyped_decorators = false
 # Optional / stubless third-party deps. `asyncpg` and `pgvector` only land via
 # the `pg` extras; `pysqlite3` is the macOS-only sqlite3 fallback;
 # `apscheduler` and `networkx` ship without `py.typed` markers upstream.
+# `sentence_transformers` / `torch` / `transformers` / `huggingface_hub` only
+# land via the `local` extra — listed here so `mypy` (run under lean `[dev]`)
+# stays green when the stack is absent.
 [[tool.mypy.overrides]]
 module = [
     "asyncpg",
@@ -150,6 +170,14 @@ module = [
     "networkx",
     "networkx.*",
     "sqlite_vec",
+    "sentence_transformers",
+    "sentence_transformers.*",
+    "torch",
+    "torch.*",
+    "transformers",
+    "transformers.*",
+    "huggingface_hub",
+    "huggingface_hub.*",
 ]
 ignore_missing_imports = true
 

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from hebb.embedding import catalog
 from hebb.embedding.catalog import ProbeResult, model_dir_complete, workspace_model_available
 
@@ -114,6 +116,9 @@ class TestModelDirComplete:
 
 class TestPrefetchIgnorePatterns:
     def test_prefetch_passes_ignore_patterns(self, tmp_path: Path, monkeypatch) -> None:
+        # prefetch_model imports huggingface_hub directly; skip cleanly under a
+        # lean install (no `local` extra) rather than hard-failing on import.
+        pytest.importorskip("huggingface_hub")
         captured: dict[str, object] = {}
 
         def fake_snapshot_download(**kwargs: object) -> str:
@@ -143,6 +148,7 @@ class TestPrefetchIgnorePatterns:
         assert "model.safetensors" not in ignored
 
     def test_prefetch_keeps_bin_for_model_without_safetensors(self, tmp_path: Path, monkeypatch) -> None:
+        pytest.importorskip("huggingface_hub")
         captured: dict[str, object] = {}
 
         def fake_snapshot_download(**kwargs: object) -> str:
@@ -159,6 +165,29 @@ class TestPrefetchIgnorePatterns:
         assert isinstance(ignored, list)
         assert "pytorch_model.bin" not in ignored
         assert "*.bin" not in ignored
+
+    def test_prefetch_raises_actionable_error_without_huggingface_hub(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Cover the lean-install branch: when huggingface_hub is absent,
+        # prefetch_model must surface an actionable ImportError pointing at the
+        # `local` extra, not an opaque ModuleNotFoundError deep in the download
+        # path. Force the inner import to fail even when huggingface_hub is
+        # installed in the dev env (the sibling tests importorskip past this).
+        import builtins
+        from typing import Any
+
+        real_import = builtins.__import__
+
+        def _blocking_import(name: str, *args: object, **kwargs: object) -> Any:
+            if name == "huggingface_hub" or name.startswith("huggingface_hub."):
+                raise ModuleNotFoundError(f"No module named '{name}'")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", _blocking_import)
+
+        with pytest.raises(ImportError, match=r"hebb-mind\[local\]"):
+            catalog.prefetch_model("sentence-transformers/all-MiniLM-L6-v2", tmp_path)
 
 
 def test_region_auto_prefers_official_when_faster(monkeypatch) -> None:

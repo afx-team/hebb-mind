@@ -60,6 +60,19 @@ def _create_local_embedder(settings: Settings) -> EmbeddingProvider:
         logger.info("Loading local embedding model: %s", settings.embedding_model)
         embedder = LocalEmbedder(settings.embedding_model, hf_endpoint=settings.hf_endpoint)
         return embedder
+    except ModuleNotFoundError as e:
+        # The local ML stack (sentence-transformers + torch, including transitive
+        # deps like tokenizers/huggingface_hub/safetensors) is not installed.
+        # Degrade loudly with an actionable hint AND name the actually-missing
+        # module so a transitive culprit isn't hidden behind a static message.
+        logger.warning(
+            "Local embedding stack not installed (missing %s). "
+            "Vector search disabled. Install it with `pip install hebb-mind[local]` "
+            "or `hebb setup`, or switch to an API provider "
+            "(`hebb config set embedding_provider api`).",
+            e.name or "a local-stack module",
+        )
+        return NoopEmbedder(settings.embedding_dim)
     except Exception:
         logger.warning("Failed to load local embedding model, vector search disabled", exc_info=True)
         return NoopEmbedder(settings.embedding_dim)

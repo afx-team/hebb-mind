@@ -80,6 +80,36 @@ def is_model_cached(model_name: str) -> bool:
         return False
 
 
+def is_ml_stack_present() -> bool:
+    """Return whether the local ML stack (sentence-transformers + torch) is importable.
+
+    A lean install (``pip install hebb-mind`` without the ``local`` extra)
+    omits this stack, and both :class:`LocalEmbedder` and the local reranker
+    pull ``torch`` in transitively via ``sentence_transformers``. Checking the
+    former alone would report "importable" for an install where ``torch`` was
+    later removed — the embedder would then hard-fail with ``ModuleNotFoundError``
+    at construction. The ``doctor`` and ``setup`` CLI commands share this single
+    source of truth so their diagnostics can never disagree.
+
+    Args:
+        None.
+
+    Returns:
+        ``True`` iff both ``sentence_transformers`` and ``torch`` expose an
+        importable module spec.
+
+    Raises:
+        Nothing — availability is probed with :func:`importlib.util.find_spec`,
+        which returns ``None`` (never raises) when a module is absent.
+    """
+    import importlib.util
+
+    return (
+        importlib.util.find_spec("sentence_transformers") is not None
+        and importlib.util.find_spec("torch") is not None
+    )
+
+
 class LocalEmbedder:
     """Embedding provider using a local sentence-transformers model.
 
@@ -131,19 +161,26 @@ class LocalEmbedder:
                 os.environ["HF_HUB_OFFLINE"] = old_offline
 
         # Import after env var is set — huggingface_hub caches offline
-        # mode at import time.
-        from sentence_transformers import SentenceTransformer
-
+        # mode at import time. The optional import AND the model load share one
+        # try/finally so a missing-dependency ModuleNotFoundError also restores
+        # the caller's HF_HUB_OFFLINE (no env-var leak on a lean install).
         try:
+            try:
+                from sentence_transformers import SentenceTransformer
+            except ModuleNotFoundError as e:
+                raise ModuleNotFoundError(
+                    "Local embedding needs the ML stack (sentence-transformers + torch). "
+                    "Run `hebb setup` to install it, or `pip install hebb-mind[local]`, "
+                    "or switch to an API provider: `hebb config set embedding_provider api`.",
+                    name=e.name,
+                ) from e
+
             self._model = SentenceTransformer(load_target)
         finally:
-            # Restore env for non-offline case is already done above;
-            # for offline case, restore now.
-            if use_offline:
-                if old_offline is None:
-                    os.environ.pop("HF_HUB_OFFLINE", None)
-                else:
-                    os.environ["HF_HUB_OFFLINE"] = old_offline
+            if old_offline is None:
+                os.environ.pop("HF_HUB_OFFLINE", None)
+            else:
+                os.environ["HF_HUB_OFFLINE"] = old_offline
 
         self._dimension = self._model.get_sentence_embedding_dimension()
         logger.info("Embedding model ready: %s (dim=%d)", model_name, self._dimension)

@@ -318,7 +318,17 @@ def prefetch_model(
         ImportError: If huggingface_hub is not installed.
         Exception: Propagates HuggingFace download failures.
     """
-    from huggingface_hub import snapshot_download
+    try:
+        from huggingface_hub import snapshot_download
+    except ModuleNotFoundError as e:
+        # huggingface_hub ships with the `local` extra (and transitively with
+        # litellm's tokenizers in normal installs). If it is genuinely missing,
+        # fail loudly with an actionable install hint rather than an opaque
+        # ImportError deep in the download path.
+        raise ImportError(
+            "Model prefetch needs huggingface_hub, which ships with the `local` extra. "
+            "Install it with: pip install hebb-mind[local]"
+        ) from e
 
     local_dir = model_cache_dir(workspace, model_id)
     local_dir.parent.mkdir(parents=True, exist_ok=True)
