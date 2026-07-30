@@ -18,8 +18,12 @@ from hebb.cli.commands.service import service_cmd
 from hebb.cli.commands.setup import setup_cmd
 from hebb.cli.commands.status import status_cmd
 from hebb.cli.commands.upgrade import upgrade_cmd
+from hebb.integrations.amp.cli import amp
 from hebb.integrations.claude_code.cli import cc
 from hebb.integrations.codex.cli import codex
+from hebb.integrations.gemini_cli.cli import gemini
+from hebb.integrations.goose.cli import goose
+from hebb.integrations.opencode.cli import opencode
 
 
 @click.group()
@@ -43,6 +47,10 @@ main.add_command(import_cmd)
 main.add_command(upgrade_cmd, "upgrade")
 main.add_command(cc)
 main.add_command(codex)
+main.add_command(gemini)
+main.add_command(goose)
+main.add_command(opencode)
+main.add_command(amp)
 # Hidden internal entrypoint invoked by the OS service manager (launchd /
 # systemd / Task Scheduler). Not part of the public CLI surface.
 main.add_command(serve_cmd, "_serve")
