@@ -80,6 +80,29 @@ def is_model_cached(model_name: str) -> bool:
         return False
 
 
+def is_ml_stack_present() -> bool:
+    """Return whether the local ML stack (sentence-transformers + torch) is importable.
+
+    A lean install (``pip install hebb-mind`` without the ``local`` extra)
+    omits this stack, and both :class:`LocalEmbedder` and the local reranker
+    pull ``torch`` in transitively via ``sentence_transformers``. Checking the
+    former alone would report "importable" for an install where ``torch`` was
+    later removed — the embedder would then hard-fail with ``ModuleNotFoundError``
+    at construction. The ``doctor`` and ``setup`` CLI commands share this single
+    source of truth so their diagnostics can never disagree.
+
+    Returns:
+        ``True`` iff both ``sentence_transformers`` and ``torch`` expose an
+        importable module spec.
+    """
+    import importlib.util
+
+    return (
+        importlib.util.find_spec("sentence_transformers") is not None
+        and importlib.util.find_spec("torch") is not None
+    )
+
+
 class LocalEmbedder:
     """Embedding provider using a local sentence-transformers model.
 

@@ -15,7 +15,7 @@ from rich.table import Table
 
 from hebb.config.loader import find_config_file, load_settings
 from hebb.config.settings import Settings
-from hebb.embedding.local import is_model_cached
+from hebb.embedding.local import is_ml_stack_present, is_model_cached
 
 console = Console()
 
@@ -82,13 +82,6 @@ def _add_model_check(table: Table, settings: Settings) -> None:
     table.add_row("Embedding", _status(cached), detail)
 
 
-def _local_stack_importable() -> bool:
-    """Return whether the local ML stack (sentence-transformers) imports."""
-    import importlib.util
-
-    return importlib.util.find_spec("sentence_transformers") is not None
-
-
 def _add_local_stack_check(table: Table, settings: Settings) -> None:
     """Diagnose a configured local provider whose ML stack is not installed.
 
@@ -97,6 +90,10 @@ def _add_local_stack_check(table: Table, settings: Settings) -> None:
     ahead of the model-cache check — otherwise a missing stack makes
     ``is_model_cached`` report "model not cached — run hebb model prefetch",
     which then hard-fails on the unguarded huggingface_hub import.
+
+    The presence test is shared with ``hebb setup`` via
+    :func:`hebb.embedding.local.is_ml_stack_present` so the two CLI commands
+    can never disagree on what counts as an importable stack.
     """
     needs_stack = (
         (settings.embedding_enabled and settings.embedding_provider == "local")
@@ -105,7 +102,7 @@ def _add_local_stack_check(table: Table, settings: Settings) -> None:
     if not needs_stack:
         return  # API-only / disabled configs never need the local stack.
 
-    if _local_stack_importable():
+    if is_ml_stack_present():
         table.add_row("ML stack", _status(True), "sentence-transformers importable")
     else:
         # Escape the hint — rich would otherwise eat ``[local]`` as a markup tag

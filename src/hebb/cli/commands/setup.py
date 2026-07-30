@@ -31,6 +31,7 @@ from hebb.embedding.catalog import (
     resolve_region,
     workspace_model_available,
 )
+from hebb.embedding.local import is_ml_stack_present
 
 console = Console()
 
@@ -222,16 +223,6 @@ def _verify_model(model_id: str, hf_endpoint: str | None) -> int:
     return embedder.dimension
 
 
-def _ml_stack_present() -> bool:
-    """Return whether the local ML stack (sentence-transformers + torch) imports."""
-    import importlib.util
-
-    return (
-        importlib.util.find_spec("sentence_transformers") is not None
-        and importlib.util.find_spec("torch") is not None
-    )
-
-
 def _build_ml_stack_argv(
     method: str,
     *,
@@ -311,7 +302,7 @@ def _ensure_ml_stack(console: Console) -> None:
     import subprocess
     import sys
 
-    if _ml_stack_present():
+    if is_ml_stack_present():
         return  # Stack already importable — nothing to do.
 
     from hebb.upgrade.installer import _classify_executable, _is_system_python

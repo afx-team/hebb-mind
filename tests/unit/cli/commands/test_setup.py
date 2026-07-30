@@ -247,7 +247,7 @@ def _stub_ml_stack_for_setup_cmd(monkeypatch):
 
 def test_ensure_ml_stack_noop_when_stack_present(monkeypatch) -> None:
     # When the stack imports, _ensure_ml_stack must return without calling pip.
-    monkeypatch.setattr("hebb.cli.commands.setup._ml_stack_present", lambda: True)
+    monkeypatch.setattr("hebb.cli.commands.setup.is_ml_stack_present", lambda: True)
 
     def _fail_if_pip_called(*args: object, **kwargs: object) -> int:
         raise AssertionError("pip must not run when the stack is already present")
@@ -283,7 +283,7 @@ def test_build_ml_stack_argv_uv_tool_without_uv_raises(monkeypatch) -> None:
 
 
 def test_ensure_ml_stack_refuses_system_python(monkeypatch) -> None:
-    monkeypatch.setattr("hebb.cli.commands.setup._ml_stack_present", lambda: False)
+    monkeypatch.setattr("hebb.cli.commands.setup.is_ml_stack_present", lambda: False)
     monkeypatch.setattr("hebb.upgrade.installer._is_system_python", lambda: True)
 
     def _fail_if_pip_called(*args: object, **kwargs: object) -> int:
@@ -296,7 +296,7 @@ def test_ensure_ml_stack_refuses_system_python(monkeypatch) -> None:
 
 
 def test_ensure_ml_stack_raises_click_exception_on_pip_failure(monkeypatch) -> None:
-    monkeypatch.setattr("hebb.cli.commands.setup._ml_stack_present", lambda: False)
+    monkeypatch.setattr("hebb.cli.commands.setup.is_ml_stack_present", lambda: False)
     monkeypatch.setattr("hebb.upgrade.installer._is_system_python", lambda: False)
     monkeypatch.setattr("hebb.upgrade.installer._classify_executable", lambda: "pip")
 

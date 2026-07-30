@@ -26,7 +26,7 @@ def test_doctor_flags_missing_ml_stack_for_local_provider(monkeypatch, tmp_path:
         initialize_workspace(home)
         # Default config has embedding_provider=local + rerank_enabled=true, so a
         # local stack is required. Simulate a lean install (stack missing).
-        monkeypatch.setattr("hebb.cli.commands.doctor._local_stack_importable", lambda: False)
+        monkeypatch.setattr("hebb.cli.commands.doctor.is_ml_stack_present", lambda: False)
         result = runner.invoke(doctor_cmd, [])
 
     assert result.exit_code == 0, result.output
@@ -41,7 +41,7 @@ def test_doctor_ok_when_ml_stack_present(monkeypatch, tmp_path: Path) -> None:
     runner = CliRunner()
     with runner.isolated_filesystem(temp_dir=tmp_path):
         initialize_workspace(home)
-        monkeypatch.setattr("hebb.cli.commands.doctor._local_stack_importable", lambda: True)
+        monkeypatch.setattr("hebb.cli.commands.doctor.is_ml_stack_present", lambda: True)
         result = runner.invoke(doctor_cmd, [])
 
     assert result.exit_code == 0, result.output
@@ -59,9 +59,9 @@ def test_doctor_skips_ml_stack_check_for_api_only_config(monkeypatch, tmp_path: 
         _set_config(home, embedding_provider="api", rerank_enabled=False)
 
         def _fail_if_called() -> bool:
-            raise AssertionError("_local_stack_importable must not run for an API-only config")
+            raise AssertionError("is_ml_stack_present must not run for an API-only config")
 
-        monkeypatch.setattr("hebb.cli.commands.doctor._local_stack_importable", _fail_if_called)
+        monkeypatch.setattr("hebb.cli.commands.doctor.is_ml_stack_present", _fail_if_called)
         result = runner.invoke(doctor_cmd, [])
 
     assert result.exit_code == 0, result.output
