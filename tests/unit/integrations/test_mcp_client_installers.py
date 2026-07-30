@@ -272,13 +272,7 @@ def test_goose_install_is_idempotent(monkeypatch, tmp_path: Path) -> None:
 
 def test_goose_uninstall(monkeypatch, tmp_path: Path) -> None:
     cfg = tmp_path / "config.yaml"
-    cfg.write_text(
-        "extensions:\n"
-        "  hebb:\n"
-        "    type: stdio\n"
-        "    cmd: /bin/hebb-mcp\n"
-        "    enabled: true\n"
-    )
+    cfg.write_text("extensions:\n  hebb:\n    type: stdio\n    cmd: /bin/hebb-mcp\n    enabled: true\n")
     monkeypatch.setattr(
         "hebb.integrations.goose.install.config_path",
         lambda: cfg,
