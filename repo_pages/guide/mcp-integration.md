@@ -107,7 +107,7 @@ Edit `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/
 
 #### Cline
 
-Cline reads MCP config from `~/.cline/mcp.json` (CLI) or the VS Code extension's `cline_mcp_settings.json`. Open the Cline panel → MCP Servers icon → Configure tab → Configure MCP Servers, and add:
+Cline stores MCP config in `~/.cline/data/settings/cline_mcp_settings.json` (VS Code extension). Open the Cline panel → MCP Servers icon → Configure tab → Configure MCP Servers, and add:
 
 ```json
 {
@@ -125,7 +125,7 @@ Cline reads MCP config from `~/.cline/mcp.json` (CLI) or the VS Code extension's
 
 Copilot in VS Code uses the same `.vscode/mcp.json` as VS Code native MCP (see below). Alternatively, use the command palette:
 
-```
+```text
 MCP: Add Server → stdio → name: hebb → command: /absolute/path/to/hebb-mcp
 ```
 

@@ -107,7 +107,7 @@ amp mcp add hebb -- /absolute/path/to/hebb-mcp
 
 #### Cline
 
-Cline 从 `~/.cline/mcp.json`（CLI）或 VS Code 扩展的 `cline_mcp_settings.json` 读取配置。打开 Cline 面板 → MCP Servers 图标 → Configure 标签 → Configure MCP Servers，添加：
+Cline 将 MCP 配置存储在 `~/.cline/data/settings/cline_mcp_settings.json`（VS Code 扩展）。打开 Cline 面板 → MCP Servers 图标 → Configure 标签 → Configure MCP Servers，添加：
 
 ```json
 {
@@ -125,7 +125,7 @@ Cline 从 `~/.cline/mcp.json`（CLI）或 VS Code 扩展的 `cline_mcp_settings.
 
 VS Code 中的 Copilot 使用与 VS Code 原生 MCP 相同的 `.vscode/mcp.json`（见下方）。也可以通过命令面板添加：
 
-```
+```text
 MCP: Add Server → stdio → name: hebb → command: /absolute/path/to/hebb-mcp
 ```
 
@@ -247,7 +247,7 @@ code --add-mcp '{"name":"hebb","command":"/absolute/path/to/hebb-mcp"}'
 
 #### Warp
 
-Warp 通过 Settings → MCP（GUI）支持 MCP 服务器。添加新的 stdio 服务器：
+Warp 通过 `Settings → MCP`（GUI）支持 MCP 服务器。添加新的 stdio 服务器：
 
 ```json
 {
@@ -279,9 +279,9 @@ Warp 通过 Settings → MCP（GUI）支持 MCP 服务器。添加新的 stdio �
 
 | 客户端 | 配置位置 | 说明 |
 |--------|---------|------|
-| **Antigravity** | 编辑器 MCP 设置（UI） | Google 的智能体 IDE；通过 Settings → MCP 配置 |
+| **Antigravity** | 编辑器 MCP 设置（UI） | Google 的智能体 IDE；通过 `Settings → MCP` 配置 |
 | **Factory** | Factory MCP 配置（UI） | 参考 Factory 文档确认格式 |
-| **Junie (JetBrains)** | IDE MCP 设置（UI） | JetBrains AI 助手；Settings → Tools → MCP |
+| **Junie (JetBrains)** | IDE MCP 设置（UI） | JetBrains AI 助手；`Settings → Tools → MCP` |
 | **Qodo Gen** | IDE 插件 MCP 配置（UI） | VS Code 扩展；通过插件设置配置 |
 
 每个客户端添加：
