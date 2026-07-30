@@ -111,8 +111,8 @@ def _add_local_stack_check(table: Table, settings: Settings) -> None:
             "ML stack",
             _status(False),
             escape(
-                "Local provider configured but sentence-transformers is missing. "
-                "Run: hebb setup  (or pip install hebb-mind[local])"
+                "Local provider configured but the ML stack (sentence-transformers + torch) "
+                "is missing. Run: hebb setup  (or pip install hebb-mind[local])"
             ),
         )
 

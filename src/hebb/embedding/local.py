@@ -91,9 +91,16 @@ def is_ml_stack_present() -> bool:
     at construction. The ``doctor`` and ``setup`` CLI commands share this single
     source of truth so their diagnostics can never disagree.
 
+    Args:
+        None.
+
     Returns:
         ``True`` iff both ``sentence_transformers`` and ``torch`` expose an
         importable module spec.
+
+    Raises:
+        Nothing — availability is probed with :func:`importlib.util.find_spec`,
+        which returns ``None`` (never raises) when a module is absent.
     """
     import importlib.util
 
