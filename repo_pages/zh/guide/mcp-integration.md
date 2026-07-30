@@ -107,7 +107,7 @@ amp mcp add hebb -- /absolute/path/to/hebb-mcp
 
 #### Cline
 
-Cline 将 MCP 配置存储在 `~/.cline/data/settings/cline_mcp_settings.json`（VS Code 扩展）。打开 Cline 面板 → MCP Servers 图标 → Configure 标签 → Configure MCP Servers，添加：
+Cline 的 MCP 配置有两个位置：Cline CLI 用 `~/.cline/mcp.json`；VS Code 扩展通过 Cline 面板 → MCP Servers 图标 → Configure 标签 → Configure MCP Servers 按钮打开配置文件。添加：
 
 ```json
 {

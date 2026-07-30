@@ -107,7 +107,7 @@ Edit `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/
 
 #### Cline
 
-Cline stores MCP config in `~/.cline/data/settings/cline_mcp_settings.json` (VS Code extension). Open the Cline panel → MCP Servers icon → Configure tab → Configure MCP Servers, and add:
+Cline stores MCP config at two locations depending on how you use it: `~/.cline/mcp.json` for the Cline CLI, or the VS Code extension's MCP settings file (open via Cline panel → MCP Servers icon → Configure tab → Configure MCP Servers). Add:
 
 ```json
 {
