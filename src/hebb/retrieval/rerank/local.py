@@ -88,9 +88,33 @@ class LocalReranker:
 
     @property
     def top_n(self) -> int:
+        """Number of leading candidates the reranker re-scores.
+
+        Returns:
+            The configured pool size (``top_n``) the caller should slice
+            its candidate list to before calling :meth:`score`.
+        """
         return self._top_n
 
     async def score(self, query: str, candidates: list[str]) -> list[float]:
+        """Re-score (query, candidate) pairs with the cross-encoder.
+
+        Runs the model's ``predict`` in a thread executor so the event
+        loop stays responsive during the blocking forward pass, and applies
+        the sigmoid activation so every score lands in ``[0, 1]`` — the
+        same scale as the no-rerank composite, so a single ``min_score``
+        floor reads consistently in both modes.
+
+        Args:
+            query: The recall query, paired with every candidate.
+            candidates: Candidate contents to re-score. Order is preserved
+                in the returned list.
+
+        Returns:
+            One sigmoid-normalised relevance score per candidate, in input
+            order. An empty input returns an empty list without touching
+            the model.
+        """
         if not candidates:
             return []
         pairs = [[query, c] for c in candidates]

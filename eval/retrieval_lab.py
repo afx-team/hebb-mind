@@ -50,25 +50,44 @@ _DATA = {
 
 
 class NullEmbedder:
+    """No-op embedder for keyword-only runs.
+
+    Implements the :class:`~hebb.embedding.base.EmbeddingProvider` interface
+    but returns empty vectors, so the vector retrieval path yields nothing
+    and the lab measures the keyword channel in isolation.
+    """
+
     @property
     def dimension(self) -> int:
+        """Embedding dimensionality reported to callers (unused on the empty path)."""
         return 384
 
     async def embed(self, text: str) -> list[float]:
+        """Return an empty vector — the vector channel is intentionally disabled."""
         return []
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        """Return one empty vector per input — batch form of :meth:`embed`."""
         return [[] for _ in texts]
 
 
 @dataclass
 class Doc:
+    """A single corpus document: content plus the metadata stored with it."""
+
     content: str
     metadata: dict
 
 
 @dataclass
 class Q:
+    """One retrieval question: its text, id, and the gold relevance keys.
+
+    ``relevant`` holds the gold keys the metric compares recall hits against
+    (session ids for session-level datasets, or step ids as strings for
+    turn-level datasets).
+    """
+
     qid: str
     text: str
     relevant: set[str]      # gold keys (session ids, or step ids as str)
@@ -315,6 +334,27 @@ def _make_searcher(store, embedder, skw, kw_cfg, reranker=None):
 
 
 async def run_dataset(name: str, args, embedder, kw_cfg=None, reranker=None) -> dict:
+    """Ingest one dataset into isolated partitions and measure native recall.
+
+    Builds the per-dataset retrieval units, ingests each unit's corpus into
+    its own partition, then runs :class:`MemorySearcher` over every question
+    and aggregates the dataset's native metric (Recall@k or Hit@k) across k.
+
+    Args:
+        name: Dataset key — ``"locomo"``, ``"longmemeval"``, or ``"membench"``.
+        args: Parsed CLI namespace (drives channel toggles, ``--vector``,
+            ``--deep`` k grid, ``--by_cat``, floor-probe flags, etc.).
+        embedder: Embedding provider for the vector path, or ``None``/a
+            :class:`NullEmbedder` for keyword-only runs.
+        kw_cfg: Optional keyword-channel config for ``LabSearcher`` ablations;
+            ``None`` uses the production :class:`MemorySearcher`.
+        reranker: Optional cross-encoder reranker; ``None`` disables rerank.
+
+    Returns:
+        A result dict whose keys include the per-k metric values
+        (``"R@k"`` / ``"Hit@k"``), ``"_units"``, ``"_total"``, and
+        ``"_per_cat"`` for the by-category breakdown.
+    """
     if name == "locomo":
         units, metric, pv, nx = _locomo_units()
     elif name == "longmemeval":
@@ -772,6 +812,15 @@ async def _sweep_floor(args, embedder, reranker) -> None:
 
 
 async def main_async(args) -> None:
+    """Async entry point: build embedder/reranker, then run the selected mode.
+
+    Dispatches to the floor-probe short-circuits when those flags are set,
+    otherwise iterates the requested dataset(s) — single, sweep, or all —
+    and prints the per-dataset metric lines.
+
+    Args:
+        args: Parsed CLI namespace from :func:`main`.
+    """
     embedder = None
     if args.vector:
         from hebb.embedding.local import LocalEmbedder
@@ -822,6 +871,7 @@ async def main_async(args) -> None:
 
 
 def main() -> None:
+    """CLI entry point: parse args and run :func:`main_async` to completion."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", default="all",
                     choices=["all", "locomo", "longmemeval", "membench"])
