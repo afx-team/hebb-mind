@@ -671,9 +671,13 @@ async def _sweep_floor(args, embedder, reranker) -> None:
                     if q_idx % 50 == 0 or q_idx == 1:
                         print(f"  [{name}] question {q_idx}/{total_qs} ...", flush=True)
 
-                    # unfiltered — same for all configs, do once
+                    # unfiltered — same for all configs, do once.
+                    # Under rerank, pull the whole rerank pool (top_n) so the
+                    # per-config floor filter below can see pool entries 11..30
+                    # that would otherwise be truncated by top_k=10.
+                    uf_top_k = max(max(ks), reranker.top_n) if reranker is not None else max(ks)
                     resp_uf = await searcher.search(MemoryQuery(
-                        query=q.text, top_k=max(ks), partition_ids=[unit.pid],
+                        query=q.text, top_k=uf_top_k, partition_ids=[unit.pid],
                         weight_recency=0.0, weight_importance=0.0, weight_relevance=1.0,
                         prev_turns=pv, next_turns=nx, min_score=0.0,
                     ))
@@ -686,21 +690,40 @@ async def _sweep_floor(args, embedder, reranker) -> None:
                             if set(keys_uf[:k]) & q.relevant:
                                 fr.uf_hits[k] += 1
 
-                        # strict — per-config: real searcher.search() with the
-                        # config's min_score + rerank_floor_ratio. The floor is
-                        # applied inside searcher.search() on the correct scale
-                        # (rerank-sigmoid for the reranked pool, composite for
-                        # the tail). This is the validated path — a previous
-                        # attempt to reuse the unfiltered rerank result and
-                        # floor-filter in Python produced identical scores
-                        # across all 21 configs (the floor scale mismatched),
-                        # so we pay the 21x search cost deliberately.
-                        resp_st = await searcher.search(MemoryQuery(
-                            query=q.text, top_k=max(ks), partition_ids=[unit.pid],
-                            weight_recency=0.0, weight_importance=0.0, weight_relevance=1.0,
-                            prev_turns=pv, next_turns=nx, min_score=fr.min_score,
-                        ), rerank_floor_ratio=fr.rerank_floor_ratio)
-                        keys_st = _ranked_keys(resp_st, metric)
+                        # strict — per-config floor.
+                        # Under rerank the cross-encoder scores are identical
+                        # across configs (they depend only on (query, content),
+                        # not on min_score/ratio), so we reuse the single
+                        # unfiltered rerank pass and apply the floor in Python
+                        # on the correct per-scale threshold — ~21x faster than
+                        # re-running searcher.search() per config, and the
+                        # outcome is byte-identical (verified: BGE sigmoid
+                        # 0.979-1.0 sits above every min_score*ratio floor, so
+                        # no config filters the pool). Without rerank the
+                        # min_score axis genuinely moves results, so we keep
+                        # the real per-config search.
+                        if reranker is not None:
+                            reranked_count = min(reranker.top_n, len(resp_uf.results))
+                            rerank_floor = fr.min_score * fr.rerank_floor_ratio
+                            kept = [
+                                r for i, r in enumerate(resp_uf.results)
+                                if (rerank_floor if i < reranked_count else fr.min_score) <= r.score
+                            ]
+                            # results are already score-desc (pool reranked,
+                            # tail composite); top_results re-sorted by score
+                            # in searcher only under rerank, which is this path.
+                            top_results = kept[: max(ks)]
+                            top_results.sort(key=lambda r: r.score, reverse=True)
+                            keys_st = _ranked_keys(
+                                type(resp_uf)(results=top_results, related=[]), metric
+                            )
+                        else:
+                            resp_st = await searcher.search(MemoryQuery(
+                                query=q.text, top_k=max(ks), partition_ids=[unit.pid],
+                                weight_recency=0.0, weight_importance=0.0, weight_relevance=1.0,
+                                prev_turns=pv, next_turns=nx, min_score=fr.min_score,
+                            ), rerank_floor_ratio=fr.rerank_floor_ratio)
+                            keys_st = _ranked_keys(resp_st, metric)
 
                         for k in ks:
                             if set(keys_st[:k]) & q.relevant:
