@@ -35,6 +35,7 @@ class LocalReranker:
         model_name: str = "BAAI/bge-reranker-base",
         top_n: int = 30,
         hf_endpoint: str | None = None,
+        max_length: int = 512,
     ) -> None:
         if hf_endpoint:
             os.environ["HF_ENDPOINT"] = hf_endpoint
@@ -59,11 +60,14 @@ class LocalReranker:
         from torch.nn import Sigmoid
 
         try:
-            # No explicit max_length: CrossEncoder truncates long (query,
-            # content) pairs to the tokenizer's model_max_length, which is the
-            # model's own context window (512 for bge-reranker-base). Setting it
-            # by hand only risks exceeding the model's position-embedding cap.
-            self._model = CrossEncoder(model_name)
+            # Truncation must be set explicitly at construction. sentence-transformers
+            # 5.x's ``CrossEncoder.predict`` no longer truncates (query, content) pairs
+            # to the tokenizer's ``model_max_length`` — it only honors the ``max_length``
+            # set on the instance. Without it, a long pair exceeds the backbone's
+            # position-embedding cap (XLM-Roberta = 514) and crashes the forward pass
+            # with ``gather: index 514 is out of bounds``. 512 keeps one slot of headroom
+            # below the 514 cap and is the standard usable length for BGE-reranker-base.
+            self._model = CrossEncoder(model_name, max_length=max_length)
         finally:
             # Always restore the caller's original offline setting,
             # regardless of which path we took above.
@@ -79,7 +83,8 @@ class LocalReranker:
         self._activation = Sigmoid()
         self._model_name = model_name
         self._top_n = top_n
-        logger.info("Reranker ready: %s (top_n=%d, max_length=%s)", model_name, top_n, self._model.max_length)
+        self._max_length = max_length
+        logger.info("Reranker ready: %s (top_n=%d, max_length=%s)", model_name, top_n, self._max_length)
 
     @property
     def top_n(self) -> int:
