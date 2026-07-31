@@ -140,7 +140,10 @@ def _fetch_filtered(client: httpx.Client, query: str, current_session_id: str) -
             try:
                 body["min_score"] = float(env_min_score)
             except ValueError:
-                logger.debug("HEBB_RECALL_MIN_SCORE=%r is not a valid float; falling back to strict_recall", env_min_score)
+                logger.debug(
+                    "HEBB_RECALL_MIN_SCORE=%r is not a valid float; falling back to strict_recall",
+                    env_min_score,
+                )
                 body["strict_recall"] = True
         else:
             body["strict_recall"] = True
