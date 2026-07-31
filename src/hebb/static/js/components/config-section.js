@@ -176,8 +176,8 @@ export function buildGenericSection(group, config) {
         const raw = input.type === 'checkbox' ? String(input.checked) : input.value;
         // Frontend validation for 0-1 numeric fields before hitting the API.
         if ((key === 'rerank_floor_ratio' || key === 'recall_min_score') && raw !== '') {
-          const num = parseFloat(raw);
-          if (isNaN(num) || num < 0 || num > 1) {
+          const num = Number(raw.trim());
+          if (!Number.isFinite(num) || num < 0 || num > 1) {
             error(t('settings.error.range_0_1', { key }));
             return;
           }

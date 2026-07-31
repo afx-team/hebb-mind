@@ -21,8 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hardcoded constant to a `Settings` field (`rerank_floor_ratio`, default 0.625).
   Plumb `min_score` through MCP server and Claude Code recall hook so callers
   can override the floor per-request. Based on full LoCoMo eval (1978 queries),
-  confirm sigmoid scores are unsuitable for hard filtering; recommend adjusting
-  `recall_min_score` from 0.8 to 0.6 with composite-score filtering. (#31)
+  confirm sigmoid scores are unsuitable for hard filtering. The eval report
+  recommends adjusting `recall_min_score` from 0.8 to 0.6 with composite-score
+  filtering; the current release keeps the existing default unchanged — 0.6 is
+  an optimization suggestion only. (#31)
 
 ### Added
 

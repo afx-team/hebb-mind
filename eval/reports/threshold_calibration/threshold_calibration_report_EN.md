@@ -31,7 +31,7 @@ Specifically:
 | Relevant samples sigmoid        | 6348   | 33.1% | 0.7%  | **16.6%** | 93.1% | 100%  |
 | Irrelevant samples sigmoid      | 13418  | 11.0% | 0.2%  | 2.4%      | 36.5% | 99.9% |
 
-**Key Issue**: The sigmoid distribution is extremely left-skewed. When deriving the 0.625 ratio, the assumption was "relevant hit sigmoid ~0.5", but the actual median is only 16.6% — **a deviation of more than 3x**. This means the effective threshold of `0.8 × 0.625 = 0.5` falls near the p90 of relevant samples (93.1st percentile) — effectively cutting off over 90% of correct hits.
+**Key Issue**: The sigmoid distribution is extremely left-skewed. When deriving the 0.625 ratio, the assumption was "relevant hit sigmoid ~0.5", but the actual median is only 16.6% — **a deviation of more than 3x**. The effective threshold of 0.5 far exceeds the relevant-sample median of 0.166, filtering out over half of correct recall results.
 
 ### 2.2 Three-Mode Baseline Comparison (No Threshold Filtering)
 

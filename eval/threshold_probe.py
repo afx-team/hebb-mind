@@ -680,12 +680,13 @@ async def main_async(args: argparse.Namespace) -> None:
 
     config = {
         "dataset": "locomo",
+        "floor_mode": "composite" if args.composite_floor else "sigmoid",
         "reranker": args.rerank_model if args.rerank else "none",
         "top_n": reranker_top_n if args.rerank else 0,
         "top_k": max(ks),
         "vector": args.vector,
         "min_score_range": args.min_score_range,
-        "rerank_floor_ratio_range": args.rerank_floor_ratio_range if args.rerank else "N/A",
+        "rerank_floor_ratio_range": args.rerank_floor_ratio_range if args.rerank and not args.composite_floor else "N/A",
     }
 
     # Collect results
