@@ -140,6 +140,21 @@ class Settings(BaseModel):
         description="Min relevance score (0-1) for hook/MCP recall; results below are dropped (console Search unaffected)",
     )
 
+    # Rerank-floor ratio: when a cross-encoder reranker runs, the leading pool
+    # carries a sigmoid relevance (conservative on short text) while the tail
+    # keeps the calibrated composite score — the two scales are not comparable.
+    # This ratio translates the composite ``recall_min_score`` floor to the
+    # rerank scale: ``rerank_floor = recall_min_score * rerank_floor_ratio``.
+    # Tune this when switching rerank models whose sigmoid distribution differs
+    # from bge-reranker-base (the default 0.625 maps a 0.8 composite floor to
+    # a ~0.5 sigmoid floor). Applies immediately, no restart required.
+    rerank_floor_ratio: float = Field(
+        default=0.625,
+        ge=0.0,
+        le=1.0,
+        description="Multiplier to translate composite-score floor to rerank-sigmoid scale (0-1)",
+    )
+
     # Retrieval-induced strengthening ("提取即强化" / testing effect): when a
     # /search returns hits, bump their access_count + last_accessed_at so the
     # forgetting TTL and recency ranking treat recalled memories as alive. The

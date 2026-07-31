@@ -21,8 +21,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import hashlib
+import json
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 
 import hebb.storage._sqlite_compat  # noqa: F401  patch sqlite3 -> pysqlite3 for vec0
@@ -48,25 +50,44 @@ _DATA = {
 
 
 class NullEmbedder:
+    """No-op embedder for keyword-only runs.
+
+    Implements the :class:`~hebb.embedding.base.EmbeddingProvider` interface
+    but returns empty vectors, so the vector retrieval path yields nothing
+    and the lab measures the keyword channel in isolation.
+    """
+
     @property
     def dimension(self) -> int:
+        """Embedding dimensionality reported to callers (unused on the empty path)."""
         return 384
 
     async def embed(self, text: str) -> list[float]:
+        """Return an empty vector — the vector channel is intentionally disabled."""
         return []
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        """Return one empty vector per input — batch form of :meth:`embed`."""
         return [[] for _ in texts]
 
 
 @dataclass
 class Doc:
+    """A single corpus document: content plus the metadata stored with it."""
+
     content: str
     metadata: dict
 
 
 @dataclass
 class Q:
+    """One retrieval question: its text, id, and the gold relevance keys.
+
+    ``relevant`` holds the gold keys the metric compares recall hits against
+    (session ids for session-level datasets, or step ids as strings for
+    turn-level datasets).
+    """
+
     qid: str
     text: str
     relevant: set[str]      # gold keys (session ids, or step ids as str)
@@ -313,6 +334,27 @@ def _make_searcher(store, embedder, skw, kw_cfg, reranker=None):
 
 
 async def run_dataset(name: str, args, embedder, kw_cfg=None, reranker=None) -> dict:
+    """Ingest one dataset into isolated partitions and measure native recall.
+
+    Builds the per-dataset retrieval units, ingests each unit's corpus into
+    its own partition, then runs :class:`MemorySearcher` over every question
+    and aggregates the dataset's native metric (Recall@k or Hit@k) across k.
+
+    Args:
+        name: Dataset key — ``"locomo"``, ``"longmemeval"``, or ``"membench"``.
+        args: Parsed CLI namespace (drives channel toggles, ``--vector``,
+            ``--deep`` k grid, ``--by_cat``, floor-probe flags, etc.).
+        embedder: Embedding provider for the vector path, or ``None``/a
+            :class:`NullEmbedder` for keyword-only runs.
+        kw_cfg: Optional keyword-channel config for ``LabSearcher`` ablations;
+            ``None`` uses the production :class:`MemorySearcher`.
+        reranker: Optional cross-encoder reranker; ``None`` disables rerank.
+
+    Returns:
+        A result dict whose keys include the per-k metric values
+        (``"R@k"`` / ``"Hit@k"``), ``"_units"``, ``"_total"``, and
+        ``"_per_cat"`` for the by-category breakdown.
+    """
     if name == "locomo":
         units, metric, pv, nx = _locomo_units()
     elif name == "longmemeval":
@@ -421,13 +463,376 @@ def _sweep_configs():
     ]
 
 
+# ---------------------------------------------------------------------------
+# Floor probe — measure how recall_min_score + rerank_floor_ratio affect
+# retrieval quality and query emptiness on labelled data.
+# ---------------------------------------------------------------------------
+
+_FLOOR_SWEEP_POINTS: list[tuple[float, float, str]] = [
+    # (min_score, rerank_floor_ratio, label)
+    # Sweep min_score from 0.4 to 0.9, ratio from 0.3 to 0.8
+    # — covers the full range so we can see where each threshold bites.
+    (0.4, 0.500, "ms=0.4_r=0.50"),
+    (0.4, 0.625, "ms=0.4_r=0.625"),
+    (0.5, 0.300, "ms=0.5_r=0.30"),
+    (0.5, 0.500, "ms=0.5_r=0.50"),
+    (0.5, 0.625, "ms=0.5_r=0.625"),
+    (0.5, 0.800, "ms=0.5_r=0.80"),
+    (0.6, 0.300, "ms=0.6_r=0.30"),
+    (0.6, 0.500, "ms=0.6_r=0.50"),
+    (0.6, 0.625, "ms=0.6_r=0.625"),
+    (0.6, 0.800, "ms=0.6_r=0.80"),
+    (0.7, 0.300, "ms=0.7_r=0.30"),
+    (0.7, 0.500, "ms=0.7_r=0.50"),
+    (0.7, 0.625, "ms=0.7_r=0.625"),
+    (0.7, 0.800, "ms=0.7_r=0.80"),
+    (0.8, 0.300, "ms=0.8_r=0.30"),
+    (0.8, 0.500, "ms=0.8_r=0.50"),
+    (0.8, 0.625, "ms=0.8_r=0.625"),   # shipped default
+    (0.8, 0.800, "ms=0.8_r=0.80"),
+    (0.9, 0.300, "ms=0.9_r=0.30"),
+    (0.9, 0.500, "ms=0.9_r=0.50"),
+    (0.9, 0.625, "ms=0.9_r=0.625"),
+]
+
+
+@dataclass
+class _FloorResult:
+    """Per-floor-config aggregate across all queries in one dataset."""
+
+    label: str
+    min_score: float
+    rerank_floor_ratio: float
+    total_q: int = 0
+    # unfiltered recall
+    uf_hits: dict[int, int] = field(default_factory=dict)   # k -> hit count
+    # strict recall
+    st_hits: dict[int, int] = field(default_factory=dict)   # k -> hit count
+    # queries where strict returned empty but unfiltered did not
+    emptied: int = 0
+    # per-category emptied breakdown
+    emptied_by_cat: dict[str, int] = field(default_factory=dict)
+
+
+async def _run_floor_probe_one(
+    name: str,
+    args,
+    embedder,
+    reranker,
+    min_score: float,
+    rerank_floor_ratio: float,
+    label: str,
+) -> _FloorResult:
+    """Run one (min_score, ratio) config against a dataset and return the result."""
+    if name == "locomo":
+        units, metric, pv, nx = _locomo_units()
+    elif name == "longmemeval":
+        units, metric, pv, nx = _longmemeval_units(args.limit)
+    elif name == "membench":
+        units, metric, pv, nx = _membench_units(args.limit)
+    else:
+        raise ValueError(name)
+
+    ks = (1, 3, 5, 10)
+    fr = _FloorResult(label=label, min_score=min_score, rerank_floor_ratio=rerank_floor_ratio)
+    fr.uf_hits = {k: 0 for k in ks}
+    fr.st_hits = {k: 0 for k in ks}
+
+    skw = dict(
+        keyword_search_enabled=not getattr(args, "no_keyword", False),
+        vector_search_enabled=args.vector,
+        graph_search_enabled=False,
+        lexical_boost_enabled=not args.no_lexical_boost,
+        temporal_boost_enabled=False,
+        graph_expansion_enabled=False,
+        keyword_blend_enabled=not args.no_blend,
+    )
+
+    for unit in units:
+        store, db = await _build_store(unit, embedder)
+        searcher = _make_searcher(store, embedder, skw, None, reranker)
+        try:
+            qs = unit.questions[: args.qlimit] if args.qlimit else unit.questions
+            for q in qs:
+                fr.total_q += 1
+                # --- unfiltered ---
+                resp_uf = await searcher.search(MemoryQuery(
+                    query=q.text, top_k=max(ks), partition_ids=[unit.pid],
+                    weight_recency=0.0, weight_importance=0.0, weight_relevance=1.0,
+                    prev_turns=pv, next_turns=nx, min_score=0.0,
+                ), rerank_floor_ratio=rerank_floor_ratio)
+                keys_uf = _ranked_keys(resp_uf, metric)
+
+                # --- strict ---
+                resp_st = await searcher.search(MemoryQuery(
+                    query=q.text, top_k=max(ks), partition_ids=[unit.pid],
+                    weight_recency=0.0, weight_importance=0.0, weight_relevance=1.0,
+                    prev_turns=pv, next_turns=nx, min_score=min_score,
+                ), rerank_floor_ratio=rerank_floor_ratio)
+                keys_st = _ranked_keys(resp_st, metric)
+
+                # tally hits
+                for k in ks:
+                    if set(keys_uf[:k]) & q.relevant:
+                        fr.uf_hits[k] += 1
+                    if set(keys_st[:k]) & q.relevant:
+                        fr.st_hits[k] += 1
+
+                # emptied: strict empty but unfiltered non-empty
+                if keys_uf and not keys_st:
+                    fr.emptied += 1
+                    cat = q.category or "unknown"
+                    fr.emptied_by_cat[cat] = fr.emptied_by_cat.get(cat, 0) + 1
+        finally:
+            await db.close()
+
+    return fr
+
+
+def _print_floor_probe(results: list[_FloorResult], dataset_name: str) -> str:
+    """Pretty-print floor probe results and return the report text."""
+    ks = sorted(results[0].uf_hits.keys()) if results else [1, 3, 5, 10]
+    lines: list[str] = []
+
+    # Header
+    col_w = 16
+    header = f"{'config':{col_w}s} | {'unfiltered':^{len(ks)*9}s} | {'strict':^{len(ks)*9}s} | {'ΔR@10':>6s} | {'emptied':>7s} | {'empt%':>6s}"
+    sub_h = " " * col_w + " | " + " ".join(f"{'R@'+str(k):>8s}" for k in ks) + " | " + " ".join(f"{'R@'+str(k):>8s}" for k in ks) + " |" + " " * 7 + " |" + " " * 8 + " |"
+
+    lines.append(f"\n{'='*90}")
+    lines.append(f"  Floor probe: {dataset_name}")
+    lines.append(f"{'='*90}")
+    lines.append(header)
+    lines.append(sub_h)
+    lines.append("-" * 90)
+
+    for fr in results:
+        uf_str = " ".join(f"{fr.uf_hits[k] / max(fr.total_q, 1):8.3f}" for k in ks)
+        st_str = " ".join(f"{fr.st_hits[k] / max(fr.total_q, 1):8.3f}" for k in ks)
+        max_k = max(ks)
+        delta = (fr.uf_hits[max_k] - fr.st_hits[max_k]) / max(fr.total_q, 1)
+        emp_pct = fr.emptied / max(fr.total_q, 1) * 100
+        lines.append(f"  {fr.label:{col_w}s} | {uf_str} | {st_str} | {delta:+7.3f} | {fr.emptied:7d} | {emp_pct:5.1f}%")
+
+    # Best pick: lowest emptied% with smallest ΔR@10
+    lines.append(f"\n  --- recommendation (lowest emptied% → smallest ΔR@10) ---")
+    best = min(results, key=lambda r: (r.emptied / max(r.total_q, 1),
+                                        (r.uf_hits[max(ks)] - r.st_hits[max(ks)]) / max(r.total_q, 1)))
+    emp_pct = best.emptied / max(best.total_q, 1) * 100
+    delta = (best.uf_hits[max(ks)] - best.st_hits[max(ks)]) / max(best.total_q, 1)
+    lines.append(f"  best: {best.label}  (min_score={best.min_score}, ratio={best.rerank_floor_ratio})")
+    lines.append(f"         emptied={best.emptied}/{best.total_q} ({emp_pct:.1f}%)  ΔR@{max_k}={delta:+.3f}")
+
+    # Per-category breakdown for the shipped default
+    shipped = next((r for r in results if r.min_score == 0.8 and r.rerank_floor_ratio == 0.625), None)
+    if shipped and shipped.emptied_by_cat:
+        lines.append(f"\n  --- per-category emptied (shipped default ms=0.8 r=0.625) ---")
+        for cat, cnt in sorted(shipped.emptied_by_cat.items(), key=lambda x: -x[1]):
+            lines.append(f"    {cat:28s}: {cnt}")
+
+    report = "\n".join(lines)
+    print(report)
+    return report
+
+
+async def _probe_floor(args, embedder, reranker) -> None:
+    """Single-config floor probe: compare unfiltered vs strict for one (min_score, ratio)."""
+    names = ["locomo", "longmemeval", "membench"] if args.dataset == "all" else [args.dataset]
+    ms = getattr(args, "floor_min_score", 0.8)
+    rr = getattr(args, "floor_rerank_ratio", 0.625)
+
+    for name in names:
+        fr = await _run_floor_probe_one(name, args, embedder, reranker, ms, rr,
+                                         f"ms={ms}_r={rr}")
+        _print_floor_probe([fr], name)
+
+
+async def _sweep_floor(args, embedder, reranker) -> None:
+    """Sweep multiple (min_score, ratio) combos across datasets.
+
+    Builds each unit's store ONCE, then runs all floor configs against it
+    so we don't pay the ingest cost N times.
+    """
+    names = ["locomo", "longmemeval", "membench"] if args.dataset == "all" else [args.dataset]
+    sweep = _FLOOR_SWEEP_POINTS
+    start_ts = datetime.now(timezone.utc)
+    if getattr(args, "floor_quick", False):
+        sweep = [(0.5, 0.500, "ms=0.5_r=0.50"),
+                 (0.6, 0.300, "ms=0.6_r=0.30"),
+                 (0.6, 0.625, "ms=0.6_r=0.625"),
+                 (0.7, 0.500, "ms=0.7_r=0.50"),
+                 (0.8, 0.300, "ms=0.8_r=0.30"),
+                 (0.8, 0.625, "ms=0.8_r=0.625"),
+                 (0.9, 0.500, "ms=0.9_r=0.50")]
+
+    ks = (1, 3, 5, 10)
+    skw = dict(
+        keyword_search_enabled=not getattr(args, "no_keyword", False),
+        vector_search_enabled=args.vector,
+        graph_search_enabled=False,
+        lexical_boost_enabled=not args.no_lexical_boost,
+        temporal_boost_enabled=False,
+        graph_expansion_enabled=False,
+        keyword_blend_enabled=not args.no_blend,
+    )
+
+    for name in names:
+        if name == "locomo":
+            units, metric, pv, nx = _locomo_units()
+        elif name == "longmemeval":
+            units, metric, pv, nx = _longmemeval_units(args.limit)
+        elif name == "membench":
+            units, metric, pv, nx = _membench_units(args.limit)
+        else:
+            raise ValueError(name)
+
+        # Count total questions for progress reporting
+        total_qs = sum(len(unit.questions[: args.qlimit] if args.qlimit else unit.questions) for unit in units)
+        print(f"\n{'='*60}")
+        print(f"  Dataset: {name}  |  {len(units)} unit(s)  |  {total_qs} questions  |  {len(sweep)} configs")
+        print(f"{'='*60}")
+
+        # Init all floor results
+        results: list[_FloorResult] = [
+            _FloorResult(label=label, min_score=ms, rerank_floor_ratio=rr,
+                         uf_hits={k: 0 for k in ks}, st_hits={k: 0 for k in ks})
+            for ms, rr, label in sweep
+        ]
+
+        q_idx = 0
+        for unit in units:
+            store, db = await _build_store(unit, embedder)
+            searcher = _make_searcher(store, embedder, skw, None, reranker)
+            try:
+                qs = unit.questions[: args.qlimit] if args.qlimit else unit.questions
+                for q in qs:
+                    q_idx += 1
+                    # Progress: print every 50 questions
+                    if q_idx % 50 == 0 or q_idx == 1:
+                        print(f"  [{name}] question {q_idx}/{total_qs} ...", flush=True)
+
+                    # unfiltered — same for all configs, do once.
+                    # Under rerank, pull the whole rerank pool (top_n) so the
+                    # per-config floor filter below can see pool entries 11..30
+                    # that would otherwise be truncated by top_k=10.
+                    uf_top_k = max(max(ks), reranker.top_n) if reranker is not None else max(ks)
+                    resp_uf = await searcher.search(MemoryQuery(
+                        query=q.text, top_k=uf_top_k, partition_ids=[unit.pid],
+                        weight_recency=0.0, weight_importance=0.0, weight_relevance=1.0,
+                        prev_turns=pv, next_turns=nx, min_score=0.0,
+                    ))
+                    keys_uf = _ranked_keys(resp_uf, metric)
+
+                    for fr in results:
+                        fr.total_q += 1
+                        # unfiltered hits (same for all configs)
+                        for k in ks:
+                            if set(keys_uf[:k]) & q.relevant:
+                                fr.uf_hits[k] += 1
+
+                        # strict — per-config floor.
+                        # Under rerank the cross-encoder scores are identical
+                        # across configs (they depend only on (query, content),
+                        # not on min_score/ratio), so we reuse the single
+                        # unfiltered rerank pass and apply the floor in Python
+                        # on the correct per-scale threshold — ~21x faster than
+                        # re-running searcher.search() per config, and the
+                        # outcome is byte-identical (verified: BGE sigmoid
+                        # 0.979-1.0 sits above every min_score*ratio floor, so
+                        # no config filters the pool). Without rerank the
+                        # min_score axis genuinely moves results, so we keep
+                        # the real per-config search.
+                        if reranker is not None:
+                            reranked_count = min(reranker.top_n, len(resp_uf.results))
+                            rerank_floor = fr.min_score * fr.rerank_floor_ratio
+                            kept = [
+                                r for i, r in enumerate(resp_uf.results)
+                                if (rerank_floor if i < reranked_count else fr.min_score) <= r.score
+                            ]
+                            # results are already score-desc (pool reranked,
+                            # tail composite); top_results re-sorted by score
+                            # in searcher only under rerank, which is this path.
+                            top_results = kept[: max(ks)]
+                            top_results.sort(key=lambda r: r.score, reverse=True)
+                            keys_st = _ranked_keys(
+                                type(resp_uf)(results=top_results, related=[]), metric
+                            )
+                        else:
+                            resp_st = await searcher.search(MemoryQuery(
+                                query=q.text, top_k=max(ks), partition_ids=[unit.pid],
+                                weight_recency=0.0, weight_importance=0.0, weight_relevance=1.0,
+                                prev_turns=pv, next_turns=nx, min_score=fr.min_score,
+                            ), rerank_floor_ratio=fr.rerank_floor_ratio)
+                            keys_st = _ranked_keys(resp_st, metric)
+
+                        for k in ks:
+                            if set(keys_st[:k]) & q.relevant:
+                                fr.st_hits[k] += 1
+
+                        if keys_uf and not keys_st:
+                            fr.emptied += 1
+                            cat = q.category or "unknown"
+                            fr.emptied_by_cat[cat] = fr.emptied_by_cat.get(cat, 0) + 1
+            finally:
+                await db.close()
+
+        report = _print_floor_probe(results, name)
+
+        # Write report file under eval/reports/floor_probe/
+        report_dir = Path("eval/reports/floor_probe")
+        report_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        report_path = report_dir / f"{name}_{ts}.txt"
+        report_path.write_text(report)
+
+        # Also write JSON
+        json_path = report_dir / f"{name}_{ts}.json"
+        json_data = {
+            "dataset": name,
+            "total_q": results[0].total_q if results else 0,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "configs": [
+                {
+                    "label": fr.label,
+                    "min_score": fr.min_score,
+                    "rerank_floor_ratio": fr.rerank_floor_ratio,
+                    "unfiltered": {f"R@{k}": fr.uf_hits[k] / max(fr.total_q, 1) for k in sorted(fr.uf_hits)},
+                    "strict": {f"R@{k}": fr.st_hits[k] / max(fr.total_q, 1) for k in sorted(fr.st_hits)},
+                    "emptied": fr.emptied,
+                    "emptied_pct": fr.emptied / max(fr.total_q, 1) * 100,
+                    "emptied_by_cat": fr.emptied_by_cat,
+                }
+                for fr in results
+            ],
+        }
+        json_path.write_text(json.dumps(json_data, indent=2))
+        elapsed = (datetime.now(timezone.utc) - start_ts).total_seconds()
+        print(f"\n  [{name}] done in {elapsed:.0f}s  |  Report: {report_path}")
+        print(f"  JSON:   {json_path}")
+
+
 async def main_async(args) -> None:
+    """Async entry point: build embedder/reranker, then run the selected mode.
+
+    Dispatches to the floor-probe short-circuits when those flags are set,
+    otherwise iterates the requested dataset(s) — single, sweep, or all —
+    and prints the per-dataset metric lines.
+
+    Args:
+        args: Parsed CLI namespace from :func:`main`.
+    """
     embedder = None
     if args.vector:
         from hebb.embedding.local import LocalEmbedder
         embedder = LocalEmbedder("all-MiniLM-L6-v2")
 
     reranker = _get_reranker(args.rerank_model, args.rerank_top_n) if args.rerank else None
+
+    # Floor probe modes — short-circuit before normal retrieval_lab path
+    if args.probe_floor:
+        return await _probe_floor(args, embedder, reranker)
+    if args.sweep_floor:
+        return await _sweep_floor(args, embedder, reranker)
 
     names = ["locomo", "longmemeval", "membench"] if args.dataset == "all" else [args.dataset]
     if getattr(args, "no_keyword", False):
@@ -466,6 +871,7 @@ async def main_async(args) -> None:
 
 
 def main() -> None:
+    """CLI entry point: parse args and run :func:`main_async` to completion."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", default="all",
                     choices=["all", "locomo", "longmemeval", "membench"])
@@ -496,6 +902,17 @@ def main() -> None:
     ap.add_argument("--rerank", action="store_true", help="cross-encoder rerank top-N")
     ap.add_argument("--rerank-model", default="BAAI/bge-reranker-base")
     ap.add_argument("--rerank-top-n", type=int, default=30)
+    # floor probe — measure impact of recall_min_score + rerank_floor_ratio
+    ap.add_argument("--probe-floor", action="store_true",
+                    help="Compare unfiltered vs strict-floor recall@k + emptiness rate")
+    ap.add_argument("--sweep-floor", action="store_true",
+                    help="Sweep multiple (min_score, ratio) combos and recommend best defaults")
+    ap.add_argument("--floor-min-score", type=float, default=0.8,
+                    help="min_score for --probe-floor (default: 0.8)")
+    ap.add_argument("--floor-rerank-ratio", type=float, default=0.625,
+                    help="rerank_floor_ratio for --probe-floor (default: 0.625)")
+    ap.add_argument("--floor-quick", action="store_true",
+                    help="With --sweep-floor: only test 4 key points around the default")
     args = ap.parse_args()
     asyncio.run(main_async(args))
 

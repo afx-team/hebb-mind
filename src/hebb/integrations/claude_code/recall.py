@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from typing import Any
 
@@ -133,9 +134,23 @@ def _fetch_filtered(client: httpx.Client, query: str, current_session_id: str) -
     """
     top_k = _TOP_K_FETCH
     while True:
+        body: dict[str, object] = {"query": query, "top_k": top_k}
+        env_min_score = os.environ.get("HEBB_RECALL_MIN_SCORE")
+        if env_min_score is not None:
+            try:
+                body["min_score"] = float(env_min_score)
+            except ValueError:
+                logger.debug(
+                    "HEBB_RECALL_MIN_SCORE=%r is not a valid float; falling back to strict_recall",
+                    env_min_score,
+                )
+                body["strict_recall"] = True
+        else:
+            body["strict_recall"] = True
+
         resp = client.post(
             "/api/v1/search",
-            json={"query": query, "top_k": top_k, "strict_recall": True},
+            json=body,
         )
         resp.raise_for_status()
         data = resp.json()

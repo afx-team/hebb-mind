@@ -91,6 +91,7 @@ async def write_memory(
 async def search_memory(
     query: str,
     top_k: int = 5,
+    min_score: float | None = None,
 ) -> str:
     """Search for related memories using hybrid retrieval.
 
@@ -100,15 +101,25 @@ async def search_memory(
     Args:
         query: Natural language search query.
         top_k: Maximum number of results to return (1-100, default 5).
+        min_score: Optional relevance floor (0.0-1.0). When set, only
+            results scoring at or above this threshold are returned.
+            When omitted, the server's configured recall_min_score
+            (default 0.8) is applied via strict_recall.
     """
     from hebb.retrieval.query_sanitizer import sanitize_query
 
     query = sanitize_query(query)
 
+    body: dict[str, object] = {"query": query, "top_k": top_k}
+    if min_score is not None:
+        body["min_score"] = min_score
+    else:
+        body["strict_recall"] = True
+
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"{_base_url()}/api/v1/search",
-            json={"query": query, "top_k": top_k, "strict_recall": True},
+            json=body,
         )
         resp.raise_for_status()
         data = resp.json()

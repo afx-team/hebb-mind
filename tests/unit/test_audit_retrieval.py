@@ -34,15 +34,19 @@ class FakeEmbedder:
 
     @property
     def dimension(self) -> int:
+        """Fixed dimensionality matching the constant embedding below."""
         return 3
 
     async def embed(self, text: str) -> list[float]:
+        """Return the constant 3-d vector so the vector path produces a hit."""
         return [0.1, 0.2, 0.3]
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        """Return one constant vector per input — batch form of :meth:`embed`."""
         return [[0.1, 0.2, 0.3] for _ in texts]
 
     async def aclose(self) -> None:  # pragma: no cover - no resources
+        """No resources to release."""
         return None
 
 
@@ -59,6 +63,7 @@ class FakeStore:
         self.doc_freq_calls: list[tuple[list[str], list[str] | None]] = []
 
     async def get(self, memory_id: str) -> Memory | None:
+        """Return the memory for ``memory_id`` or ``None`` if absent."""
         return self._by_id.get(memory_id)
 
     async def search_by_vector(
@@ -67,6 +72,7 @@ class FakeStore:
         top_k: int = 10,
         partition_ids: list[str] | None = None,
     ) -> list[tuple[Memory, float]]:
+        """Return no vector hits — vector recall is patched per-test."""
         return []
 
     async def search_by_keyword(
@@ -75,19 +81,23 @@ class FakeStore:
         top_k: int = 10,
         partition_ids: list[str] | None = None,
     ) -> list[tuple[Memory, float]]:
+        """Return no keyword hits — keyword recall is patched per-test."""
         return []
 
     async def corpus_size(self, partition_ids: list[str] | None = None) -> int:
+        """Record the partition scope and report the in-memory corpus size."""
         self.corpus_size_calls.append(partition_ids)
         return len(self._by_id)
 
     async def keyword_doc_freqs(
         self, terms: list[str], partition_ids: list[str] | None = None
     ) -> dict[str, int]:
+        """Record the terms + scope and return a flat DF of 1 per term."""
         self.doc_freq_calls.append((list(terms), partition_ids))
         return {t: 1 for t in terms}
 
     async def update_access_batch(self, memory_ids: list[str]) -> None:  # pragma: no cover
+        """No-op access-time update — the audit path doesn't assert on it."""
         return None
 
 
@@ -100,9 +110,11 @@ class FakeReranker:
 
     @property
     def top_n(self) -> int:
+        """Rerank pool size the searcher slices candidates to."""
         return self._top_n
 
     async def score(self, query: str, candidates: list[str]) -> list[float]:
+        """Return the fixed score for every candidate, preserving input order."""
         return [self._score for _ in candidates]
 
 
@@ -182,6 +194,40 @@ async def test_no_rerank_floor_uses_composite_scale() -> None:
     query = MemoryQuery(query="what is the capital of sweden", min_score=0.5)
     resp = await searcher.search(query)
 
+    assert [r.memory.id for r in resp.results] == [mem.id]
+
+
+async def test_custom_rerank_floor_ratio_tight() -> None:
+    """A higher ratio tightens the rerank-scale floor, dropping a marginal
+    sigmoid hit that the default 0.625 ratio would have let through."""
+    mem = _mem("the capital of sweden is stockholm")
+    searcher = _searcher_with_vector_hit(mem, reranker=FakeReranker(0.6))
+
+    query = MemoryQuery(query="what is the capital of sweden", min_score=0.8)
+
+    # Default ratio 0.625: rerank_floor = 0.8 * 0.625 = 0.5 → 0.6 survives.
+    resp = await searcher.search(query)
+    assert [r.memory.id for r in resp.results] == [mem.id]
+
+    # Custom ratio 0.9: rerank_floor = 0.8 * 0.9 = 0.72 → 0.6 is dropped.
+    resp = await searcher.search(query, rerank_floor_ratio=0.9)
+    assert resp.results == []
+
+
+async def test_custom_rerank_floor_ratio_lenient() -> None:
+    """A lower ratio relaxes the rerank-scale floor, letting a weak sigmoid
+    hit through that the default 0.625 ratio would have dropped."""
+    mem = _mem("a somewhat relevant note about nordic countries")
+    searcher = _searcher_with_vector_hit(mem, reranker=FakeReranker(0.35))
+
+    query = MemoryQuery(query="what is the capital of sweden", min_score=0.8)
+
+    # Default ratio 0.625: rerank_floor = 0.8 * 0.625 = 0.5 → 0.35 is dropped.
+    resp = await searcher.search(query)
+    assert resp.results == []
+
+    # Custom ratio 0.3: rerank_floor = 0.8 * 0.3 = 0.24 → 0.35 survives.
+    resp = await searcher.search(query, rerank_floor_ratio=0.3)
     assert [r.memory.id for r in resp.results] == [mem.id]
 
 

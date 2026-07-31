@@ -43,12 +43,13 @@ function groupRerank() {
   return {
     titleKey: 'settings.group.rerank',
     icon: '&#127919;',
-    keys: ['rerank_enabled', 'rerank_provider', 'rerank_model', 'rerank_top_n'],
+    keys: ['rerank_enabled', 'rerank_provider', 'rerank_model', 'rerank_top_n', 'rerank_floor_ratio'],
     hints: {
       rerank_enabled: t('recall.hint.rerank_enabled'),
       rerank_provider: t('recall.hint.rerank_provider'),
       rerank_model: t('recall.hint.rerank_model'),
       rerank_top_n: t('recall.hint.rerank_top_n'),
+      rerank_floor_ratio: t('recall.hint.rerank_floor_ratio'),
     },
   };
 }

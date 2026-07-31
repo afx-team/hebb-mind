@@ -1,0 +1,182 @@
+{
+  "dataset": "longmemeval",
+  "total_q": 500,
+  "timestamp": "2026-07-29T05:58:36.561478+00:00",
+  "configs": [
+    {
+      "label": "ms=0.3_r=0.625",
+      "min_score": 0.3,
+      "rerank_floor_ratio": 0.625,
+      "unfiltered": {
+        "R@1": 0.888,
+        "R@3": 0.97,
+        "R@5": 0.982,
+        "R@10": 0.984
+      },
+      "strict": {
+        "R@1": 0.892,
+        "R@3": 0.966,
+        "R@5": 0.974,
+        "R@10": 0.978
+      },
+      "emptied": 0,
+      "emptied_pct": 0.0,
+      "emptied_by_cat": {}
+    },
+    {
+      "label": "ms=0.4_r=0.625",
+      "min_score": 0.4,
+      "rerank_floor_ratio": 0.625,
+      "unfiltered": {
+        "R@1": 0.888,
+        "R@3": 0.97,
+        "R@5": 0.982,
+        "R@10": 0.984
+      },
+      "strict": {
+        "R@1": 0.892,
+        "R@3": 0.95,
+        "R@5": 0.964,
+        "R@10": 0.964
+      },
+      "emptied": 2,
+      "emptied_pct": 0.4,
+      "emptied_by_cat": {
+        "single-session-user": 1,
+        "temporal-reasoning": 1
+      }
+    },
+    {
+      "label": "ms=0.5_r=0.625",
+      "min_score": 0.5,
+      "rerank_floor_ratio": 0.625,
+      "unfiltered": {
+        "R@1": 0.888,
+        "R@3": 0.97,
+        "R@5": 0.982,
+        "R@10": 0.984
+      },
+      "strict": {
+        "R@1": 0.874,
+        "R@3": 0.922,
+        "R@5": 0.924,
+        "R@10": 0.924
+      },
+      "emptied": 12,
+      "emptied_pct": 2.4,
+      "emptied_by_cat": {
+        "single-session-user": 4,
+        "multi-session": 2,
+        "temporal-reasoning": 6
+      }
+    },
+    {
+      "label": "ms=0.6_r=0.625",
+      "min_score": 0.6,
+      "rerank_floor_ratio": 0.625,
+      "unfiltered": {
+        "R@1": 0.888,
+        "R@3": 0.97,
+        "R@5": 0.982,
+        "R@10": 0.984
+      },
+      "strict": {
+        "R@1": 0.768,
+        "R@3": 0.804,
+        "R@5": 0.804,
+        "R@10": 0.804
+      },
+      "emptied": 77,
+      "emptied_pct": 15.4,
+      "emptied_by_cat": {
+        "single-session-user": 6,
+        "multi-session": 29,
+        "single-session-preference": 6,
+        "temporal-reasoning": 33,
+        "knowledge-update": 2,
+        "single-session-assistant": 1
+      }
+    },
+    {
+      "label": "ms=0.7_r=0.625",
+      "min_score": 0.7,
+      "rerank_floor_ratio": 0.625,
+      "unfiltered": {
+        "R@1": 0.888,
+        "R@3": 0.97,
+        "R@5": 0.982,
+        "R@10": 0.984
+      },
+      "strict": {
+        "R@1": 0.628,
+        "R@3": 0.642,
+        "R@5": 0.642,
+        "R@10": 0.642
+      },
+      "emptied": 162,
+      "emptied_pct": 32.4,
+      "emptied_by_cat": {
+        "single-session-user": 9,
+        "multi-session": 64,
+        "single-session-preference": 14,
+        "temporal-reasoning": 62,
+        "knowledge-update": 7,
+        "single-session-assistant": 6
+      }
+    },
+    {
+      "label": "ms=0.8_r=0.625",
+      "min_score": 0.8,
+      "rerank_floor_ratio": 0.625,
+      "unfiltered": {
+        "R@1": 0.888,
+        "R@3": 0.97,
+        "R@5": 0.982,
+        "R@10": 0.984
+      },
+      "strict": {
+        "R@1": 0.424,
+        "R@3": 0.426,
+        "R@5": 0.426,
+        "R@10": 0.426
+      },
+      "emptied": 277,
+      "emptied_pct": 55.400000000000006,
+      "emptied_by_cat": {
+        "single-session-user": 18,
+        "multi-session": 101,
+        "single-session-preference": 25,
+        "temporal-reasoning": 88,
+        "knowledge-update": 19,
+        "single-session-assistant": 26
+      }
+    },
+    {
+      "label": "ms=0.9_r=0.625",
+      "min_score": 0.9,
+      "rerank_floor_ratio": 0.625,
+      "unfiltered": {
+        "R@1": 0.888,
+        "R@3": 0.97,
+        "R@5": 0.982,
+        "R@10": 0.984
+      },
+      "strict": {
+        "R@1": 0.216,
+        "R@3": 0.216,
+        "R@5": 0.216,
+        "R@10": 0.216
+      },
+      "emptied": 391,
+      "emptied_pct": 78.2,
+      "emptied_by_cat": {
+        "single-session-user": 40,
+        "multi-session": 121,
+        "single-session-preference": 29,
+        "temporal-reasoning": 116,
+        "knowledge-update": 32,
+        "single-session-assistant": 53
+      }
+    }
+  ]
+}

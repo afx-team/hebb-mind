@@ -36,16 +36,6 @@ from hebb.storage.base import MemoryStore
 # near-flat decay.
 _RECENCY_DECAY_FACTOR = 0.693
 
-# Strict-recall floor lives on a MIXED scale after rerank: reranked pool entries
-# carry the cross-encoder *sigmoid* relevance while the tail keeps the calibrated
-# composite. The two are not comparable — a genuinely relevant short memory often
-# scores a bge sigmoid well below a 0.8 *composite* floor (the cross-encoder is
-# conservative on terse text), so a uniform 0.8 silently empties strict-recall
-# results on the hook + MCP surfaces. We translate the composite floor to a
-# rerank-scale floor with this ratio: a relevant cross-encoder hit clears ~0.5
-# sigmoid, so a 0.8 composite floor maps to a 0.5 sigmoid floor (0.8 * 0.625).
-_RERANK_FLOOR_RATIO = 0.625
-
 
 class MemorySearcher:
     """Orchestrates hybrid retrieval: vector + keyword + graph, then scoring.
@@ -92,7 +82,31 @@ class MemorySearcher:
         # better rank) without depending on the cross-encoder reranker.
         self.keyword_blend_enabled = keyword_blend_enabled
 
-    async def search(self, query: MemoryQuery) -> SearchResponse:
+    async def search(self, query: MemoryQuery, *, rerank_floor_ratio: float = 0.625) -> SearchResponse:
+        """Run hybrid retrieval and return scored, optionally reranked results.
+
+        Three-path parallel recall (vector + keyword + graph) is fused with
+        Reciprocal Rank Fusion, then each candidate is scored on a calibrated
+        ``[0, 1]`` scale (``max(keyword_relevance, cosine_similarity)``). When a
+        reranker is configured, the top ``top_n`` candidates are re-scored by
+        the cross-encoder on its own sigmoid scale; the ``min_score`` floor is
+        then translated to that scale for the reranked pool via
+        ``rerank_floor_ratio`` while the composite floor is kept for the tail.
+
+        Args:
+            query: The recall query — text, ``top_k``, partition scope, tag
+                filter, ``prev_turns``/``next_turns`` window, and the optional
+                ``min_score`` strict-recall floor.
+            rerank_floor_ratio: Multiplier applied to ``query.min_score`` to
+                derive the floor for reranker-scored candidates (whose sigmoid
+                scale is more conservative than the composite scale). Only
+                affects the reranked pool; the tail keeps the composite floor.
+
+        Returns:
+            ``SearchResponse`` with the top-k ``results`` (ordered by rerank
+            score when a reranker ran, else by the RRF rank) plus ``related``
+            memories from turn-window and graph expansion.
+        """
         # Sanitize LLM-generated queries (XML tags, tool artifacts, etc.)
         sanitized = sanitize_query(query.query)
         if sanitized != query.query:
@@ -286,7 +300,7 @@ class MemorySearcher:
         # recall on the two production surfaces. So translate the floor to the
         # rerank scale for the pool and keep the composite floor for the tail.
         if query.min_score > 0.0:
-            rerank_floor = query.min_score * _RERANK_FLOOR_RATIO
+            rerank_floor = query.min_score * rerank_floor_ratio
             kept: list[MemorySearchResult] = []
             for i, r in enumerate(results):
                 floor = rerank_floor if i < reranked_count else query.min_score
