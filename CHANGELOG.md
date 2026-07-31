@@ -13,6 +13,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      3. Merge to main — publish.yml ships to PyPI on the pyproject.toml change
         and tags the release. -->
 
+## [Unreleased]
+
+### Added
+
+- **Per-client MCP installers**: `hebb gemini install`, `hebb goose install`,
+  `hebb opencode install` (with `--scope project|user`), and `hebb amp install`
+  (with `--scope project|user`) register the Hebb Mind MCP server in each
+  client's config file. Each has a matching `uninstall` command. All installers
+  resolve the absolute `hebb-mcp` path via `hebb_mcp_command()`, are idempotent,
+  preserve unrelated config entries, and use atomic writes.
+- **S1 command-drift CI guard** (`tests/unit/test_command_drift.py`): asserts
+  every `hebb` command referenced in MCP integration docs, generated hook
+  configs, and the `hebb-mcp` entrypoint resolves to a registered Click command
+  or importable module.
+
+### Documentation
+
+- Expanded MCP integration guide (`repo_pages/guide/mcp-integration.md` + zh
+  mirror) from 4 clients to a 19-client quick-connect matrix covering Claude
+  Code, Codex, Amp, Cline, Claude Desktop, Copilot, Cursor, Gemini CLI, Goose,
+  Kiro, LM Studio, opencode, VS Code, Warp, Windsurf, and UI-only clients
+  (Antigravity, Factory, Junie, Qodo Gen). Each entry includes the exact config
+  file path, format, and absolute-path guidance.
+
 ## [0.3.0] - 2026-06-29
 
 ### Added
