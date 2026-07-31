@@ -13,6 +13,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      3. Merge to main — publish.yml ships to PyPI on the pyproject.toml change
         and tags the release. -->
 
+## [Unreleased]
+
+### Changed
+
+- **strict-recall threshold calibration**: promote `_RERANK_FLOOR_RATIO` from a
+  hardcoded constant to a `Settings` field (`rerank_floor_ratio`, default 0.625).
+  Plumb `min_score` through MCP server and Claude Code recall hook so callers
+  can override the floor per-request. Based on full LoCoMo eval (1978 queries),
+  confirm sigmoid scores are unsuitable for hard filtering; recommend adjusting
+  `recall_min_score` from 0.8 to 0.6 with composite-score filtering. (#31)
+
+### Added
+
+- `eval/threshold_probe.py`: offline threshold calibration probe supporting
+  min_score × rerank_floor_ratio full-parameter sweep with R@k, empty-recall
+  fraction, and score distribution statistics.
+- `Settings.recall_hook_min_score`: per-call min_score override for the recall
+  hook (default None).
+- Frontend `rerank_floor_ratio` config item in the recall settings group with
+  0-1 range validation.
+
 ## [0.3.0] - 2026-06-29
 
 ### Added
