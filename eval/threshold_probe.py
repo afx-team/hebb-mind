@@ -540,10 +540,9 @@ def _print_recommendation(
         best = max(candidates, key=lambda c: (c.recall_at[k], c.min_score))
     else:
         # Fallback: minimize empty_frac, then maximize R@k
-        non_empty = [c for c in cells if c.empty_frac > 0.0]
-        if non_empty:
-            min_emp = min(c.empty_frac for c in non_empty)
-            fallback_pool = [c for c in non_empty if c.empty_frac <= min_emp + 0.02]
+        if cells:
+            min_emp = min(c.empty_frac for c in cells)
+            fallback_pool = [c for c in cells if c.empty_frac <= min_emp + 0.02]
             best = max(fallback_pool, key=lambda c: (c.recall_at[k], c.min_score))
             strategy = "fallback"
 

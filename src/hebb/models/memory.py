@@ -118,7 +118,7 @@ class MemorySearchResult(BaseModel):
     recency_score: float
     importance_score_normalized: float
     relevance_score: float
-    pre_rerank_score: float = Field(default=0.0, description="Composite score preserved before reranker overwrites score")
+    pre_rerank_score: float = Field(description="Composite score preserved before reranker overwrites score")
 
 
 class SearchResponse(BaseModel):

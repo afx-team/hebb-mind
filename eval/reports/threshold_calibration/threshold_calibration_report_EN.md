@@ -16,7 +16,7 @@ Specifically:
 1. **The sigmoid score distribution of bge-reranker-base is severely left-skewed** — the median for relevant samples is only 0.166 (the derived assumption of "~0.5" is completely invalid). No matter how the ratio is tuned, sigmoid-based filtering cannot simultaneously achieve R@10 ≥ 90% and empty recall rate < 5%.
 2. **The current default configuration (0.8, 0.625) is severely unusable**: 39% of queries return empty result sets, and R@10 is only 53.5%.
 3. **The correct approach is "reranker handles ranking, composite score handles filtering"**: retain the reranker's ranking gain (R@10 improves from 91.5% to 94.6%), but only apply the threshold to the composite score.
-4. **Recommended default `recall_min_score = 0.6`**: R@10 = 91.5%, empty recall rate = 1.0%, average 7.3 results — achieving the best balance between filtering purity and recall rate.
+4. **Recommended default `recall_min_score = 0.6`**: R@10 = 91.7%, empty recall rate = 1.0%, average 7.4 results — achieving the best balance between filtering purity and recall rate.
 
 ---
 
@@ -49,7 +49,7 @@ Specifically:
 | ------------------ | ------------------- | ----- | --------- | ----------------- | ----------- |
 | A — Composite filter | 0.8               | 55.4% | 63.6%     | **27.5%**         | 2.36        |
 | B — Sigmoid filter   | 0.5               | 48.8% | **53.5%** | **39.0%**         | 1.44        |
-| C — Composite filter | 0.8               | 55.4% | 63.6%     | **27.5%**         | 2.36        |
+| C — Composite filter | 0.8               | 57.1% | 64.9%     | **27.5%**         | 2.26        |
 
 **39% of queries return empty result sets. This means nearly four out of ten users find nothing in strict recall mode.**
 
@@ -88,10 +88,10 @@ Composite score distribution is healthy (p50=69.4%) with good discriminability.
 | No threshold | 91.5%   | 0.0%             | 94.6%     | 0.0%             | 10.0            |
 | **0.50**   | **90.4%** | **0.3%**        | **93.0%** | **0.0%**        | **8.7**         |
 | 0.55       | 90.0%     | 0.5%             | 92.8%     | 0.1%             | 8.1             |
-| **0.60**   | **89.0%** | **1.0%**        | **91.5%** | **1.0%**        | **7.3**         |
+| **0.60**   | **89.0%** | **1.0%**        | **91.7%** | **1.0%**        | **7.4**         |
 | 0.65       | 86.0%     | 2.7%             | 88.5%     | 2.7%             | 6.2             |
 | 0.70       | 81.2%     | 6.5%             | 83.6%     | 6.2%             | 4.8             |
-| 0.80 (current default) | 63.6% | 27.5%    | 63.6%     | 27.5%            | 2.4             |
+| 0.80 (current default) | 63.6% | 27.5%    | 64.9%     | 27.5%            | 2.3             |
 
 ### 3.3 Value of the Reranker
 
@@ -121,7 +121,7 @@ Rationale:
 
 | Configuration Item        | Current Value | Recommended Value        | Rationale                                                                 |
 | ------------------------- | ------------- | ------------------------ | ------------------------------------------------------------------------- |
-| `recall_min_score`        | 0.8           | **0.6**                  | R@10=91.5%, empty recall=1.0%, avg 7.3 results — balances filtering purity and recall |
+| `recall_min_score`        | 0.8           | **0.6**                  | R@10=91.7%, empty recall=1.0%, avg 7.4 results — balances filtering purity and recall |
 | `rerank_floor_ratio`      | 0.625         | **Retained but not used in default filtering** | Kept as a fallback switch; can be enabled when sigmoid filtering is needed |
 
 **More lenient approach (if zero empty recall is required)**: `recall_min_score = 0.5`, R@10=93.0%, empty recall=0.0%, avg 8.7 results.
@@ -130,12 +130,12 @@ Rationale:
 
 | Metric        | Current Default (0.8, sigmoid) | Recommended (0.6, composite) | Lenient (0.5, composite) |
 | ------------- | ------------------------------ | ---------------------------- | ------------------------ |
-| R@10          | 53.5%                          | **91.5%**                    | 93.0%                    |
+| R@10          | 53.5%                          | **91.7%**                    | 93.0%                    |
 | Empty Recall  | 39.0%                          | **1.0%**                     | 0.0%                     |
 | Avg Results   | 1.4                            | 7.3                          | 8.7                      |
 | R@1           | 48.8%                          | 71.9%                        | 71.9%                    |
 
-Recommended approach (0.6, composite) vs. current default: **R@10 improves by 38.0 percentage points (53.5% → 91.5%), empty recall rate drops from 39.0% to 1.0%.**
+Recommended approach (0.6, composite) vs. current default: **R@10 improves by 38.2 percentage points (53.5% → 91.7%), empty recall rate drops from 39.0% to 1.0%.**
 
 ---
 
@@ -207,7 +207,7 @@ Under the current approach, `rerank_floor_ratio` does not take effect by default
 | --------- | ----- | ----- | ----- | ----- | ------------ | ----------- |
 | No threshold | 71.9% | 87.3% | 91.5% | 94.6% | 0.0%       | 10.0        |
 | 0.50      | 72.9% | 87.0% | 90.7% | 93.0% | 0.0%         | 8.7         |
-| 0.60      | 73.0% | 86.3% | 89.4% | 91.5% | 1.0%         | 7.4         |
+| 0.60      | 73.0% | 86.3% | 89.4% | 91.7% | 1.0%         | 7.4         |
 | 0.70      | 69.6% | 80.0% | 82.2% | 83.6% | 6.2%         | 4.8         |
 | 0.80      | 57.1% | 62.9% | 64.2% | 64.9% | 27.5%        | 2.3         |
 | 0.90      | 33.3% | 35.3% | 35.6% | 35.9% | 60.1%        | 0.8         |

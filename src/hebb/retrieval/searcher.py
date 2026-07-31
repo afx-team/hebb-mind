@@ -238,6 +238,7 @@ class MemorySearcher:
                         recency_score=recency,
                         importance_score_normalized=importance_norm,
                         relevance_score=calibrated,
+                        pre_rerank_score=disp_score,
                     ),
                 )
             )

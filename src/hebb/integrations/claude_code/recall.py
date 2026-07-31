@@ -155,6 +155,7 @@ def _fetch_filtered(client: httpx.Client, query: str, current_session_id: str, m
         body: dict[str, object] = {"query": query, "top_k": top_k}
         if min_score is not None:
             body["min_score"] = min_score
+            body["strict_recall"] = True
         else:
             body["strict_recall"] = True
         resp = client.post(

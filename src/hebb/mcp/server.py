@@ -112,6 +112,7 @@ async def search_memory(
     body: dict[str, object] = {"query": query, "top_k": top_k}
     if min_score is not None:
         body["min_score"] = min_score
+        body["strict_recall"] = True
     else:
         body["strict_recall"] = True
 

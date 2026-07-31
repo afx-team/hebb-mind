@@ -381,7 +381,7 @@ async def run_dataset(name: str, args, embedder, kw_cfg=None, reranker=None) -> 
                     resp = await searcher.search(MemoryQuery(**mq_kwargs))
                     keys = _ranked_keys(resp, metric)
                 total += 1
-                if not resp.results:
+                if not keys:
                     empty_count += 1
                 pc = per_cat.setdefault(q.category, [0, 0])
                 pc[1] += 1
