@@ -246,7 +246,7 @@ async def _collect_query_records(
         for i, r in enumerate(resp.results):
             md = r.memory.metadata.model_dump()
             sid = str(md["session_id"]) if md.get("session_id") is not None else None
-            cs = getattr(r, '_pre_rerank_score', r.score)
+            cs = getattr(r, 'pre_rerank_score', r.score)
             entries.append(ResultEntry(
                 score=r.score,
                 composite_score=cs,
