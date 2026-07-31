@@ -105,12 +105,20 @@ def handle() -> None:
 
     block = _build_yaml_block(mcp_argv)
 
-    # Match only a root-level (unindented) block-style "extensions:" header.
-    # An indented "extensions:" (nested under another key) or an inline form
-    # like "extensions: {}" should not trigger insertion.
-    has_extensions_block = any(line.rstrip("\r\n") == "extensions:" for line in cleaned.splitlines())
+    # Match only root-level (unindented) "extensions:" headers.
+    # A root-level block header may have a trailing comment: "extensions: # managed"
+    # An inline form like "extensions: {}" has non-comment content after the colon.
+    import re
+
+    root_extensions_lines = [
+        line for line in cleaned.splitlines() if not line.startswith(" ") and not line.startswith("\t")
+    ]
+    has_extensions_block = any(re.match(r"^extensions:\s*(?:#.*)?$", line) for line in root_extensions_lines)
     has_extensions_inline = any(
-        line.lstrip().startswith("extensions:") and line.rstrip("\r\n") != "extensions:"
+        line.lstrip().startswith("extensions:")
+        and not re.match(r"^extensions:\s*(?:#.*)?$", line)
+        and not line.startswith(" ")
+        and not line.startswith("\t")
         for line in cleaned.splitlines()
     )
 
@@ -132,7 +140,7 @@ def handle() -> None:
         inserted = False
         for line in lines:
             output.append(line)
-            if not inserted and line.rstrip("\r\n") == "extensions:":
+            if not inserted and re.match(r"^extensions:\s*(?:#.*)?$", line):
                 output.append(block)
                 inserted = True
         if not inserted:
