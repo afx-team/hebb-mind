@@ -265,6 +265,7 @@ class MemorySearcher:
             tail = results[self.reranker.top_n :]
             rerank_scores = await self.reranker.score(query.query, [r.memory.content for r in pool])
             for r, s in zip(pool, rerank_scores, strict=False):
+                r._pre_rerank_score = r.score  # preserve composite for post-hoc analysis
                 r.score = float(s)
                 r.relevance_score = float(s)
             pool.sort(key=lambda r: r.score, reverse=True)
