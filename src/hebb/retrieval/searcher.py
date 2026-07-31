@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Callable
 from datetime import datetime, timezone
+from typing import TypeVar
 
 from hebb.embedding.base import EmbeddingProvider
 from hebb.graph.knowledge_graph import KnowledgeGraph
@@ -45,6 +47,24 @@ _RECENCY_DECAY_FACTOR = 0.693
 # rerank-scale floor with this ratio: a relevant cross-encoder hit clears ~0.5
 # sigmoid, so a 0.8 composite floor maps to a 0.5 sigmoid floor (0.8 * 0.625).
 _RERANK_FLOOR_RATIO = 0.625
+
+# IDF corpus statistics — ``corpus_size`` and the documents-frequency dict for a
+# query's surface tokens — change only when memories are written, which is rare
+# relative to the read-heavy search/recall workload. Re-fetching them on every
+# ``search()`` repeats SQL the previous identical query already paid for; e.g.
+# ``RecallAgent`` fires 3 queries back-to-back over an unchanged corpus. A short
+# instance-level TTL (rather than event-driven write invalidation) bounds
+# staleness cheaply: stale stats only drift IDF slightly, never corrupt results,
+# and the TTL regenerates each entry shortly after any new write. See
+# :meth:`MemorySearcher._build_idf`. Copied to ``self._idf_cache_ttl`` so tests
+# can shorten it without sleeping through 60s.
+_IDF_CACHE_TTL = 60.0
+# Bound cache growth when a long-lived searcher sees many partition scopes or
+# one-off query terms. The cache is an optimisation, so eviction is preferable
+# to retaining unbounded application state.
+_IDF_CORPUS_CACHE_MAX_ENTRIES = 128
+_IDF_DF_CACHE_MAX_ENTRIES = 4096
+_CacheKey = TypeVar("_CacheKey")
 
 
 class MemorySearcher:
@@ -91,6 +111,33 @@ class MemorySearcher:
         # its intrinsic top-1/top-k so it stands on its own (and feeds RRF a
         # better rank) without depending on the cross-encoder reranker.
         self.keyword_blend_enabled = keyword_blend_enabled
+        # IDF statistic caches (issue #54) — short-TTL, instance-level dicts so
+        # repeated ``search()`` over an unchanged corpus reuses ``corpus_size`` and
+        # per-query document frequencies instead of re-hitting the store. The two
+        # depend on different inputs, so they get independent dicts:
+        #   * ``_corpus_size_cache``: keyed by the partition scope (corpus size
+        #     depends only on which partitions are searched, not the query).
+        #   * ``_df_cache``: keyed by (token, partition scope) — DF depends on both
+        #     the token and the partition, so the token MUST be in the key to stop
+        #     one query's "alpha" frequency overwriting another's "beta".
+        # Values are ``(result, expires_at)`` with ``expires_at`` a ``time.monotonic``
+        # deadline. Zero corpus sizes and omitted/zero DF results are cached too;
+        # queries with no eligible surface tokens return before any store call.
+        self._idf_cache_ttl: float = _IDF_CACHE_TTL
+        self._corpus_size_cache: dict[tuple[str, ...] | None, tuple[int, float]] = {}
+        # Per-token DF cache: keyed by (token, partition-scope) so one query's
+        # frequency for "alpha" never overwrites another's for "beta", and the
+        # same token reuses its df across the back-to-back recall queries.
+        self._df_cache: dict[tuple[str, tuple[str, ...] | None], tuple[int, float]] = {}
+        # Serialise the cache miss → store round-trip → back-fill critical section
+        # across concurrent ``_build_idf`` calls. Without it, two coroutines that
+        # both miss the same key each fetch from the store and race to back-fill
+        # (correct result, but a wasted DB hit). The lock guards only this in/out
+        # dance; uncached candidates wait on a hit that the first caller produces.
+        # Coarse-grained on purpose: a per-key lock registry needs its own lock,
+        # and the section it protects is a single short DB round-trip, so holding
+        # one instance lock is simpler and costs no meaningful concurrency.
+        self._idf_cache_lock: asyncio.Lock = asyncio.Lock()
 
     async def search(self, query: MemoryQuery) -> SearchResponse:
         # Sanitize LLM-generated queries (XML tags, tool artifacts, etc.)
@@ -471,6 +518,73 @@ class MemorySearcher:
     # IDF weighting for calibrated lexical relevance
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _idf_partition_key(partition_ids: list[str] | None) -> tuple[str, ...] | None:
+        """Normalise a partition scope into a hashable cache key.
+
+        ``None`` (search the whole corpus) stays ``None``; a list is de-duped and
+        sorted so the same partition set in any order maps to one entry. That cost
+        is negligible next to the store round-trip it lets us skip.
+        """
+        return None if partition_ids is None else tuple(sorted(dict.fromkeys(partition_ids)))
+
+    def _idf_corpus_size_get(self, now: float, partition_key: tuple[str, ...] | None) -> int | None:
+        """Return the cached corpus size if present and fresh, else ``None``.
+
+        A miss — never cached, or the entry aged past its TTL deadline — yields
+        ``None`` so the caller re-fetches and back-fills; a cached ``0`` (empty
+        corpus) is a real answer we deliberately keep, distinguished from a miss
+        by being a non-``None`` entry.
+        """
+        entry = self._corpus_size_cache.get(partition_key)
+        if entry is None:
+            return None
+        size, expires_at = entry
+        if now >= expires_at:
+            del self._corpus_size_cache[partition_key]
+            return None
+        return size
+
+    def _idf_corpus_size_put(self, size: int, now: float, partition_key: tuple[str, ...] | None) -> None:
+        """Cache ``size`` for the partition scope with a TTL deadline stamp."""
+        self._idf_prune_cache(self._corpus_size_cache, now, _IDF_CORPUS_CACHE_MAX_ENTRIES)
+        self._corpus_size_cache[partition_key] = (size, now + self._idf_cache_ttl)
+
+    def _idf_df_get(self, token: str, partition_key: tuple[str, ...] | None, now: float) -> int | None:
+        """Return the cached document frequency for ``token`` if fresh, else ``None``.
+
+        A cached ``0`` (term absent from the corpus) is kept — it is a real
+        answer, not a miss — so repeat lookups of an unseen term skip the store.
+        """
+        entry = self._df_cache.get((token, partition_key))
+        if entry is None:
+            return None
+        df, expires_at = entry
+        if now >= expires_at:
+            del self._df_cache[(token, partition_key)]
+            return None
+        return df
+
+    def _idf_df_put(self, token: str, partition_key: tuple[str, ...] | None, df: int, now: float) -> None:
+        """Cache a document frequency for ``token`` with a TTL deadline stamp."""
+        self._idf_prune_cache(self._df_cache, now, _IDF_DF_CACHE_MAX_ENTRIES)
+        self._df_cache[(token, partition_key)] = (df, now + self._idf_cache_ttl)
+
+    @staticmethod
+    def _idf_prune_cache(cache: dict[_CacheKey, tuple[int, float]], now: float, max_entries: int) -> None:
+        """Remove expired entries and oldest entries before a cache insertion.
+
+        These caches are deliberately tiny implementation details rather than a
+        source of truth. Evicting insertion-order entries keeps memory bounded
+        without adding a dependency or changing the externally visible search
+        behaviour: an evicted entry simply becomes a normal store miss.
+        """
+        for key, (_, expires_at) in list(cache.items()):
+            if now >= expires_at:
+                del cache[key]
+        while len(cache) >= max_entries:
+            del cache[next(iter(cache))]
+
     async def _build_idf(self, query: str, partition_ids: list[str] | None) -> Callable[[str], float] | None:
         """Build a ``token -> idf`` weighter from corpus document frequencies.
 
@@ -479,6 +593,13 @@ class MemorySearcher:
         scoped to the searched partitions, then builds an IDF callable so the
         calibrated relevance honours its "Σ idf·matched / Σ idf" contract. Rare,
         discriminating terms dominate; generic shared words barely move the score.
+
+        ``corpus_size`` and the per-token document frequencies are short-TTL
+        instance-level cached (``_corpus_size_cache`` / ``_df_cache``, issue #54):
+        a repeated ``search()`` over an unchanged corpus, or a later query whose
+        surface tokens overlap the first, reuses cached stats and skips the store
+        round-trip. Zero/omitted results are cached too. Fall through to the store
+        only on a cache miss or after the TTL elapses, then back-fill the cache.
 
         Args:
             query: Raw user query.
@@ -493,10 +614,54 @@ class MemorySearcher:
         surface = [*query_surface_tokens(query), *cjk_surface_tokens(query)]
         if not surface:
             return None
-        total_docs = await self.store.corpus_size(partition_ids)
-        if total_docs <= 0:
+        partition_key = self._idf_partition_key(partition_ids)
+
+        def cached_dfs(now: float) -> tuple[dict[str, int], list[str]]:
+            doc_freqs: dict[str, int] = {}
+            miss_tokens: list[str] = []
+            for token in dict.fromkeys(surface):
+                df = self._idf_df_get(token, partition_key, now)
+                if df is None:
+                    miss_tokens.append(token)
+                else:
+                    doc_freqs[token] = df
+            return doc_freqs, miss_tokens
+
+        # Complete cache hits should not wait behind an unrelated cold query.
+        # A second check under the lock below preserves miss de-duplication.
+        now = time.monotonic()
+        total_docs = self._idf_corpus_size_get(now, partition_key)
+        if total_docs is not None and total_docs > 0:
+            doc_freqs, miss_tokens = cached_dfs(now)
+            if not miss_tokens:
+                return make_idf(doc_freqs, total_docs)
+        elif total_docs == 0:
             return None
-        doc_freqs = await self.store.keyword_doc_freqs(surface, partition_ids)
+
+        # Only the miss → store round-trip → back-fill section is locked. This
+        # keeps complete cache hits concurrent while still ensuring identical
+        # cold requests share one store fetch.
+        async with self._idf_cache_lock:
+            now = time.monotonic()
+            total_docs = self._idf_corpus_size_get(now, partition_key)
+            if total_docs is None:
+                total_docs = await self.store.corpus_size(partition_ids)
+                self._idf_corpus_size_put(total_docs, now, partition_key)
+            if total_docs <= 0:
+                return None
+            doc_freqs, miss_tokens = cached_dfs(now)
+            # Batch the misses in one store round-trip (the store's DF API accepts
+            # a term list), then back-fill the per-token cache so the next
+            # overlapping query — ``RecallAgent`` fires 3 back-to-back — reuses
+            # what it can. A term the store omits is recorded as df 0 (its
+            # "best-effort" convention): cache and surface that 0, never the
+            # absence-of-lookup default.
+            if miss_tokens:
+                fetched = await self.store.keyword_doc_freqs(miss_tokens, partition_ids)
+                for token in miss_tokens:
+                    df = fetched.get(token, 0)
+                    self._idf_df_put(token, partition_key, df, now)
+                    doc_freqs[token] = df
         return make_idf(doc_freqs, total_docs)
 
     # ------------------------------------------------------------------
