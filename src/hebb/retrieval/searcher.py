@@ -6,6 +6,7 @@ import asyncio
 import time
 from collections.abc import Callable
 from datetime import datetime, timezone
+from typing import TypeVar
 
 from hebb.embedding.base import EmbeddingProvider
 from hebb.graph.knowledge_graph import KnowledgeGraph
@@ -58,6 +59,12 @@ _RERANK_FLOOR_RATIO = 0.625
 # :meth:`MemorySearcher._build_idf`. Copied to ``self._idf_cache_ttl`` so tests
 # can shorten it without sleeping through 60s.
 _IDF_CACHE_TTL = 60.0
+# Bound cache growth when a long-lived searcher sees many partition scopes or
+# one-off query terms. The cache is an optimisation, so eviction is preferable
+# to retaining unbounded application state.
+_IDF_CORPUS_CACHE_MAX_ENTRIES = 128
+_IDF_DF_CACHE_MAX_ENTRIES = 4096
+_CacheKey = TypeVar("_CacheKey")
 
 
 class MemorySearcher:
@@ -114,8 +121,8 @@ class MemorySearcher:
         #     the token and the partition, so the token MUST be in the key to stop
         #     one query's "alpha" frequency overwriting another's "beta".
         # Values are ``(result, expires_at)`` with ``expires_at`` a ``time.monotonic``
-        # deadline. ``None`` / empty results are cached too, so an empty corpus or a
-        # query with no DF-eligible tokens doesn't re-hit the store every call.
+        # deadline. Zero corpus sizes and omitted/zero DF results are cached too;
+        # queries with no eligible surface tokens return before any store call.
         self._idf_cache_ttl: float = _IDF_CACHE_TTL
         self._corpus_size_cache: dict[tuple[str, ...] | None, tuple[int, float]] = {}
         # Per-token DF cache: keyed by (token, partition-scope) so one query's
@@ -540,6 +547,7 @@ class MemorySearcher:
 
     def _idf_corpus_size_put(self, size: int, now: float, partition_key: tuple[str, ...] | None) -> None:
         """Cache ``size`` for the partition scope with a TTL deadline stamp."""
+        self._idf_prune_cache(self._corpus_size_cache, now, _IDF_CORPUS_CACHE_MAX_ENTRIES)
         self._corpus_size_cache[partition_key] = (size, now + self._idf_cache_ttl)
 
     def _idf_df_get(self, token: str, partition_key: tuple[str, ...] | None, now: float) -> int | None:
@@ -559,7 +567,23 @@ class MemorySearcher:
 
     def _idf_df_put(self, token: str, partition_key: tuple[str, ...] | None, df: int, now: float) -> None:
         """Cache a document frequency for ``token`` with a TTL deadline stamp."""
+        self._idf_prune_cache(self._df_cache, now, _IDF_DF_CACHE_MAX_ENTRIES)
         self._df_cache[(token, partition_key)] = (df, now + self._idf_cache_ttl)
+
+    @staticmethod
+    def _idf_prune_cache(cache: dict[_CacheKey, tuple[int, float]], now: float, max_entries: int) -> None:
+        """Remove expired entries and oldest entries before a cache insertion.
+
+        These caches are deliberately tiny implementation details rather than a
+        source of truth. Evicting insertion-order entries keeps memory bounded
+        without adding a dependency or changing the externally visible search
+        behaviour: an evicted entry simply becomes a normal store miss.
+        """
+        for key, (_, expires_at) in list(cache.items()):
+            if now >= expires_at:
+                del cache[key]
+        while len(cache) >= max_entries:
+            del cache[next(iter(cache))]
 
     async def _build_idf(self, query: str, partition_ids: list[str] | None) -> Callable[[str], float] | None:
         """Build a ``token -> idf`` weighter from corpus document frequencies.
@@ -574,7 +598,7 @@ class MemorySearcher:
         instance-level cached (``_corpus_size_cache`` / ``_df_cache``, issue #54):
         a repeated ``search()`` over an unchanged corpus, or a later query whose
         surface tokens overlap the first, reuses cached stats and skips the store
-        round-trip. ``None``/zero results are cached too. Fall through to the store
+        round-trip. Zero/omitted results are cached too. Fall through to the store
         only on a cache miss or after the TTL elapses, then back-fill the cache.
 
         Args:
@@ -591,44 +615,41 @@ class MemorySearcher:
         if not surface:
             return None
         partition_key = self._idf_partition_key(partition_ids)
-        now = time.monotonic()
 
-        # The cache miss → store round-trip → back-fill section is the only
-        # mutating part of this method and the only place a DB call happens, so
-        # it is the seam concurrent ``_build_idf`` calls could race on: two
-        # coroutines entering with the same cold key would both fetch and
-        # back-fill, wasting a round-trip. Holding the instance lock across it
-        # makes a concurrent waiter re-check the cache under the lock — by which
-        # point the first caller has populated it — so only the leader fetches.
-        async with self._idf_cache_lock:
-            total_docs = self._idf_corpus_size_get(now, partition_key)
-            if total_docs is None:
-                total_docs = await self.store.corpus_size(partition_ids)
-                self._idf_corpus_size_put(total_docs, now, partition_key)
-            if total_docs is None or total_docs <= 0:
-                return None
-            corpus_size: int = total_docs
-
-            # De-dupe surface tokens once: DF is per-token, and ``make_idf`` looks
-            # up by key, so duplicates only churn the cache key lookups, never the
-            # result.
-            unique_tokens = dict.fromkeys(surface)
+        def cached_dfs(now: float) -> tuple[dict[str, int], list[str]]:
             doc_freqs: dict[str, int] = {}
             miss_tokens: list[str] = []
-            # Re-checking DF under the lock is what lets a concurrent waiter ride
-            # on the leader's back-fill instead of re-fetching. Resolved DFs
-            # (cache hit, or freshly fetched below) flow into ``doc_freqs``
-            # verbatim — including ``0`` — so ``make_idf`` sees the same
-            # ``{token: df}`` map the store returned. Only tokens never looked up
-            # are absent, which ``make_idf`` treats as rare (``default_df``),
-            # matching the uncached code path that passed the whole fetched dict
-            # straight through.
-            for token in unique_tokens:
+            for token in dict.fromkeys(surface):
                 df = self._idf_df_get(token, partition_key, now)
                 if df is None:
                     miss_tokens.append(token)
                 else:
                     doc_freqs[token] = df
+            return doc_freqs, miss_tokens
+
+        # Complete cache hits should not wait behind an unrelated cold query.
+        # A second check under the lock below preserves miss de-duplication.
+        now = time.monotonic()
+        total_docs = self._idf_corpus_size_get(now, partition_key)
+        if total_docs is not None and total_docs > 0:
+            doc_freqs, miss_tokens = cached_dfs(now)
+            if not miss_tokens:
+                return make_idf(doc_freqs, total_docs)
+        elif total_docs == 0:
+            return None
+
+        # Only the miss → store round-trip → back-fill section is locked. This
+        # keeps complete cache hits concurrent while still ensuring identical
+        # cold requests share one store fetch.
+        async with self._idf_cache_lock:
+            now = time.monotonic()
+            total_docs = self._idf_corpus_size_get(now, partition_key)
+            if total_docs is None:
+                total_docs = await self.store.corpus_size(partition_ids)
+                self._idf_corpus_size_put(total_docs, now, partition_key)
+            if total_docs <= 0:
+                return None
+            doc_freqs, miss_tokens = cached_dfs(now)
             # Batch the misses in one store round-trip (the store's DF API accepts
             # a term list), then back-fill the per-token cache so the next
             # overlapping query — ``RecallAgent`` fires 3 back-to-back — reuses
@@ -641,7 +662,7 @@ class MemorySearcher:
                     df = fetched.get(token, 0)
                     self._idf_df_put(token, partition_key, df, now)
                     doc_freqs[token] = df
-        return make_idf(doc_freqs, corpus_size)
+        return make_idf(doc_freqs, total_docs)
 
     # ------------------------------------------------------------------
     # Path 3: Graph retrieval (query → match tags → expand → memories)

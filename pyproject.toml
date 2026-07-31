@@ -41,7 +41,10 @@ dependencies = [
     "httpx>=0.27.0",
     "PyJWT>=2.8.0",
     "networkx>=3.1",
-    "mcp>=1.0.0",
+    # FastMCP lives at mcp.server.fastmcp in the 1.x API used by this project.
+    # Keep the upper bound so an unannounced 2.x release cannot break imports
+    # during an otherwise unrelated CI run.
+    "mcp>=1.0.0,<2.0.0",
     # Repairs malformed LLM JSON (doubled braces, truncation, trailing commas).
     # Pure-Python, MIT, no mandatory transitive deps.
     "json-repair>=0.30.0",

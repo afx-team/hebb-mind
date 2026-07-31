@@ -67,9 +67,7 @@ class _RecordingStore:
         self.corpus_size_calls += 1
         return self._corpus_size
 
-    async def keyword_doc_freqs(
-        self, terms: list[str], partition_ids: list[str] | None = None
-    ) -> dict[str, int]:
+    async def keyword_doc_freqs(self, terms: list[str], partition_ids: list[str] | None = None) -> dict[str, int]:
         self.doc_freq_calls += 1
         # Default absent terms to df 1 (the store's "best-effort" convention):
         # an unseen query term is treated as rare, not zero.
@@ -240,6 +238,24 @@ async def test_partition_key_is_order_independent(order_a: list[str], order_b: l
     assert store.corpus_size_calls == corpus_after_first  # same set → hit
 
 
+async def test_zero_statistics_are_cached() -> None:
+    """Zero corpus/DF values are answers, not cache misses."""
+    empty_store = _RecordingStore(corpus_size=0)
+    empty_searcher = _make_searcher(empty_store)
+
+    assert await empty_searcher._build_idf("alpha", ["p1"]) is None
+    assert await empty_searcher._build_idf("alpha", ["p1"]) is None
+    assert empty_store.corpus_size_calls == 1
+    assert empty_store.doc_freq_calls == 0
+
+    zero_df_store = _RecordingStore(corpus_size=10, df_map={"alpha": 0})
+    zero_df_searcher = _make_searcher(zero_df_store)
+    assert await zero_df_searcher._build_idf("alpha", ["p1"]) is not None
+    assert await zero_df_searcher._build_idf("alpha", ["p1"]) is not None
+    assert zero_df_store.corpus_size_calls == 1
+    assert zero_df_store.doc_freq_calls == 1
+
+
 # ---------------------------------------------------------------------------
 # Concurrent miss de-duplication (the instance lock around the miss section)
 # ---------------------------------------------------------------------------
@@ -287,7 +303,7 @@ async def test_concurrent_distinct_keys_still_fetch_their_own() -> None:
     df_before = store.doc_freq_calls
 
     await asyncio.gather(
-        searcher._build_idf("beta", ["p1"]),   # new token → its own DF fetch
+        searcher._build_idf("beta", ["p1"]),  # new token → its own DF fetch
         searcher._build_idf("gamma", ["p1"]),  # different new token → its own
     )
 

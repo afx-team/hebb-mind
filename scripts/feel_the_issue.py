@@ -12,10 +12,11 @@ asserted. Intended for a human to read the output, so it narrates as it goes.
 
 from __future__ import annotations
 
-import shutil
 import sys
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
+from collections.abc import Iterator
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -73,9 +74,11 @@ def _run_workload(hc: HebbMind) -> tuple[int, int]:
     return c.corpus, c.df
 
 
-def _new_home() -> Path:
-    home = Path(tempfile.mkdtemp())
-    return home
+@contextmanager
+def _temporary_home() -> Iterator[Path]:
+    """Provide a temporary Hebb home that is cleaned up on failure too."""
+    with tempfile.TemporaryDirectory() as home:
+        yield Path(home)
 
 
 def main() -> int:
@@ -85,30 +88,26 @@ def main() -> int:
 
     # ---- A) With cache (default, TTL=60s) ------------------------------- #
     print("\n[A] WITH cache (TTL=60s, the fix):")
-    home_a = _new_home()
-    sa = Settings(home_dir=home_a, llm_model="openai/gpt-4o-mini",
-                  embedding_provider="noop", embedding_dim=3)
-    hc = HebbMind(config=sa)
-    _seed(hc)
-    corpus_a, df_a = _run_workload(hc)
-    print(f"    3 recall queries + 4 retried same-query searches")
-    print(f"      → {corpus_a} corpus_size SQL, {df_a} DF SQL")
-    hc.close()
-    shutil.rmtree(home_a, ignore_errors=True)
+    with _temporary_home() as home_a:
+        sa = Settings(home_dir=home_a, llm_model="openai/gpt-4o-mini",
+                      embedding_provider="noop", embedding_dim=3)
+        with HebbMind(config=sa) as hc:
+            _seed(hc)
+            corpus_a, df_a = _run_workload(hc)
+        print("    3 recall queries + 4 retried same-query searches")
+        print(f"      → {corpus_a} corpus_size SQL, {df_a} DF SQL")
 
     # ---- B) Without cache (TTL=0 → every call re-fetches) --------------- #
     print("\n[B] WITHOUT cache (TTL=0 → re-fetch every time):")
-    home_b = _new_home()
-    sb = Settings(home_dir=home_b, llm_model="openai/gpt-4o-mini",
-                  embedding_provider="noop", embedding_dim=3)
-    hc = HebbMind(config=sb)
-    _seed(hc)
-    hc._searcher._idf_cache_ttl = 0.0  # neutralise: all entries expire instantly
-    corpus_b, df_b = _run_workload(hc)
-    print(f"    3 recall queries + 4 retried same-query searches")
-    print(f"      → {corpus_b} corpus_size SQL, {df_b} DF SQL")
-    hc.close()
-    shutil.rmtree(home_b, ignore_errors=True)
+    with _temporary_home() as home_b:
+        sb = Settings(home_dir=home_b, llm_model="openai/gpt-4o-mini",
+                      embedding_provider="noop", embedding_dim=3)
+        with HebbMind(config=sb) as hc:
+            _seed(hc)
+            hc._searcher._idf_cache_ttl = 0.0  # neutralise: all entries expire instantly
+            corpus_b, df_b = _run_workload(hc)
+        print("    3 recall queries + 4 retried same-query searches")
+        print(f"      → {corpus_b} corpus_size SQL, {df_b} DF SQL")
 
     # ---- Verdict -------------------------------------------------------- #
     print("\n" + "=" * 64)

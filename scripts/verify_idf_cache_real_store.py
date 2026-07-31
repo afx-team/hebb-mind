@@ -147,18 +147,18 @@ async def main() -> int:
         three_df = recall_counter.df_calls - start_df
         # corpus_size depends only on the partition scope → fetched exactly once.
         # DF is per-token; alpha/beta/gamma repeat across the 3 queries and are
-        # fetched only the first time they appear, while the fresh delta/epsilon
-        # add a few misses — so >1 DF call but far fewer than 3 queries × terms.
-        check2_ok = three_corpus == 1 and three_df >= 1
+        # fetched only the first time they appear. The three queries should need
+        # exactly two batches here: alpha/beta/delta, then the new gamma.
+        check2_ok = three_corpus == 1 and 1 <= three_df <= 2
         print(
             f"\nCheck 2 — RecallAgent 3-query pass (queries[:3], overlapping tokens):\n"
             f"  3 searches → {three_corpus} corpus_size call(s), {three_df} DF call(s)\n"
-            f"  (expect corpus_size == 1; DF >=1 and reused across overlap, not per-query)"
+            f"  (expect corpus_size == 1; 1 <= DF <= 2 with overlap reuse)"
         )
         if not check2_ok:
             failures.append(
                 f"Check 2: 3-query pass issued {three_corpus} corpus_size / {three_df} DF calls "
-                "(expected corpus_size==1, DF reused)."
+                "(expected corpus_size==1 and 1 <= DF <= 2 with reuse)."
             )
 
         await conn.close()
