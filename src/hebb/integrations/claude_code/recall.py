@@ -53,6 +53,21 @@ def _resolve_hook_min_score() -> float | None:
         return None
 
 
+def _resolve_hook_filter_score() -> float | None:
+    """Return the per-deployment filter_score override, or None for default.
+
+    Priority: recall_hook_min_score > filter_score > None (strict_recall path).
+    """
+    try:
+        settings = load_settings()
+        # If recall_hook_min_score is explicitly set, use it as filter_score
+        if settings.recall_hook_min_score is not None:
+            return settings.recall_hook_min_score
+        return settings.filter_score
+    except Exception:
+        return None
+
+
 def handle() -> None:
     """SessionStart: warm up with a generic background recall."""
     hook_input = read_hook_input()
@@ -62,6 +77,7 @@ def handle() -> None:
         current_session_id=session_id,
         timeout=20,
         min_score=_resolve_hook_min_score(),
+        filter_score=_resolve_hook_filter_score(),
     )
 
 
@@ -87,10 +103,11 @@ def handle_prompt() -> None:
         current_session_id=session_id,
         timeout=5,
         min_score=_resolve_hook_min_score(),
+        filter_score=_resolve_hook_filter_score(),
     )
 
 
-def _recall_and_print(query: str, current_session_id: str, timeout: float, min_score: float | None = None) -> None:
+def _recall_and_print(query: str, current_session_id: str, timeout: float, min_score: float | None = None, filter_score: float | None = None) -> None:
     """Shared search → filter → emit pipeline for both hooks.
 
     A hook must never disturb the host: every step — connecting, searching,
@@ -103,6 +120,8 @@ def _recall_and_print(query: str, current_session_id: str, timeout: float, min_s
         current_session_id: Session id whose own memories are excluded from
             recall; ``""`` disables that filter.
         timeout: Per-request HTTP timeout in seconds.
+        min_score: Optional min_score override (legacy, use filter_score instead).
+        filter_score: Optional composite-score filter threshold (preferred).
     """
     try:
         client = get_client(timeout=timeout)
@@ -111,7 +130,7 @@ def _recall_and_print(query: str, current_session_id: str, timeout: float, min_s
         return
 
     try:
-        results = _fetch_filtered(client, query, current_session_id, min_score=min_score)
+        results = _fetch_filtered(client, query, current_session_id, min_score=min_score, filter_score=filter_score)
     except Exception:
         logger.debug("Memory recall failed", exc_info=True)
         return
@@ -129,7 +148,7 @@ def _recall_and_print(query: str, current_session_id: str, timeout: float, min_s
         logger.debug("Memory recall output failed", exc_info=True)
 
 
-def _fetch_filtered(client: httpx.Client, query: str, current_session_id: str, min_score: float | None = None) -> list[dict[str, Any]]:
+def _fetch_filtered(client: httpx.Client, query: str, current_session_id: str, min_score: float | None = None, filter_score: float | None = None) -> list[dict[str, Any]]:
     """Search, then drop current-session hits, over-fetching when starved.
 
     Filtering the current session *after* the fetch means a long active
@@ -142,6 +161,8 @@ def _fetch_filtered(client: httpx.Client, query: str, current_session_id: str, m
         client: An open HTTP client for the Hebb Mind REST API.
         query: Search query string.
         current_session_id: Session id to exclude; ``""`` disables the filter.
+        min_score: Optional min_score override (legacy, use filter_score instead).
+        filter_score: Optional composite-score filter threshold (preferred).
 
     Returns:
         Up to ``_TOP_K_RETURN`` result dicts from other sessions.
@@ -153,7 +174,11 @@ def _fetch_filtered(client: httpx.Client, query: str, current_session_id: str, m
     top_k = _TOP_K_FETCH
     while True:
         body: dict[str, object] = {"query": query, "top_k": top_k}
-        if min_score is not None:
+        # Prefer filter_score over min_score for composite-score filtering
+        if filter_score is not None:
+            body["filter_score"] = filter_score
+            body["strict_recall"] = True
+        elif min_score is not None:
             body["min_score"] = min_score
             body["strict_recall"] = True
         else:

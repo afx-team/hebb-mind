@@ -175,7 +175,7 @@ export function buildGenericSection(group, config) {
       saveBtn.addEventListener('click', async () => {
         const raw = input.type === 'checkbox' ? String(input.checked) : input.value;
         // Frontend validation for 0-1 numeric fields before hitting the API.
-        if ((key === 'rerank_floor_ratio' || key === 'recall_min_score') && raw !== '') {
+        if (key === 'filter_score' && raw !== '') {
           const num = Number(raw.trim());
           if (!Number.isFinite(num) || num < 0 || num > 1) {
             error(t('settings.error.range_0_1', { key }));
@@ -206,9 +206,6 @@ export function renderInput(key, value) {
   }
   const type = SENSITIVE_KEYS.has(key) ? 'password' : 'text';
   let displayValue = value == null ? '' : String(value);
-  if (value == null && key === 'rerank_floor_ratio') {
-    displayValue = '0.625';
-  }
   if (key === 'consolidation_time') {
     return `<input class="form-input setting-input" type="time" step="60" value="${esc(displayValue)}" data-key="${key}">`;
   }

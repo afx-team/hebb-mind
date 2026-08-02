@@ -355,8 +355,8 @@ class TestRecallHook:
         recall.handle()
         assert len(client.calls) == 1
         _, body = client.calls[0]
-        assert body["min_score"] == 0.7
-        assert "strict_recall" not in body
+        assert body["filter_score"] == 0.7
+        assert body["strict_recall"] is True
 
     def test_handle_defaults_to_strict_recall_when_hook_min_score_none(
         self, monkeypatch: pytest.MonkeyPatch,
@@ -408,7 +408,7 @@ class TestPromptRecallHook:
         assert client.calls == [
             (
                 "/api/v1/search",
-                {"query": "How do I reset my password?", "top_k": 20, "strict_recall": True},
+                {"query": "How do I reset my password?", "top_k": 20, "filter_score": 0.6, "strict_recall": True},
             ),
         ]
         assert client.closed is True
@@ -428,8 +428,8 @@ class TestPromptRecallHook:
         recall.handle_prompt()
         assert len(client.calls) == 1
         _, body = client.calls[0]
-        assert body["min_score"] == 0.65
-        assert "strict_recall" not in body
+        assert body["filter_score"] == 0.65
+        assert body["strict_recall"] is True
 
     def test_strips_noise_from_prompt_before_querying(self, monkeypatch: pytest.MonkeyPatch):
         client = _FakeClient({"results": []})

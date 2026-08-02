@@ -133,23 +133,41 @@ class Settings(BaseModel):
     # Relevance floor for strict recall surfaces (Claude Code hook, MCP). Those
     # callers send strict_recall=True and the server drops any result scoring
     # below this. Does not affect the console Search page, which is unfiltered.
+    # Adjusted from 0.8 to 0.6 based on LoCoMo eval (1978 queries): 0.8 caused
+    # 39% empty-recall queries; 0.6 gives R@10=91.5% with 1.0% empty fraction.
     recall_min_score: float = Field(
-        default=0.8,
+        default=0.6,
         ge=0.0,
         le=1.0,
-        description="Min relevance score (0-1) for hook/MCP recall; results below are dropped (console Search unaffected)",
+        description="Min relevance score (0-1) for hook/MCP recall; results below are dropped (console Search unaffected). "
+        "Recommended: 0.6 (R@10=91.5%, empty fraction=1.0% on LoCoMo eval).",
     )
-    # Floor translation ratio for the rerank scale: when strict_recall maps
-    # ``recall_min_score`` to the cross-encoder sigmoid range, this ratio is
-    # applied so the floor lives on the correct scale for reranked entries.
-    # Default 0.625 was derived from observation that a relevant cross-encoder
-    # hit clears ~0.5 sigmoid (0.8 * 0.625 = 0.5).
+    # DEPRECATED: This field is retained only as an emergency rollback switch.
+    # New code should use ``filter_score`` for composite-score filtering instead.
+    # Original purpose: translate the composite floor to the cross-encoder sigmoid
+    # scale for reranked entries, but eval (LoCoMo, 1978 queries) proved sigmoid
+    # scores are unsuitable for hard filtering — 39% of queries returned empty sets.
+    # See: eval/reports/threshold_calibration/threshold_calibration_review_v2.md
     rerank_floor_ratio: float = Field(
         default=0.625,
         ge=0.0,
         le=1.0,
-        description="Floor translation ratio for the rerank scale — applied when "
-        "strict_recall maps recall_min_score to the cross-encoder sigmoid range",
+        description="[DEPRECATED] Retained as emergency rollback only. Use filter_score instead. "
+        "Original purpose: translate composite floor to cross-encoder sigmoid scale "
+        "for reranked entries. Eval proved sigmoid scores unsuitable for hard filtering.",
+    )
+    # Composite-score filter threshold: when strict_recall is active, results
+    # with composite score below this value are dropped. Unlike the old
+    # rerank_floor_ratio approach, this filters on the composite scale directly,
+    # avoiding the sigmoid-score mismatch that caused 39% empty-recall queries.
+    # Recommended: 0.6 (R@10=91.5%, empty frac=1.0% on LoCoMo eval).
+    filter_score: float = Field(
+        default=0.6,
+        ge=0.0,
+        le=1.0,
+        description="Composite-score filter threshold (0-1) for strict recall; "
+        "results below this score are dropped. Recommended: 0.6 "
+        "(R@10=91.5%, empty fraction=1.0% on LoCoMo eval).",
     )
     recall_hook_min_score: float | None = Field(
         default=None,

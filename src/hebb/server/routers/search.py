@@ -38,6 +38,11 @@ async def search_memories(
     # ``min_score`` on the request still wins.
     if query.strict_recall and "min_score" not in query.model_fields_set:
         updates["min_score"] = settings.recall_min_score
+    # Composite-score filter: when strict_recall is active and the caller did
+    # not explicitly set filter_score, inject the configured default. This
+    # replaces the old dual-scale filtering that used rerank_floor_ratio.
+    if query.strict_recall and "filter_score" not in query.model_fields_set:
+        updates["filter_score"] = settings.filter_score
     # Fill the rerank-scale translation ratio when the caller did not
     # explicitly pass it. This applies to both strict_recall and explicit
     # min_score paths so the searcher always has the correct scale.

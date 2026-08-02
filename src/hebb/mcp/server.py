@@ -92,6 +92,7 @@ async def search_memory(
     query: str,
     top_k: int = 5,
     min_score: float | None = None,
+    filter_score: float | None = None,
 ) -> str:
     """Search for related memories using hybrid retrieval.
 
@@ -104,13 +105,21 @@ async def search_memory(
         min_score: Optional relevance floor (0-1). When set, overrides the
             server's configured ``recall_min_score``. When omitted, strict
             recall is enabled at the server's configured floor.
+            DEPRECATED: Use filter_score instead for composite-score filtering.
+        filter_score: Optional composite-score filter threshold (0-1). When set,
+            results below this score are dropped directly on the composite scale,
+            avoiding the sigmoid-score mismatch. Takes precedence over min_score.
     """
     from hebb.retrieval.query_sanitizer import sanitize_query
 
     query = sanitize_query(query)
 
     body: dict[str, object] = {"query": query, "top_k": top_k}
-    if min_score is not None:
+    # Prefer filter_score over min_score for composite-score filtering
+    if filter_score is not None:
+        body["filter_score"] = filter_score
+        body["strict_recall"] = True
+    elif min_score is not None:
         body["min_score"] = min_score
         body["strict_recall"] = True
     else:
