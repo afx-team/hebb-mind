@@ -88,9 +88,9 @@ class MemoryQuery(BaseModel):
         default=0.0, ge=0.0, le=1.0, description="Drop results scoring below this floor (0-1); 0 = no filter"
     )
     # Strict recall surfaces (Claude Code hook, MCP) set this so the server
-    # applies its configured ``recall_min_score`` floor without the caller
-    # needing to know the value. Ignored when ``min_score`` is set explicitly.
-    strict_recall: bool = Field(default=False, description="Apply the server's configured recall_min_score floor")
+    # injects its configured ``filter_score`` for composite-score filtering.
+    # Ignored when ``filter_score`` or ``min_score`` is set explicitly.
+    strict_recall: bool = Field(default=False, description="Apply the server's configured filter_score for composite-score filtering")
     # DEPRECATED: This field is retained only as an emergency rollback switch.
     # New code should use ``filter_score`` for composite-score filtering instead.
     # Original purpose: when ``min_score > 0`` and a reranker ran, the floor was

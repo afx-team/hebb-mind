@@ -54,13 +54,17 @@ def _resolve_hook_min_score() -> float | None:
 
 
 def _resolve_hook_filter_score() -> float | None:
-    """Return the per-deployment filter_score override, or None for default.
+    """Return the per-deployment filter_score override for composite-score filtering.
 
     Priority: recall_hook_min_score > filter_score > None (strict_recall path).
+
+    recall_hook_min_score serves as a deployment-level override that takes
+    precedence over the default filter_score, allowing ops to tune the hook
+    threshold without code changes.
     """
     try:
         settings = load_settings()
-        # If recall_hook_min_score is explicitly set, use it as filter_score
+        # Deployment-level override takes precedence
         if settings.recall_hook_min_score is not None:
             return settings.recall_hook_min_score
         return settings.filter_score

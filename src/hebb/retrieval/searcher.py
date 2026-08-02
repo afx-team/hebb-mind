@@ -287,7 +287,7 @@ class MemorySearcher:
         if query.filter_score > 0.0:
             kept: list[MemorySearchResult] = []
             for r in results:
-                if r.score >= query.filter_score:
+                if r.pre_rerank_score >= query.filter_score:
                     kept.append(r)
             results = kept
         # Fallback: legacy dual-scale filtering using rerank_floor_ratio.

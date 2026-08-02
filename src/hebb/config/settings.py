@@ -130,17 +130,18 @@ class Settings(BaseModel):
         description="Candidates to rerank before final top_k; auto-bumps searcher overfetch",
     )
 
-    # Relevance floor for strict recall surfaces (Claude Code hook, MCP). Those
-    # callers send strict_recall=True and the server drops any result scoring
-    # below this. Does not affect the console Search page, which is unfiltered.
-    # Adjusted from 0.8 to 0.6 based on LoCoMo eval (1978 queries): 0.8 caused
-    # 39% empty-recall queries; 0.6 gives R@10=91.5% with 1.0% empty fraction.
+    # DEPRECATED: This field is retained only as an emergency rollback switch.
+    # New code should use ``filter_score`` for composite-score filtering instead.
+    # The router no longer reads this field; it was replaced by filter_score
+    # after eval (LoCoMo, 1978 queries) proved sigmoid scores unsuitable for
+    # hard filtering. See: eval/reports/threshold_calibration/threshold_calibration_review_v2.md
     recall_min_score: float = Field(
         default=0.6,
         ge=0.0,
         le=1.0,
-        description="Min relevance score (0-1) for hook/MCP recall; results below are dropped (console Search unaffected). "
-        "Recommended: 0.6 (R@10=91.5%, empty fraction=1.0% on LoCoMo eval).",
+        description="[DEPRECATED] Retained as emergency rollback only. Use filter_score instead. "
+        "Original purpose: min relevance score for hook/MCP recall. "
+        "Replaced by filter_score after eval proved sigmoid scores unsuitable for hard filtering.",
     )
     # DEPRECATED: This field is retained only as an emergency rollback switch.
     # New code should use ``filter_score`` for composite-score filtering instead.

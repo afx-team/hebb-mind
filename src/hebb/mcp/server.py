@@ -102,13 +102,21 @@ async def search_memory(
     Args:
         query: Natural language search query.
         top_k: Maximum number of results to return (1-100, default 5).
-        min_score: Optional relevance floor (0-1). When set, overrides the
-            server's configured ``recall_min_score``. When omitted, strict
-            recall is enabled at the server's configured floor.
+        min_score: Optional relevance floor (0-1). When set, converted to
+            filter_score by the router for backward compatibility.
             DEPRECATED: Use filter_score instead for composite-score filtering.
         filter_score: Optional composite-score filter threshold (0-1). When set,
             results below this score are dropped directly on the composite scale,
             avoiding the sigmoid-score mismatch. Takes precedence over min_score.
+
+    Returns:
+        Formatted string with found memories (partition, score, tags, content)
+        and optional related memories from knowledge graph expansion.
+        Returns "No memories found." if no results pass the filter.
+
+    Raises:
+        httpx.HTTPStatusError: If the search server returns a non-2xx response.
+        httpx.ConnectError: If the search server is unreachable.
     """
     from hebb.retrieval.query_sanitizer import sanitize_query
 

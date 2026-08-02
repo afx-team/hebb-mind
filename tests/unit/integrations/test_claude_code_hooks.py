@@ -355,7 +355,8 @@ class TestRecallHook:
         recall.handle()
         assert len(client.calls) == 1
         _, body = client.calls[0]
-        assert body["filter_score"] == 0.7
+        # recall_hook_min_score overrides filter_score as deployment-level config
+        assert body["filter_score"] == 0.7  # from recall_hook_min_score
         assert body["strict_recall"] is True
 
     def test_handle_defaults_to_strict_recall_when_hook_min_score_none(
@@ -428,7 +429,8 @@ class TestPromptRecallHook:
         recall.handle_prompt()
         assert len(client.calls) == 1
         _, body = client.calls[0]
-        assert body["filter_score"] == 0.65
+        # recall_hook_min_score overrides filter_score as deployment-level config
+        assert body["filter_score"] == 0.65  # from recall_hook_min_score
         assert body["strict_recall"] is True
 
     def test_strips_noise_from_prompt_before_querying(self, monkeypatch: pytest.MonkeyPatch):
