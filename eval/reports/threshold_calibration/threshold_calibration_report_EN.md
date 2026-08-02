@@ -16,7 +16,7 @@ Specifically:
 1. **The sigmoid score distribution of bge-reranker-base is severely left-skewed** — the median for relevant samples is only 0.166 (the derived assumption of "~0.5" is completely invalid). No matter how the ratio is tuned, sigmoid-based filtering cannot simultaneously achieve R@10 ≥ 90% and empty recall rate < 5%.
 2. **The current default configuration (0.8, 0.625) is severely unusable**: 39% of queries return empty result sets, and R@10 is only 53.5%.
 3. **The correct approach is "reranker handles ranking, composite score handles filtering"**: retain the reranker's ranking gain (R@10 improves from 91.5% to 94.6%), but only apply the threshold to the composite score.
-4. **Recommended default `recall_min_score = 0.6`**: R@10 = 91.7%, empty recall rate = 1.0%, average 7.4 results — achieving the best balance between filtering purity and recall rate.
+4. **Recommended default `filter_score = 0.6`**: R@10 = 91.7%, empty recall rate = 1.0%, average 7.4 results — achieving the best balance between filtering purity and recall rate.
 
 ---
 
@@ -121,10 +121,10 @@ Rationale:
 
 | Configuration Item        | Current Value | Recommended Value        | Rationale                                                                 |
 | ------------------------- | ------------- | ------------------------ | ------------------------------------------------------------------------- |
-| `recall_min_score`        | 0.8           | **0.6**                  | R@10=91.7%, empty recall=1.0%, avg 7.4 results — balances filtering purity and recall |
+| `filter_score`            | —             | **0.6**                  | R@10=91.7%, empty recall=1.0%, avg 7.4 results — balances filtering purity and recall |
 | `rerank_floor_ratio`      | 0.625         | **Retained but not used in default filtering** | Kept as a fallback switch; can be enabled when sigmoid filtering is needed |
 
-**More lenient approach (if zero empty recall is required)**: `recall_min_score = 0.5`, R@10=93.0%, empty recall=0.0%, avg 8.7 results.
+**More lenient approach (if zero empty recall is required)**: `filter_score = 0.5`, R@10=93.0%, empty recall=0.0%, avg 8.7 results.
 
 ### 4.3 Comparison of Two Approaches
 
@@ -161,8 +161,8 @@ floor = query.min_score  # All results use composite score
 
 ### 5.3 Backward Compatibility
 
-- Existing callers that do not pass `min_score` will automatically use the new global default of 0.6
-- `rerank_floor_ratio` is retained as a configurable option; can be switched back to sigmoid filtering with a single toggle if needed
+- Existing callers that do not pass `filter_score` will automatically use the new global default of 0.6
+- `rerank_floor_ratio` and `recall_min_score` are marked DEPRECATED and retained as emergency rollback switches; modify hebb.json to revert to sigmoid filtering without redeployment
 
 ---
 

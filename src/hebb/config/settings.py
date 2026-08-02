@@ -174,8 +174,9 @@ class Settings(BaseModel):
         default=None,
         ge=0.0,
         le=1.0,
-        description="Per-deployment min_score override for the recall hook; "
-        "None = use strict_recall (global recall_min_score)",
+        description="Per-deployment filter_score override for the recall hook; "
+        "when set, the hook uses this value for composite-score filtering "
+        "instead of the global filter_score default.",
     )
 
     # Retrieval-induced strengthening ("提取即强化" / testing effect): when a

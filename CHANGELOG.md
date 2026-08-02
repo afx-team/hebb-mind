@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as DEPRECATED. Plumb `min_score`/`filter_score` through MCP server and Claude
   Code recall hook. Based on full LoCoMo eval (1978 queries), confirm sigmoid
   scores are unsuitable for hard filtering — 39% of queries returned empty sets.
-  Recommended: `filter_score=0.6` (R@10=91.5%, empty fraction=1.0%). (#31)
+  Recommended: `filter_score=0.6` (R@10=91.7%, empty fraction=1.0%). (#31)
 
 ### Added
 
