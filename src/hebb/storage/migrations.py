@@ -272,20 +272,29 @@ async def _ensure_vec_table(db: aiosqlite.Connection, embedding_dim: int) -> Non
         return
 
     # --- Fallback path: vec0 unavailable -> regular BLOB table at ``dim``. ---
-    if true_dim_mismatch and row_count > 0:
-        logger.warning(
-            "Dropping %d embeddings: dim %d -> %d (%s=1 opt-in)",
-            row_count,
-            existing_dim,
-            dim,
-            _ALLOW_EMBED_DROP_ENV,
-        )
-    elif true_dim_mismatch:
-        logger.warning(
-            "Recreating vec0 table (dim=%d, partition_id column) — any existing embeddings will be lost",
-            dim,
-        )
-    await db.execute("DROP TABLE IF EXISTS memory_embeddings")
+    if true_dim_mismatch:
+        # Opt-in destructive rebuild, or an empty-table dim change. Gate the
+        # DROP on a true mismatch so a same-dim (or first-time) table is never
+        # wiped here: depending on the SQLite build, the preceding
+        # ``CREATE VIRTUAL TABLE IF NOT EXISTS`` may raise (module resolved
+        # before the existence check) even when the BLOB table already exists,
+        # falling through to this branch. ``_FALLBACK_CREATE_SQL`` is
+        # ``IF NOT EXISTS``, so skipping the DROP is a no-op when the table
+        # exists and a clean create when it doesn't.
+        if row_count > 0:
+            logger.warning(
+                "Dropping %d embeddings: dim %d -> %d (%s=1 opt-in)",
+                row_count,
+                existing_dim,
+                dim,
+                _ALLOW_EMBED_DROP_ENV,
+            )
+        else:
+            logger.warning(
+                "Recreating vec0 table (dim=%d, partition_id column) — any existing embeddings will be lost",
+                dim,
+            )
+        await db.execute("DROP TABLE IF EXISTS memory_embeddings")
     await db.execute(_FALLBACK_CREATE_SQL)
     await _write_meta_dim(db, dim)
 

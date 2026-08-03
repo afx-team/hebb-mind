@@ -193,9 +193,7 @@ async def test_update_rejects_empty_content(
 
 
 @pytest.mark.asyncio
-async def test_update_omitted_content_is_no_change(
-    memory_store: SQLiteMemoryStore, noop_embedder: Any
-) -> None:
+async def test_update_omitted_content_is_no_change(memory_store: SQLiteMemoryStore, noop_embedder: Any) -> None:
     mem = await memory_store.create(MemoryCreate(content="original", partition_id="mem_hippocampus"))
     updated = await memories_router.update_memory(
         memory_id=mem.id,
@@ -218,9 +216,7 @@ def _settings_with_strengthening(enabled: bool = True) -> Settings:
 
 def _fake_searcher(memory_ids: list[str]) -> AsyncMock:
     searcher = AsyncMock()
-    results = [
-        type("R", (), {"memory": type("M", (), {"id": mid})()})() for mid in memory_ids
-    ]
+    results = [type("R", (), {"memory": type("M", (), {"id": mid})()})() for mid in memory_ids]
     searcher.search.return_value = SearchResponse.model_construct(results=results, related=[])
     return searcher
 
@@ -351,3 +347,36 @@ async def test_first_time_creation_unaffected(tmp_path: Any) -> None:
         )
     finally:
         await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_same_dim_reinit_preserves_embeddings(tmp_path: Any) -> None:
+    """Re-initializing at the SAME dim must not drop existing embeddings.
+
+    Invariant guard for the vec0-unavailable fallback path: the BLOB fallback
+    table must survive a same-dim re-init (e.g. a service restart) regardless of
+    SQLite build behavior. When ``CREATE VIRTUAL TABLE IF NOT EXISTS`` short-
+    circuits (table already exists), the probe returns early; when a build
+    resolves the vec0 module before the existence check and raises, control
+    falls through to the fallback — which must still leave a same-dim table
+    intact. Either way no embedding may be lost.
+    """
+    db_path = str(tmp_path / "hebb.db")
+    conn = await get_connection(db_path)
+    try:
+        await initialize_schema(conn, embedding_dim=384)
+        await _populate_one_vector(conn, 384)
+        assert await _vec_row_count_proxy(conn) == 1
+
+        # Simulate a service restart: re-init at the same configured dim.
+        await initialize_schema(conn, embedding_dim=384)
+        assert await _vec_row_count_proxy(conn) == 1, "same-dim re-init wiped existing embeddings on the fallback path"
+    finally:
+        await conn.close()
+
+
+async def _vec_row_count_proxy(conn: Any) -> int:
+    """Count rows in ``memory_embeddings`` directly on the connection."""
+    cursor = await conn.execute("SELECT count(*) FROM memory_embeddings")
+    row = await cursor.fetchone()
+    return int(row[0]) if row and row[0] is not None else 0
