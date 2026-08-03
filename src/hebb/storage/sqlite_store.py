@@ -92,8 +92,10 @@ class SQLiteMemoryStore:
 
         Returns:
             The integer dimension parsed from the ``memory_embeddings`` CREATE
-            statement, or ``None`` when the table is absent or is the
-            regular-BLOB fallback (which has no fixed width).
+            statement. When the table is the regular-BLOB fallback (vec0
+            unavailable — no ``float[N]`` to read), the width is read from the
+            ``schema_meta`` table written at init, so the dim guard still fires
+            on the fallback path. ``None`` only when both are absent.
         """
         if self._vec_dim_loaded:
             return self._vec_dim
@@ -106,6 +108,16 @@ class SQLiteMemoryStore:
             match = _VEC_DIM_RE.search(row[0])
             if match:
                 self._vec_dim = int(match.group(1))
+        if self._vec_dim is None:
+            # BLOB fallback (vec0 unavailable): the width isn't inline, so read
+            # the value ``initialize_schema`` recorded in ``schema_meta``.
+            try:
+                cursor = await self.db.execute("SELECT value FROM schema_meta WHERE key = 'embedding_dim'")
+                meta_row = await cursor.fetchone()
+            except Exception:
+                meta_row = None
+            if meta_row and meta_row[0] is not None:
+                self._vec_dim = int(meta_row[0])
         self._vec_dim_loaded = True
         return self._vec_dim
 

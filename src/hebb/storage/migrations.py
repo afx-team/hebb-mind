@@ -78,6 +78,27 @@ _FTS_CREATE_SQL = (
     "tokenize='porter unicode61')"
 )
 
+# Regular (BLOB) fallback table used when the vec0 extension can't be loaded
+# (e.g. macOS python.org builds without loadable-extension support). Mirrors
+# the vec0 contract (memory_id, partition_id, embedding) so partition-aware
+# writes don't fail in vec0-unavailable environments. The BLOB column has no
+# fixed width, so the configured width is recorded in ``schema_meta`` (see
+# ``_read_meta_dim``) to preserve the dim guard on this path.
+_FALLBACK_CREATE_SQL = (
+    "CREATE TABLE IF NOT EXISTS memory_embeddings ("
+    "memory_id TEXT PRIMARY KEY, "
+    "partition_id TEXT NOT NULL DEFAULT 'default', "
+    "embedding BLOB)"
+)
+
+# Key/value row recording the embedding width the current ``memory_embeddings``
+# table was built at. vec0 declares the width inline (``float[N]``) so this is
+# only authoritative for the BLOB fallback, but it is written in both cases so
+# the write-path dim guard and the migration mismatch check still work on the
+# fallback path (where ``sqlite_master`` has no width to read).
+_META_CREATE_SQL = "CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+_META_DIM_KEY = "embedding_dim"
+
 
 async def _ensure_fts_table(db: aiosqlite.Connection) -> None:
     """Create FTS5 with partition_id, force-rebuild if old schema present."""
@@ -138,8 +159,33 @@ async def _vec_row_count(db: aiosqlite.Connection) -> int:
     return int(row[0]) if row and row[0] is not None else 0
 
 
+async def _read_meta_dim(db: aiosqlite.Connection) -> int | None:
+    """Embedding width recorded in ``schema_meta``, or ``None`` if unset.
+
+    Authoritative for the BLOB fallback table (which has no inline width);
+    informational for vec0 (which declares its width inline). Returns ``None``
+    when the meta table is absent or the key is unset — e.g. first init, or a
+    DB created before this metadata existed.
+    """
+    try:
+        cursor = await db.execute("SELECT value FROM schema_meta WHERE key = ?", (_META_DIM_KEY,))
+        row = await cursor.fetchone()
+    except Exception:
+        return None
+    return int(row[0]) if row and row[0] is not None else None
+
+
+async def _write_meta_dim(db: aiosqlite.Connection, dim: int) -> None:
+    """Record (upsert) the embedding width the current table is built at."""
+    await db.execute(_META_CREATE_SQL)
+    await db.execute(
+        "INSERT INTO schema_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (_META_DIM_KEY, str(dim)),
+    )
+
+
 async def _ensure_vec_table(db: aiosqlite.Connection, embedding_dim: int) -> None:
-    """Create or recreate vec0 table if dimension or schema changed.
+    """Create or recreate the vec0 table, or its BLOB fallback, at ``embedding_dim``.
 
     Schema invariant: ``(memory_id, partition_id, embedding)``. The
     ``partition_id`` metadata column lets retrieval push the partition
@@ -153,6 +199,12 @@ async def _ensure_vec_table(db: aiosqlite.Connection, embedding_dim: int) -> Non
     First-time creation and the additive ``partition_id`` migration (empty or
     correctly-dimensioned tables) are unaffected.
 
+    The existing width is read from the vec0 declaration (``float[N]``) when the
+    extension is available, or from ``schema_meta`` for the BLOB fallback used
+    when vec0 can't be loaded (macOS python.org builds). Recording the width in
+    ``schema_meta`` keeps the write-path dim guard and the migration mismatch
+    check working on the fallback path too.
+
     Args:
         db: Open database connection.
         embedding_dim: Target embedding width for the configured model.
@@ -164,59 +216,78 @@ async def _ensure_vec_table(db: aiosqlite.Connection, embedding_dim: int) -> Non
     import numpy as np
 
     dim = int(embedding_dim)
-    # Fast path for fresh DB
-    try:
-        await db.execute(
-            f"CREATE VIRTUAL TABLE IF NOT EXISTS memory_embeddings USING vec0("
-            f"memory_id TEXT PRIMARY KEY, partition_id TEXT, embedding float[{dim}])"
-        )
-    except Exception:
-        pass
 
-    # Probe both the dimension AND the partition_id column. A pre-refactor
-    # table (no partition_id) succeeds at CREATE IF NOT EXISTS silently;
-    # this insert raises iff the column is missing or the dim mismatches.
-    probe = np.zeros(dim, dtype=np.float32).tobytes()
-    try:
-        await db.execute(
-            "INSERT INTO memory_embeddings(memory_id, partition_id, embedding) "
-            "VALUES ('__schema_probe__', '__probe__', ?)",
-            (probe,),
-        )
-        await db.execute("DELETE FROM memory_embeddings WHERE memory_id = '__schema_probe__'")
-        return
-    except Exception:
-        pass
-
-    # Probe failed. Distinguish a benign schema gap (missing partition_id, or an
-    # empty table) from a TRUE dimension mismatch on data we'd be destroying.
+    # The width the existing table was built at. vec0 declares it inline
+    # (``float[N]`` in sqlite_master); the BLOB fallback (vec0 unavailable)
+    # records it in ``schema_meta``. ``None`` means first-time creation.
     declared = await _declared_vec_dim(db)
+    existing_dim = declared if declared is not None else await _read_meta_dim(db)
     row_count = await _vec_row_count(db)
-    true_dim_mismatch = declared is not None and declared != dim
+    true_dim_mismatch = existing_dim is not None and existing_dim != dim
 
+    # A true mismatch on a POPULATED table is operator-actionable: refuse before
+    # touching anything so we never silently drop vectors. First-time creation,
+    # an empty-table dim change, and the partition_id migration fall through.
     if true_dim_mismatch and row_count > 0 and os.getenv(_ALLOW_EMBED_DROP_ENV) != "1":
         raise EmbeddingDimensionMismatchError(
-            f"memory_embeddings has {row_count} vectors of width {declared}, but the "
+            f"memory_embeddings has {row_count} vectors of width {existing_dim}, but the "
             f"configured embedding dimension is {dim}. Dropping the table would lose "
             f"every embedding. Run `hebb memory reembed` to rebuild vectors at the new "
             f"dimension, or set {_ALLOW_EMBED_DROP_ENV}=1 to drop and rebuild empty."
         )
 
+    # --- vec0 path: try the virtual table. ---
+    try:
+        if true_dim_mismatch:
+            # Empty-table dim change or opt-in destructive rebuild at ``dim``.
+            await db.execute("DROP TABLE IF EXISTS memory_embeddings")
+        await db.execute(
+            f"CREATE VIRTUAL TABLE IF NOT EXISTS memory_embeddings USING vec0("
+            f"memory_id TEXT PRIMARY KEY, partition_id TEXT, embedding float[{dim}])"
+        )
+    except Exception:
+        # vec0 unavailable (extension not loaded) -> BLOB fallback below. If we
+        # already dropped for a mismatch, the fallback recreates the table empty.
+        pass
+    else:
+        # Probe the partition_id column by inserting a dim-width vector. A
+        # pre-refactor table (no partition_id) accepts CREATE IF NOT EXISTS
+        # silently but rejects this insert; we then recreate cleanly. On a
+        # matching-dim table with the column, the probe round-trips and we're
+        # done. (The probe double-checks the dim on the vec0 path only — the
+        # BLOB fallback accepts any width, so dim enforcement there relies on
+        # the ``schema_meta`` mismatch check above.)
+        probe = np.zeros(dim, dtype=np.float32).tobytes()
+        try:
+            await db.execute(
+                "INSERT INTO memory_embeddings(memory_id, partition_id, embedding) "
+                "VALUES ('__schema_probe__', '__probe__', ?)",
+                (probe,),
+            )
+            await db.execute("DELETE FROM memory_embeddings WHERE memory_id = '__schema_probe__'")
+        except Exception:
+            await db.execute("DROP TABLE IF EXISTS memory_embeddings")
+            await db.execute(_VEC_CREATE_SQL.format(dim=dim))
+        await _write_meta_dim(db, dim)
+        return
+
+    # --- Fallback path: vec0 unavailable -> regular BLOB table at ``dim``. ---
     if true_dim_mismatch and row_count > 0:
         logger.warning(
             "Dropping %d embeddings: dim %d -> %d (%s=1 opt-in)",
             row_count,
-            declared,
+            existing_dim,
             dim,
             _ALLOW_EMBED_DROP_ENV,
         )
-    else:
+    elif true_dim_mismatch:
         logger.warning(
             "Recreating vec0 table (dim=%d, partition_id column) — any existing embeddings will be lost",
             dim,
         )
     await db.execute("DROP TABLE IF EXISTS memory_embeddings")
-    await db.execute(_VEC_CREATE_SQL.format(dim=dim))
+    await db.execute(_FALLBACK_CREATE_SQL)
+    await _write_meta_dim(db, dim)
 
 
 async def _ensure_fallback_partition_column(db: aiosqlite.Connection) -> None:
@@ -232,9 +303,7 @@ async def _ensure_fallback_partition_column(db: aiosqlite.Connection) -> None:
     Args:
         db: Open database connection.
     """
-    cursor = await db.execute(
-        "SELECT sql FROM sqlite_master WHERE name = 'memory_embeddings'"
-    )
+    cursor = await db.execute("SELECT sql FROM sqlite_master WHERE name = 'memory_embeddings'")
     row = await cursor.fetchone()
     if not row or not row[0] or "USING vec0" in row[0]:
         # vec0 virtual table (or absent) — schema maintained by _ensure_vec_table.
@@ -243,14 +312,8 @@ async def _ensure_fallback_partition_column(db: aiosqlite.Connection) -> None:
     info_cursor = await db.execute("PRAGMA table_info(memory_embeddings)")
     columns = {r[1] for r in await info_cursor.fetchall()}
     if "partition_id" not in columns:
-        await db.execute(
-            "ALTER TABLE memory_embeddings "
-            "ADD COLUMN partition_id TEXT NOT NULL DEFAULT 'default'"
-        )
-    await db.execute(
-        "CREATE INDEX IF NOT EXISTS idx_memory_embeddings_partition_id "
-        "ON memory_embeddings(partition_id)"
-    )
+        await db.execute("ALTER TABLE memory_embeddings ADD COLUMN partition_id TEXT NOT NULL DEFAULT 'default'")
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_memory_embeddings_partition_id ON memory_embeddings(partition_id)")
 
 
 async def initialize_schema(
@@ -286,6 +349,14 @@ async def initialize_schema(
         CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at);
         CREATE INDEX IF NOT EXISTS idx_memories_last_accessed ON memories(last_accessed_at);
         CREATE INDEX IF NOT EXISTS idx_memories_expires_at ON memories(expires_at);
+
+        -- Records the embedding width the memory_embeddings table was built at,
+        -- so the dim guard and migration mismatch check work on the vec0-unavailable
+        -- BLOB fallback (which has no inline width to read from sqlite_master).
+        CREATE TABLE IF NOT EXISTS schema_meta (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
     """)
 
     # sqlite-vec virtual table (cannot be created via executescript)
@@ -300,17 +371,13 @@ async def initialize_schema(
             # raise happens before any DROP. (write F7 / embedding F7)
             raise
         except Exception as e:
+            # Defensive net: ``_ensure_vec_table`` already builds the BLOB
+            # fallback itself when vec0 is unavailable, so this only fires on a
+            # genuinely unexpected failure. Ensure a writable table exists and
+            # record the configured width so the dim guard stays consistent.
             logger.warning("Could not create vec0 table: %s. %s", e, _VEC_FIX_HINT)
-            # Fallback: regular table so embedding INSERT/DELETE still works.
-            # Schema mirrors the vec0 contract (memory_id, partition_id,
-            # embedding) so partition-aware writes don't fail in
-            # vec0-unavailable environments.
-            await db.execute(
-                "CREATE TABLE IF NOT EXISTS memory_embeddings ("
-                "memory_id TEXT PRIMARY KEY, "
-                "partition_id TEXT NOT NULL DEFAULT 'default', "
-                "embedding BLOB)"
-            )
+            await db.execute(_FALLBACK_CREATE_SQL)
+            await _write_meta_dim(db, embedding_dim)
 
     # Additive migration for fallback tables created before the partition_id
     # write contract (vec0 tables are skipped inside). Idempotent.
