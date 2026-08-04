@@ -91,6 +91,8 @@ async def write_memory(
 async def search_memory(
     query: str,
     top_k: int = 5,
+    min_score: float | None = None,
+    filter_score: float | None = None,
 ) -> str:
     """Search for related memories using hybrid retrieval.
 
@@ -100,15 +102,41 @@ async def search_memory(
     Args:
         query: Natural language search query.
         top_k: Maximum number of results to return (1-100, default 5).
+        min_score: Optional relevance floor (0-1). When set, converted to
+            filter_score by the router for backward compatibility.
+            DEPRECATED: Use filter_score instead for composite-score filtering.
+        filter_score: Optional composite-score filter threshold (0-1). When set,
+            results below this score are dropped directly on the composite scale,
+            avoiding the sigmoid-score mismatch. Takes precedence over min_score.
+
+    Returns:
+        Formatted string with found memories (partition, score, tags, content)
+        and optional related memories from knowledge graph expansion.
+        Returns "No memories found." if no results pass the filter.
+
+    Raises:
+        httpx.HTTPStatusError: If the search server returns a non-2xx response.
+        httpx.ConnectError: If the search server is unreachable.
     """
     from hebb.retrieval.query_sanitizer import sanitize_query
 
     query = sanitize_query(query)
 
+    body: dict[str, object] = {"query": query, "top_k": top_k}
+    # Prefer filter_score over min_score for composite-score filtering
+    if filter_score is not None:
+        body["filter_score"] = filter_score
+        body["strict_recall"] = True
+    elif min_score is not None:
+        body["min_score"] = min_score
+        body["strict_recall"] = True
+    else:
+        body["strict_recall"] = True
+
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"{_base_url()}/api/v1/search",
-            json={"query": query, "top_k": top_k, "strict_recall": True},
+            json=body,
         )
         resp.raise_for_status()
         data = resp.json()

@@ -36,15 +36,15 @@ from hebb.storage.base import MemoryStore
 # near-flat decay.
 _RECENCY_DECAY_FACTOR = 0.693
 
-# Strict-recall floor lives on a MIXED scale after rerank: reranked pool entries
-# carry the cross-encoder *sigmoid* relevance while the tail keeps the calibrated
-# composite. The two are not comparable — a genuinely relevant short memory often
-# scores a bge sigmoid well below a 0.8 *composite* floor (the cross-encoder is
-# conservative on terse text), so a uniform 0.8 silently empties strict-recall
-# results on the hook + MCP surfaces. We translate the composite floor to a
-# rerank-scale floor with this ratio: a relevant cross-encoder hit clears ~0.5
-# sigmoid, so a 0.8 composite floor maps to a 0.5 sigmoid floor (0.8 * 0.625).
-_RERANK_FLOOR_RATIO = 0.625
+# Composite-score filter (preferred): when ``query.filter_score > 0``, results
+# with composite score below the threshold are dropped directly, avoiding the
+# sigmoid-score mismatch that caused 39% empty-recall queries. This replaces
+# the old dual-scale filtering that used ``rerank_floor_ratio`` to translate
+# between sigmoid and composite scales.
+#
+# Legacy fallback: when ``filter_score = 0`` and ``min_score > 0``, the old
+# dual-scale filtering is used: ``rerank_floor = min_score * rerank_floor_ratio``
+# for reranked entries, ``min_score`` for the tail. Retained as emergency rollback.
 
 
 class MemorySearcher:
@@ -242,6 +242,7 @@ class MemorySearcher:
                         recency_score=recency,
                         importance_score_normalized=importance_norm,
                         relevance_score=calibrated,
+                        pre_rerank_score=disp_score,
                     ),
                 )
             )
@@ -269,6 +270,7 @@ class MemorySearcher:
             tail = results[self.reranker.top_n :]
             rerank_scores = await self.reranker.score(query.query, [r.memory.content for r in pool])
             for r, s in zip(pool, rerank_scores, strict=False):
+                r.pre_rerank_score = r.score  # preserve composite for post-hoc analysis
                 r.score = float(s)
                 r.relevance_score = float(s)
             pool.sort(key=lambda r: r.score, reverse=True)
@@ -279,20 +281,25 @@ class MemorySearcher:
         # surfaces (hook, MCP); 0.0 (console default) is a no-op. The floor must
         # be applied on ONE consistent scale per result. WITHOUT rerank every
         # ``score`` is the calibrated composite, so a single floor is correct.
-        # WITH rerank the leading ``reranked_count`` entries carry the
-        # cross-encoder sigmoid (a different distribution — bge is conservative on
-        # short text, so genuinely relevant terse memories sit well below a 0.8
-        # *composite* floor); applying the composite floor to them empties strict
-        # recall on the two production surfaces. So translate the floor to the
-        # rerank scale for the pool and keep the composite floor for the tail.
-        if query.min_score > 0.0:
-            rerank_floor = query.min_score * _RERANK_FLOOR_RATIO
+        # Composite-score filter (preferred): when filter_score is set, drop
+        # results with composite score below the threshold directly. This avoids
+        # the sigmoid-score mismatch that caused 39% empty-recall queries.
+        if query.filter_score > 0.0:
             kept: list[MemorySearchResult] = []
+            for r in results:
+                if r.pre_rerank_score >= query.filter_score:
+                    kept.append(r)
+            results = kept
+        # Fallback: legacy dual-scale filtering using rerank_floor_ratio.
+        # Retained as emergency rollback; new code should use filter_score.
+        elif query.min_score > 0.0:
+            rerank_floor = query.min_score * query.rerank_floor_ratio
+            kept_legacy: list[MemorySearchResult] = []
             for i, r in enumerate(results):
                 floor = rerank_floor if i < reranked_count else query.min_score
                 if r.score >= floor:
-                    kept.append(r)
-            results = kept
+                    kept_legacy.append(r)
+            results = kept_legacy
 
         # Final ordering. When the cross-encoder reranker ran, ``score`` is its
         # joint (query, content) relevance — a strong ranker — so order by it.

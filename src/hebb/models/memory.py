@@ -88,9 +88,32 @@ class MemoryQuery(BaseModel):
         default=0.0, ge=0.0, le=1.0, description="Drop results scoring below this floor (0-1); 0 = no filter"
     )
     # Strict recall surfaces (Claude Code hook, MCP) set this so the server
-    # applies its configured ``recall_min_score`` floor without the caller
-    # needing to know the value. Ignored when ``min_score`` is set explicitly.
-    strict_recall: bool = Field(default=False, description="Apply the server's configured recall_min_score floor")
+    # injects its configured ``filter_score`` for composite-score filtering.
+    # Ignored when ``filter_score`` or ``min_score`` is set explicitly.
+    strict_recall: bool = Field(default=False, description="Apply the server's configured filter_score for composite-score filtering")
+    # DEPRECATED: This field is retained only as an emergency rollback switch.
+    # New code should use ``filter_score`` for composite-score filtering instead.
+    # Original purpose: when ``min_score > 0`` and a reranker ran, the floor was
+    # multiplied by this for reranked entries (sigmoid vs. composite scale).
+    # The searcher reads this from the query; the router sets it when
+    # ``strict_recall`` is active and the caller did not override it.
+    rerank_floor_ratio: float = Field(
+        default=0.625, ge=0.0, le=1.0,
+        description="[DEPRECATED] Retained as emergency rollback only. Use filter_score instead. "
+        "Original purpose: floor translation ratio for reranked entries "
+        "(sigmoid vs. composite scale).",
+    )
+    # Composite-score filter: when set (>0), results with composite score below
+    # this value are dropped. This replaces the old dual-scale filtering that
+    # used rerank_floor_ratio to translate between sigmoid and composite scales.
+    # The router sets this from settings.filter_score when strict_recall is
+    # active and the caller did not override it.
+    filter_score: float = Field(
+        default=0.0, ge=0.0, le=1.0,
+        description="Composite-score filter threshold (0-1); 0 = no filter. "
+        "When set, ignores rerank_floor_ratio and filters all results "
+        "on the composite scale directly.",
+    )
     # Context window expansion: when a top result has session_id+turn
     # metadata, also pull this many *adjacent* turns from the same
     # session and return them via SearchResponse.related. The hit memory
@@ -108,6 +131,7 @@ class MemorySearchResult(BaseModel):
     recency_score: float
     importance_score_normalized: float
     relevance_score: float
+    pre_rerank_score: float = Field(description="Composite score preserved before reranker overwrites score")
 
 
 class SearchResponse(BaseModel):

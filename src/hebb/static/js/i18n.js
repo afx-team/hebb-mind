@@ -294,6 +294,7 @@ const translations = {
     'settings.restart.issued': 'Restart issued. Waiting for service to come back…',
     'settings.restart.ok': 'Service restarted',
     'settings.restart.timeout': 'Service did not respond within 30s. Check `hebb status` in a terminal.',
+    'settings.error.range_0_1': '{key} must be between 0 and 1',
 
     // Upgrade
     'upgrade.available': 'Hebb Mind {latest} is available',
@@ -401,7 +402,7 @@ const translations = {
     'recall.hint.lexical_boost_enabled': 'Predicate / quoted-phrase / person-name surface boost',
     'recall.hint.temporal_boost_enabled': 'Date-proximity boost when the query names a time',
     'recall.hint.graph_expansion_enabled': 'Expand top-k tags through the graph for related memories',
-    'recall.hint.recall_min_score': 'Score floor (0–1) for strict recall (Claude Code hook + MCP). Results below are dropped; the test above is unaffected. Applies immediately, no restart.',
+    'recall.hint.filter_score': 'Composite-score filter threshold (0-1) for strict recall (Claude Code hook + MCP). Results below this score are dropped directly on the composite scale. No restart required.',
     'recall.hint.rerank_enabled': 'Cross-encoder pass over the top candidates after hybrid retrieval. Scores are sigmoid-normalised to [0,1].',
     'recall.hint.rerank_provider': '\'local\' = sentence-transformers CrossEncoder',
     'recall.hint.rerank_model': 'Model name or HuggingFace repo id',
@@ -712,6 +713,7 @@ const translations = {
     'settings.restart.issued': '已发起重启，正在等待服务恢复…',
     'settings.restart.ok': '服务已重启',
     'settings.restart.timeout': '服务在 30 秒内未响应。请在终端运行 `hebb status` 检查。',
+    'settings.error.range_0_1': '{key} 必须在 0 到 1 之间',
 
     'upgrade.available': 'Hebb Mind {latest} 可用',
     'upgrade.current': '当前 {current}',
@@ -817,7 +819,7 @@ const translations = {
     'recall.hint.lexical_boost_enabled': '谓词 / 引号短语 / 人名的字面加权',
     'recall.hint.temporal_boost_enabled': '当查询包含时间时按日期临近度加权',
     'recall.hint.graph_expansion_enabled': '通过图谱扩展 top-k 标签以召回相关记忆',
-    'recall.hint.recall_min_score': '严格召回（Claude Code 钩子 + MCP）的分数下限（0–1）。低于该值的结果会被丢弃；上方的测试不受影响。立即生效，无需重启。',
+    'recall.hint.filter_score': '严格召回（Claude Code 钩子 + MCP）的综合分数过滤阈值（0-1）。低于此分数的结果将直接在综合分数尺度上被丢弃。无需重启。',
     'recall.hint.rerank_enabled': '在混合检索后对靠前候选执行交叉编码器重排。分数经 sigmoid 归一化到 [0,1]。',
     'recall.hint.rerank_provider': '\'local\' = sentence-transformers CrossEncoder',
     'recall.hint.rerank_model': '模型名称或 HuggingFace 仓库 id',

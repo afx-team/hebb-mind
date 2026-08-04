@@ -325,6 +325,7 @@ async def run_dataset(name: str, args, embedder, kw_cfg=None, reranker=None) -> 
     ks = (1, 3, 5, 10, 20, 30, 50) if args.deep else (1, 3, 5, 10)
     hits = {k: 0 for k in ks}
     total = 0
+    empty_count = 0
     per_cat: dict[str, list[int]] = {}
 
     skw = dict(
@@ -368,13 +369,20 @@ async def run_dataset(name: str, args, embedder, kw_cfg=None, reranker=None) -> 
                         store, q.text, max(ks), [unit.pid], kw_cfg, chan_cache)
                     keys = _keys_from_pairs(pairs)
                 else:
-                    resp = await searcher.search(MemoryQuery(
+                    mq_kwargs: dict[str, object] = dict(
                         query=q.text, top_k=max(ks), partition_ids=[unit.pid],
                         weight_recency=0.0, weight_importance=0.0, weight_relevance=1.0,
                         prev_turns=pv, next_turns=nx,
-                    ))
+                    )
+                    if args.min_score > 0:
+                        mq_kwargs["min_score"] = args.min_score
+                        if args.rerank_floor_ratio is not None:
+                            mq_kwargs["rerank_floor_ratio"] = args.rerank_floor_ratio
+                    resp = await searcher.search(MemoryQuery(**mq_kwargs))
                     keys = _ranked_keys(resp, metric)
                 total += 1
+                if not keys:
+                    empty_count += 1
                 pc = per_cat.setdefault(q.category, [0, 0])
                 pc[1] += 1
                 got10 = bool(set(keys[:10]) & q.relevant)
@@ -388,6 +396,7 @@ async def run_dataset(name: str, args, embedder, kw_cfg=None, reranker=None) -> 
     res = {f"R@{k}" if metric == "session" else f"Hit@{k}": (hits[k] / total if total else 0.0) for k in ks}
     res["_total"] = total
     res["_units"] = len(units)
+    res["_empty_frac"] = empty_count / total if total else 0.0
     res["_per_cat"] = {c: v[0] / v[1] for c, v in sorted(per_cat.items())}
     return res
 
@@ -445,7 +454,7 @@ async def main_async(args) -> None:
                 res = await run_dataset(name, args, embedder, cfg, reranker)
                 kk = [k for k in res if k.startswith(("R@", "Hit@"))]
                 if not header_done:
-                    print(f"  units={res['_units']} q={res['_total']}")
+                    print(f"  units={res['_units']} q={res['_total']} empty_frac={res['_empty_frac']:.3f}")
                     print(f"  {'config':22s} " + " ".join(f"{k:>8s}" for k in kk))
                     header_done = True
                 print(f"  {label:22s} " + " ".join(f"{res[k]:8.3f}" for k in kk))
@@ -458,7 +467,7 @@ async def main_async(args) -> None:
         res = await run_dataset(name, args, embedder, kw_cfg, reranker)
         kk = [k for k in res if k.startswith(("R@", "Hit@"))]
         line = "  ".join(f"{k}={res[k]:.3f}" for k in kk)
-        print(f"\n[{name}]  units={res['_units']} q={res['_total']}")
+        print(f"\n[{name}]  units={res['_units']} q={res['_total']} empty_frac={res['_empty_frac']:.3f}")
         print(f"  {line}")
         if args.by_cat:
             for c, v in res["_per_cat"].items():
@@ -493,6 +502,10 @@ def main() -> None:
     ap.add_argument("--rm3", action="store_true")
     ap.add_argument("--rm3-terms", type=int, default=10)
     ap.add_argument("--rm3-topdocs", type=int, default=5)
+    ap.add_argument("--min-score", type=float, default=0.0,
+                    help="Apply min_score floor (default 0 = no filter)")
+    ap.add_argument("--rerank-floor-ratio", type=float, default=None,
+                    help="Override rerank floor ratio for strict recall")
     ap.add_argument("--rerank", action="store_true", help="cross-encoder rerank top-N")
     ap.add_argument("--rerank-model", default="BAAI/bge-reranker-base")
     ap.add_argument("--rerank-top-n", type=int, default=30)

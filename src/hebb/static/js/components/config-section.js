@@ -173,7 +173,16 @@ export function buildGenericSection(group, config) {
       }
 
       saveBtn.addEventListener('click', async () => {
-        const newValue = input.type === 'checkbox' ? String(input.checked) : input.value || 'null';
+        const raw = input.type === 'checkbox' ? String(input.checked) : input.value;
+        // Frontend validation for 0-1 numeric fields before hitting the API.
+        if (key === 'filter_score' && raw !== '') {
+          const num = Number(raw.trim());
+          if (!Number.isFinite(num) || num < 0 || num > 1) {
+            error(t('settings.error.range_0_1', { key }));
+            return;
+          }
+        }
+        const newValue = raw || 'null';
         try {
           const res = await api.updateConfig(key, newValue);
           saveBtn.classList.add('hidden');
@@ -196,7 +205,7 @@ export function renderInput(key, value) {
     </div>`;
   }
   const type = SENSITIVE_KEYS.has(key) ? 'password' : 'text';
-  const displayValue = value == null ? '' : String(value);
+  let displayValue = value == null ? '' : String(value);
   if (key === 'consolidation_time') {
     return `<input class="form-input setting-input" type="time" step="60" value="${esc(displayValue)}" data-key="${key}">`;
   }

@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 
+from hebb.config.loader import load_settings
 from hebb.ingest.noise import is_greeting_only, strip_noise
 from hebb.integrations.claude_code._client import (
     get_client,
@@ -44,11 +45,44 @@ def _is_recall_worthy(prompt: str) -> bool:
     return not is_greeting_only(prompt)
 
 
+def _resolve_hook_min_score() -> float | None:
+    """Return the per-deployment min_score override, or None for strict_recall."""
+    try:
+        return load_settings().recall_hook_min_score
+    except Exception:
+        return None
+
+
+def _resolve_hook_filter_score() -> float | None:
+    """Return the per-deployment filter_score override for composite-score filtering.
+
+    Priority: recall_hook_min_score > filter_score > None (strict_recall path).
+
+    recall_hook_min_score serves as a deployment-level override that takes
+    precedence over the default filter_score, allowing ops to tune the hook
+    threshold without code changes.
+    """
+    try:
+        settings = load_settings()
+        # Deployment-level override takes precedence
+        if settings.recall_hook_min_score is not None:
+            return settings.recall_hook_min_score
+        return settings.filter_score
+    except Exception:
+        return None
+
+
 def handle() -> None:
     """SessionStart: warm up with a generic background recall."""
     hook_input = read_hook_input()
     session_id = resolve_session_id(hook_input)
-    _recall_and_print(query=_SESSION_START_QUERY, current_session_id=session_id, timeout=20)
+    _recall_and_print(
+        query=_SESSION_START_QUERY,
+        current_session_id=session_id,
+        timeout=20,
+        min_score=_resolve_hook_min_score(),
+        filter_score=_resolve_hook_filter_score(),
+    )
 
 
 def handle_prompt() -> None:
@@ -68,10 +102,16 @@ def handle_prompt() -> None:
     prompt = strip_noise(hook_input.get("prompt", ""))
     if not _is_recall_worthy(prompt):
         return
-    _recall_and_print(query=prompt, current_session_id=session_id, timeout=5)
+    _recall_and_print(
+        query=prompt,
+        current_session_id=session_id,
+        timeout=5,
+        min_score=_resolve_hook_min_score(),
+        filter_score=_resolve_hook_filter_score(),
+    )
 
 
-def _recall_and_print(query: str, current_session_id: str, timeout: float) -> None:
+def _recall_and_print(query: str, current_session_id: str, timeout: float, min_score: float | None = None, filter_score: float | None = None) -> None:
     """Shared search → filter → emit pipeline for both hooks.
 
     A hook must never disturb the host: every step — connecting, searching,
@@ -84,6 +124,8 @@ def _recall_and_print(query: str, current_session_id: str, timeout: float) -> No
         current_session_id: Session id whose own memories are excluded from
             recall; ``""`` disables that filter.
         timeout: Per-request HTTP timeout in seconds.
+        min_score: Optional min_score override (legacy, use filter_score instead).
+        filter_score: Optional composite-score filter threshold (preferred).
     """
     try:
         client = get_client(timeout=timeout)
@@ -92,7 +134,7 @@ def _recall_and_print(query: str, current_session_id: str, timeout: float) -> No
         return
 
     try:
-        results = _fetch_filtered(client, query, current_session_id)
+        results = _fetch_filtered(client, query, current_session_id, min_score=min_score, filter_score=filter_score)
     except Exception:
         logger.debug("Memory recall failed", exc_info=True)
         return
@@ -110,7 +152,7 @@ def _recall_and_print(query: str, current_session_id: str, timeout: float) -> No
         logger.debug("Memory recall output failed", exc_info=True)
 
 
-def _fetch_filtered(client: httpx.Client, query: str, current_session_id: str) -> list[dict[str, Any]]:
+def _fetch_filtered(client: httpx.Client, query: str, current_session_id: str, min_score: float | None = None, filter_score: float | None = None) -> list[dict[str, Any]]:
     """Search, then drop current-session hits, over-fetching when starved.
 
     Filtering the current session *after* the fetch means a long active
@@ -123,6 +165,8 @@ def _fetch_filtered(client: httpx.Client, query: str, current_session_id: str) -
         client: An open HTTP client for the Hebb Mind REST API.
         query: Search query string.
         current_session_id: Session id to exclude; ``""`` disables the filter.
+        min_score: Optional min_score override (legacy, use filter_score instead).
+        filter_score: Optional composite-score filter threshold (preferred).
 
     Returns:
         Up to ``_TOP_K_RETURN`` result dicts from other sessions.
@@ -133,9 +177,19 @@ def _fetch_filtered(client: httpx.Client, query: str, current_session_id: str) -
     """
     top_k = _TOP_K_FETCH
     while True:
+        body: dict[str, object] = {"query": query, "top_k": top_k}
+        # Prefer filter_score over min_score for composite-score filtering
+        if filter_score is not None:
+            body["filter_score"] = filter_score
+            body["strict_recall"] = True
+        elif min_score is not None:
+            body["min_score"] = min_score
+            body["strict_recall"] = True
+        else:
+            body["strict_recall"] = True
         resp = client.post(
             "/api/v1/search",
-            json={"query": query, "top_k": top_k, "strict_recall": True},
+            json=body,
         )
         resp.raise_for_status()
         data = resp.json()

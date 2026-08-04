@@ -13,6 +13,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      3. Merge to main — publish.yml ships to PyPI on the pyproject.toml change
         and tags the release. -->
 
+## [Unreleased]
+
+### Changed
+
+- **strict-recall threshold calibration**: Refactor recall filtering mechanism,
+  replace sigmoid-based gating with composite-score filtering. Add `filter_score`
+  configuration (default 0.6) and mark `rerank_floor_ratio` and `recall_min_score`
+  as DEPRECATED. Plumb `min_score`/`filter_score` through MCP server and Claude
+  Code recall hook. Based on full LoCoMo eval (1978 queries), confirm sigmoid
+  scores are unsuitable for hard filtering — 39% of queries returned empty sets.
+  Recommended: `filter_score=0.6` (R@10=91.7%, empty fraction=1.0%). (#31)
+
+### Added
+
+- `Settings.filter_score`: composite-score filter threshold for strict recall
+  (default 0.6, range [0,1]). Results below this score are dropped directly on
+  the composite scale, avoiding sigmoid-score mismatch.
+- `eval/threshold_probe.py`: offline threshold calibration probe supporting
+  min_score × rerank_floor_ratio full-parameter sweep with R@k, empty-recall
+  fraction, and score distribution statistics.
+- `Settings.recall_hook_min_score`: per-deployment min_score override for the
+  recall hook (default None). When set, takes precedence over `filter_score`.
+- MCP server `filter_score` parameter for per-request override.
+- Frontend `filter_score` config item in the recall settings group with
+  0-1 range validation and Chinese/English hints.
+
+### Deprecated
+
+- `Settings.recall_min_score`: replaced by `filter_score` for composite-score
+  filtering. Retained for backward compatibility.
+- `Settings.rerank_floor_ratio`: retained as emergency rollback switch only.
+  Original purpose (sigmoid-scale translation) proved unsuitable for hard
+  filtering based on LoCoMo eval.
+- `MemoryQuery.rerank_floor_ratio`: same as above.
+
 ## [0.3.0] - 2026-06-29
 
 ### Added

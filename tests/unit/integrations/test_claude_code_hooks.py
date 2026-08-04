@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from hebb.config.settings import Settings
 from hebb.ingest.noise import (
     clean_user_input,
     is_greeting_only,
@@ -343,6 +344,37 @@ class TestRecallHook:
         recall.handle()
         assert capsys.readouterr().out == ""
 
+    def test_handle_respects_hook_min_score(self, monkeypatch: pytest.MonkeyPatch):
+        client = _FakeClient({"results": []})
+        monkeypatch.setattr(recall, "read_hook_input", lambda: {"session_id": "s1"})
+        monkeypatch.setattr(recall, "get_client", lambda timeout=20: client)
+        monkeypatch.setattr(
+            recall, "load_settings",
+            lambda: Settings(recall_hook_min_score=0.7),
+        )
+        recall.handle()
+        assert len(client.calls) == 1
+        _, body = client.calls[0]
+        # recall_hook_min_score overrides filter_score as deployment-level config
+        assert body["filter_score"] == 0.7  # from recall_hook_min_score
+        assert body["strict_recall"] is True
+
+    def test_handle_defaults_to_strict_recall_when_hook_min_score_none(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ):
+        client = _FakeClient({"results": []})
+        monkeypatch.setattr(recall, "read_hook_input", lambda: {"session_id": "s1"})
+        monkeypatch.setattr(recall, "get_client", lambda timeout=20: client)
+        monkeypatch.setattr(
+            recall, "load_settings",
+            lambda: Settings(recall_hook_min_score=None),
+        )
+        recall.handle()
+        assert len(client.calls) == 1
+        _, body = client.calls[0]
+        assert body["strict_recall"] is True
+        assert "min_score" not in body
+
 
 class TestResolveSessionId:
     def test_prefers_explicit_session_id(self):
@@ -369,14 +401,37 @@ class TestPromptRecallHook:
             lambda: {"session_id": "s1", "prompt": "How do I reset my password?"},
         )
         monkeypatch.setattr(recall, "get_client", lambda timeout=5: client)
+        monkeypatch.setattr(
+            recall, "load_settings",
+            lambda: Settings(recall_hook_min_score=None),
+        )
         recall.handle_prompt()
         assert client.calls == [
             (
                 "/api/v1/search",
-                {"query": "How do I reset my password?", "top_k": 20, "strict_recall": True},
+                {"query": "How do I reset my password?", "top_k": 20, "filter_score": 0.6, "strict_recall": True},
             ),
         ]
         assert client.closed is True
+
+    def test_handle_prompt_respects_hook_min_score(self, monkeypatch: pytest.MonkeyPatch):
+        client = _FakeClient({"results": []})
+        monkeypatch.setattr(
+            recall,
+            "read_hook_input",
+            lambda: {"session_id": "s1", "prompt": "What is the deploy flag?"},
+        )
+        monkeypatch.setattr(recall, "get_client", lambda timeout=5: client)
+        monkeypatch.setattr(
+            recall, "load_settings",
+            lambda: Settings(recall_hook_min_score=0.65),
+        )
+        recall.handle_prompt()
+        assert len(client.calls) == 1
+        _, body = client.calls[0]
+        # recall_hook_min_score overrides filter_score as deployment-level config
+        assert body["filter_score"] == 0.65  # from recall_hook_min_score
+        assert body["strict_recall"] is True
 
     def test_strips_noise_from_prompt_before_querying(self, monkeypatch: pytest.MonkeyPatch):
         client = _FakeClient({"results": []})

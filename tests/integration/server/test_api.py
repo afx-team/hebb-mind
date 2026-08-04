@@ -206,6 +206,40 @@ class TestSearchEndpoint:
         bumped = {m["id"] for m in items if m["access_count"] >= 1}
         assert hit_ids <= bumped
 
+    def test_explicit_min_score_no_strengthening(self, client: TestClient):
+        """When the caller passes an explicit min_score (no strict_recall),
+        strengthening must NOT trigger — only genuine agent recall (hook/MCP
+        which send strict_recall) should bump access_count."""
+        client.post("/api/v1/memories", json={"content": "Python is a programming language"})
+        items = client.get("/api/v1/memories").json()["items"]
+        assert all(m["access_count"] == 0 for m in items)
+
+        # Explicit min_score, no strict_recall → console-style query.
+        resp = client.post(
+            "/api/v1/search", json={"query": "programming language", "min_score": 0.5}
+        )
+        assert resp.status_code == 200
+
+        items = client.get("/api/v1/memories").json()["items"]
+        assert all(m["access_count"] == 0 for m in items)
+
+    def test_explicit_min_score_not_overridden_by_router(self, client: TestClient):
+        """When the caller passes an explicit min_score, the router must NOT
+        replace it with the configured recall_min_score."""
+        client.post("/api/v1/memories", json={"content": "Python is a programming language"})
+
+        # min_score=0.01 should admit nearly everything.
+        resp_loose = client.post(
+            "/api/v1/search", json={"query": "programming language", "min_score": 0.01}
+        )
+        # min_score=0.99 should admit very little (possibly nothing).
+        resp_strict = client.post(
+            "/api/v1/search", json={"query": "programming language", "min_score": 0.99}
+        )
+        assert resp_loose.status_code == 200
+        assert resp_strict.status_code == 200
+        assert len(resp_loose.json()["results"]) >= len(resp_strict.json()["results"])
+
     def test_search_no_strengthen_when_disabled(self, tmp_path: Path):
         """With recall_strengthening_enabled=False (benchmark snapshot mode),
         a search must NOT mutate access_count."""

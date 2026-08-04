@@ -130,14 +130,54 @@ class Settings(BaseModel):
         description="Candidates to rerank before final top_k; auto-bumps searcher overfetch",
     )
 
-    # Relevance floor for strict recall surfaces (Claude Code hook, MCP). Those
-    # callers send strict_recall=True and the server drops any result scoring
-    # below this. Does not affect the console Search page, which is unfiltered.
+    # DEPRECATED and UNUSED. No code path reads this field.
+    # Replaced by ``filter_score`` for composite-score filtering.
+    # Retained only to avoid breaking existing hebb.json files that set it.
+    # Original purpose: min relevance score for hook/MCP recall, but eval
+    # (LoCoMo, 1978 queries) proved sigmoid scores unsuitable for hard filtering.
+    # See: eval/reports/threshold_calibration/threshold_calibration_review_v2.md
     recall_min_score: float = Field(
-        default=0.8,
+        default=0.6,
         ge=0.0,
         le=1.0,
-        description="Min relevance score (0-1) for hook/MCP recall; results below are dropped (console Search unaffected)",
+        description="[DEPRECATED] No code path reads this field. Use filter_score instead. "
+        "Retained only for backward compatibility with existing hebb.json files.",
+    )
+    # DEPRECATED. Only consumed by the legacy min_score branch in searcher.py,
+    # which is itself unreachable from current MCP / hook code paths.
+    # Retained to avoid breaking existing hebb.json files that set it.
+    # Original purpose: translate the composite floor to the cross-encoder sigmoid
+    # scale for reranked entries, but eval (LoCoMo, 1978 queries) proved sigmoid
+    # scores are unsuitable for hard filtering — 39% of queries returned empty sets.
+    # See: eval/reports/threshold_calibration/threshold_calibration_review_v2.md
+    rerank_floor_ratio: float = Field(
+        default=0.625,
+        ge=0.0,
+        le=1.0,
+        description="[DEPRECATED] Only consumed by the legacy min_score branch. "
+        "Use filter_score instead. Retained for backward compatibility.",
+    )
+    # Composite-score filter threshold: when strict_recall is active, results
+    # with composite score below this value are dropped. Unlike the old
+    # rerank_floor_ratio approach, this filters on the composite scale directly,
+    # avoiding the sigmoid-score mismatch that caused 39% empty-recall queries.
+    # This is the recommended production filtering mechanism.
+    # Recommended: 0.6 (R@10=91.5%, empty frac=1.0% on LoCoMo eval).
+    filter_score: float = Field(
+        default=0.6,
+        ge=0.0,
+        le=1.0,
+        description="Composite-score filter threshold (0-1) for strict recall; "
+        "results below this score are dropped. Recommended: 0.6 "
+        "(R@10=91.5%, empty fraction=1.0% on LoCoMo eval).",
+    )
+    recall_hook_min_score: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Per-deployment filter_score override for the recall hook; "
+        "when set, the hook uses this value for composite-score filtering "
+        "instead of the global filter_score default.",
     )
 
     # Retrieval-induced strengthening ("提取即强化" / testing effect): when a

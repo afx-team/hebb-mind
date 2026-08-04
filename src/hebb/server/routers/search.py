@@ -26,6 +26,24 @@ async def search_memories(
     (``weight_*`` in hebb.json) for any weight the request did not set
     explicitly — so callers like the recall hook honour the user's tuning,
     while the console Search sliders still override per query.
+
+    Filter priority (highest to lowest):
+    1. ``filter_score`` on the request (composite-score filtering, preferred)
+    2. ``min_score`` on the request (legacy dual-scale filtering)
+    3. ``filter_score`` from server config (when ``strict_recall=True``)
+    4. No filtering (default for console search)
+
+    Args:
+        query: MemoryQuery with search parameters, weights, and filter settings.
+        searcher: MemorySearcher instance for executing the search.
+        settings: Server configuration with default weights and thresholds.
+        store: MemoryStore for retrieval-induced strengthening.
+
+    Returns:
+        SearchResponse with ranked results and optional graph-expanded memories.
+
+    Raises:
+        ValueError: If query parameters are out of valid range.
     """
     updates: dict[str, object] = {
         field: getattr(settings, field)
@@ -34,10 +52,24 @@ async def search_memories(
     }
     # Strict recall surfaces (hook, MCP) opt in via ``strict_recall`` rather
     # than hardcoding a number — the floor lives in server config so the
-    # console Settings edit is the single source of truth. An explicit
-    # ``min_score`` on the request still wins.
-    if query.strict_recall and "min_score" not in query.model_fields_set:
-        updates["min_score"] = settings.recall_min_score
+    # console Settings edit is the single source of truth.
+    #
+    # Filter priority:
+    # 1. filter_score on request → composite filtering (preferred)
+    # 2. min_score on request → convert to filter_score (backward compat)
+    # 3. Neither → inject settings.filter_score (default for strict_recall)
+    if query.strict_recall and "filter_score" not in query.model_fields_set:
+        if "min_score" in query.model_fields_set:
+            # Backward compat: convert legacy min_score to filter_score
+            updates["filter_score"] = query.min_score
+        else:
+            # Default: use configured filter_score
+            updates["filter_score"] = settings.filter_score
+    # Fill the rerank-scale translation ratio when the caller did not
+    # explicitly pass it. This applies to both strict_recall and explicit
+    # min_score paths so the searcher always has the correct scale.
+    if "rerank_floor_ratio" not in query.model_fields_set:
+        updates["rerank_floor_ratio"] = settings.rerank_floor_ratio
     if updates:
         query = query.model_copy(update=updates)
     response = await searcher.search(query)
