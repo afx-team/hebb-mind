@@ -130,21 +130,22 @@ class Settings(BaseModel):
         description="Candidates to rerank before final top_k; auto-bumps searcher overfetch",
     )
 
-    # DEPRECATED: This field is retained only as an emergency rollback switch.
-    # New code should use ``filter_score`` for composite-score filtering instead.
-    # The router no longer reads this field; it was replaced by filter_score
-    # after eval (LoCoMo, 1978 queries) proved sigmoid scores unsuitable for
-    # hard filtering. See: eval/reports/threshold_calibration/threshold_calibration_review_v2.md
+    # DEPRECATED and UNUSED. No code path reads this field.
+    # Replaced by ``filter_score`` for composite-score filtering.
+    # Retained only to avoid breaking existing hebb.json files that set it.
+    # Original purpose: min relevance score for hook/MCP recall, but eval
+    # (LoCoMo, 1978 queries) proved sigmoid scores unsuitable for hard filtering.
+    # See: eval/reports/threshold_calibration/threshold_calibration_review_v2.md
     recall_min_score: float = Field(
         default=0.6,
         ge=0.0,
         le=1.0,
-        description="[DEPRECATED] Retained as emergency rollback only. Use filter_score instead. "
-        "Original purpose: min relevance score for hook/MCP recall. "
-        "Replaced by filter_score after eval proved sigmoid scores unsuitable for hard filtering.",
+        description="[DEPRECATED] No code path reads this field. Use filter_score instead. "
+        "Retained only for backward compatibility with existing hebb.json files.",
     )
-    # DEPRECATED: This field is retained only as an emergency rollback switch.
-    # New code should use ``filter_score`` for composite-score filtering instead.
+    # DEPRECATED. Only consumed by the legacy min_score branch in searcher.py,
+    # which is itself unreachable from current MCP / hook code paths.
+    # Retained to avoid breaking existing hebb.json files that set it.
     # Original purpose: translate the composite floor to the cross-encoder sigmoid
     # scale for reranked entries, but eval (LoCoMo, 1978 queries) proved sigmoid
     # scores are unsuitable for hard filtering — 39% of queries returned empty sets.
@@ -153,14 +154,14 @@ class Settings(BaseModel):
         default=0.625,
         ge=0.0,
         le=1.0,
-        description="[DEPRECATED] Retained as emergency rollback only. Use filter_score instead. "
-        "Original purpose: translate composite floor to cross-encoder sigmoid scale "
-        "for reranked entries. Eval proved sigmoid scores unsuitable for hard filtering.",
+        description="[DEPRECATED] Only consumed by the legacy min_score branch. "
+        "Use filter_score instead. Retained for backward compatibility.",
     )
     # Composite-score filter threshold: when strict_recall is active, results
     # with composite score below this value are dropped. Unlike the old
     # rerank_floor_ratio approach, this filters on the composite scale directly,
     # avoiding the sigmoid-score mismatch that caused 39% empty-recall queries.
+    # This is the recommended production filtering mechanism.
     # Recommended: 0.6 (R@10=91.5%, empty frac=1.0% on LoCoMo eval).
     filter_score: float = Field(
         default=0.6,
