@@ -23,7 +23,7 @@ hebb service install   # registers the OS background service (no admin needed)
 Verify it's up with:
 
 ```bash
-curl -X POST http://localhost:8321/api/v1/search \
+curl -f -X POST http://localhost:8321/api/v1/search \
   -H 'Content-Type: application/json' \
   -d '{"query":"ping","top_k":1}'
 ```
@@ -34,7 +34,7 @@ The snippets below write `command="hebb-mcp"` for brevity. If the framework's MC
 :::
 
 ::: tip The agent needs an LLM
-All four agent snippets rely on an LLM to decide when to call the memory tools. The examples use OpenAI (`OPENAI_API_KEY` in your environment); every framework also works with any OpenAI-compatible or local model (e.g. Ollama) — see each framework's docs.
+The agent snippets (CrewAI, AutoGen, LangGraph) rely on an LLM to decide when to call the memory tools — the LlamaIndex snippet calls the tools directly and needs no LLM key. The examples use OpenAI (`OPENAI_API_KEY` in your environment); every framework also works with any OpenAI-compatible or local model (e.g. Ollama) — see each framework's docs.
 :::
 
 ---
@@ -180,7 +180,13 @@ asyncio.run(main())
 
 ## REST API alternative (no MCP client needed)
 
-If a framework's MCP adapter is missing or a version you use doesn't support it, the REST API is the fallback — it needs only `httpx` (or `requests`). This write + search round-trip works in any framework; wrap the two functions in the framework's function-tool class to give them to an agent:
+If a framework's MCP adapter is missing or a version you use doesn't support it, the REST API is the fallback — it needs only `httpx` (or `requests`). Install it in the environment that runs the framework code:
+
+```bash
+pip install httpx
+```
+
+This write + search round-trip works in any framework; wrap the two functions in the framework's function-tool class to give them to an agent:
 
 ```python
 import httpx

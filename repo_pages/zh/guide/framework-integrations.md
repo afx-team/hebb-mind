@@ -23,7 +23,7 @@ hebb service install   # 注册系统后台服务（默认无需管理员权限�
 用下面命令确认服务已就绪：
 
 ```bash
-curl -X POST http://localhost:8321/api/v1/search \
+curl -f -X POST http://localhost:8321/api/v1/search \
   -H 'Content-Type: application/json' \
   -d '{"query":"ping","top_k":1}'
 ```
@@ -34,7 +34,7 @@ curl -X POST http://localhost:8321/api/v1/search \
 :::
 
 ::: tip 智能体需要一个 LLM
-四个智能体示例都依赖 LLM 来决定何时调用记忆工具。示例使用 OpenAI（环境变量 `OPENAI_API_KEY`）；各框架同样支持任意 OpenAI 兼容或本地模型（如 Ollama），详见各框架文档。
+使用智能体的示例（CrewAI、AutoGen、LangGraph）依赖 LLM 来决定何时调用记忆工具——LlamaIndex 示例直接调用工具，不需要 LLM key。示例使用 OpenAI（环境变量 `OPENAI_API_KEY`）；各框架同样支持任意 OpenAI 兼容或本地模型（如 Ollama），详见各框架文档。
 :::
 
 ---
@@ -62,7 +62,7 @@ async def main():
             search = next(t for t in tools if t.metadata.name == "search_memory")
 
             # 2. 召回 Hebb Mind 已存储的关于用户的记忆
-            print(await search.acall(query="What UI preferences does the user have?", top_k=5))
+            print(await search.acall(query="用户有哪些界面偏好？", top_k=5))
 
 asyncio.run(main())
 ```
@@ -90,14 +90,14 @@ from mcp import StdioServerParameters
 with MCPServerAdapter(StdioServerParameters(command="hebb-mcp", args=[])) as tools:
     # 2. 把记忆工具交给一个 agent，运行一次召回任务
     agent = Agent(
-        role="Memory assistant",
-        goal="Recall the user's stored preferences from Hebb Mind",
-        backstory="A helpful agent backed by Hebb Mind long-term memory.",
+        role="记忆助手",
+        goal="从 Hebb Mind 召回用户已存储的偏好",
+        backstory="一个由 Hebb Mind 长期记忆支持的助手。",
         tools=tools,
     )
     crew = Crew(agents=[agent], tasks=[
-        Task(description="What UI preferences does the user prefer?",
-             expected_output="A short sentence.", agent=agent),
+        Task(description="用户偏好什么界面风格？",
+             expected_output="一句话。", agent=agent),
     ])
     print(crew.kickoff())
 ```
@@ -130,7 +130,7 @@ async def main():
         model_client=OpenAIChatCompletionClient(model="gpt-4o-mini"),
         tools=tools,
     )
-    await agent.run(task="Search Hebb Mind for the user's UI preferences.")
+    await agent.run(task="在 Hebb Mind 中搜索用户的界面偏好。")
 
 asyncio.run(main())
 ```
@@ -166,7 +166,7 @@ async def main():
 
             # 2. 绑定进 ReAct 智能体并提问
             agent = create_react_agent(ChatOpenAI(model="gpt-4o-mini"), tools)
-            result = await agent.ainvoke({"messages": [("user", "What UI preferences do you remember?")]})
+            result = await agent.ainvoke({"messages": [("user", "你记得用户有哪些界面偏好？")]})
             print(result["messages"][-1].content)
 
 asyncio.run(main())
@@ -180,7 +180,13 @@ asyncio.run(main())
 
 ## REST API 备选方案（无需 MCP 客户端）
 
-如果框架缺少 MCP 适配器，或你使用的版本不支持，REST API 就是兜底方案——只需要 `httpx`（或 `requests`）。下面的写入 + 召回往返可在任意框架中使用；把两个函数包进框架的函数工具类，就能交给智能体：
+如果框架缺少 MCP 适配器，或你使用的版本不支持，REST API 就是兜底方案——只需要 `httpx`（或 `requests`）。先在运行框架代码的环境中安装：
+
+```bash
+pip install httpx
+```
+
+下面的写入 + 召回往返可在任意框架中使用；把两个函数包进框架的函数工具类，就能交给智能体：
 
 ```python
 import httpx
@@ -199,8 +205,8 @@ def recall(query: str, top_k: int = 5) -> list[str]:
     resp.raise_for_status()
     return [hit["memory"]["content"] for hit in resp.json()["results"]]
 
-remember("User prefers dark mode and a compact layout", tags=["preference", "ui"])
-for content in recall("UI preferences"):
+remember("用户偏好深色模式和紧凑布局", tags=["preference", "ui"])
+for content in recall("界面偏好"):
     print(content)
 ```
 
