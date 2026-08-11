@@ -119,6 +119,8 @@ hebb agent-sync sync --dry-run         # Preview historical session import
 
 Docker, one-line install, and source build: [Installation Guide](https://afx-team.github.io/hebb-mind/guide/installation.html).
 
+Use **LlamaIndex, CrewAI, AutoGen, or LangGraph**? Paste a ~10-line snippet to give your agent Hebb Mind memory — [Python Framework Integrations](https://afx-team.github.io/hebb-mind/guide/framework-integrations.html).
+
 ## 30-second Python SDK
 
 ```python
