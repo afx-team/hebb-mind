@@ -316,6 +316,7 @@ function guideSidebar(prefix = '') {
         { text: prefix ? 'Agent 同步' : 'Agent Sync', link: `${prefix}/guide/agent-sync` },
         { text: prefix ? '导入 Agent 记忆' : 'Import Agent Memory', link: `${prefix}/guide/import` },
         { text: prefix ? 'MCP 集成' : 'MCP Integration', link: `${prefix}/guide/mcp-integration` },
+        { text: prefix ? 'Agent 框架集成' : 'Agent Framework Integrations', link: `${prefix}/guide/agent-frameworks` },
         { text: prefix ? 'Web 控制台' : 'Web Console', link: `${prefix}/guide/web-console` },
         { text: prefix ? '从其他系统迁移' : 'Migration from mem0 / Letta / Zep', link: `${prefix}/guide/migration` },
       ],

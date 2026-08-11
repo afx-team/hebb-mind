@@ -16,7 +16,7 @@ Want to call Hebb Mind from Python?           ──→  01_python_sdk_basics.py
 Want a chatbot that remembers across runs?      ──→  02_persistent_chat.py
 Want your AI coding agent to use Hebb Mind?   ──→  03_mcp_quickstart.md
 Want to see (or reproduce) benchmark numbers?   ──→  04_benchmarks_locomo.md
-Want to plug Hebb Mind into LangChain?        ──→  05_langchain_adapter.py  (WIP)
+Want to plug Hebb Mind into other frameworks? ──→  docs/guide/agent-frameworks.md (LlamaIndex, CrewAI, AutoGen, LangGraph)
 ```
 
 ## Table of contents
@@ -27,7 +27,7 @@ Want to plug Hebb Mind into LangChain?        ──→  05_langchain_adapter.py
 | 02 | [`02_persistent_chat.py`](./02_persistent_chat.py) | A CLI chat loop that remembers facts across restarts. Uses LiteLLM. |
 | 03 | [`03_mcp_quickstart.md`](./03_mcp_quickstart.md) | One command to wire Hebb Mind into Claude Code or Codex via MCP. |
 | 04 | [`04_benchmarks_locomo.md`](./04_benchmarks_locomo.md) | Reproduce the LoCoMo number reported in the README. |
-| 05 | [`05_langchain_adapter.py`](./05_langchain_adapter.py) | **WIP** skeleton for a LangChain adapter — contributions welcome. |
+| — | [Agent Framework Integrations](../repo_pages/guide/agent-frameworks.md) | LlamaIndex, CrewAI, AutoGen, LangGraph snippets using MCP or REST API. |
 
 ---
 

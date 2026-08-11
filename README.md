@@ -117,6 +117,8 @@ hebb agent-sync list                   # Audit Claude Code / Codex session sync 
 hebb agent-sync sync --dry-run         # Preview historical session import
 ```
 
+For other agent frameworks (LlamaIndex, CrewAI, AutoGen, LangGraph), see [Agent Framework Integrations](https://afx-team.github.io/hebb-mind/guide/agent-frameworks.html).
+
 Docker, one-line install, and source build: [Installation Guide](https://afx-team.github.io/hebb-mind/guide/installation.html).
 
 ## 30-second Python SDK
