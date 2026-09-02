@@ -2,20 +2,36 @@
 
 from __future__ import annotations
 
+import asyncio
+from pathlib import Path
+
 import pytest
 
 from hebb.agents.consolidation_agent import ConsolidationAgent
+from hebb.agents.llm_client import LLMClient
 from hebb.agents.recall_agent import RecallAgent
+from hebb.config.settings import Settings
+from hebb.embedding.local import NoopEmbedder
 from hebb.graph.knowledge_graph import KnowledgeGraph
-from hebb.models.memory import MemoryCreate, MemoryMetadata
+from hebb.models.memory import Memory, MemoryCreate, MemoryMetadata
 from hebb.retrieval.searcher import MemorySearcher
+from hebb.storage.partition_store import SQLitePartitionStore
+from hebb.storage.sqlite_store import SQLiteMemoryStore
 
 
 class TestConsolidationAgent:
     @pytest.mark.asyncio
-    async def test_consolidate_memory(self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path):
+    async def test_consolidate_memory(
+        self,
+        mock_llm: LLMClient,
+        memory_store: SQLiteMemoryStore,
+        partition_store: SQLitePartitionStore,
+        noop_embedder: NoopEmbedder,
+        shared_lock: asyncio.Lock,
+        tmp_path: Path,
+    ) -> None:
         """Consolidation should move memory from hebb to target partition."""
-        kg = KnowledgeGraph(tmp_path / "kg.json")
+        kg = KnowledgeGraph(tmp_path / "kg.json", lock=shared_lock)
 
         # Create a memory in hebb
         mem = await memory_store.create(
@@ -23,7 +39,7 @@ class TestConsolidationAgent:
         )
 
         # Mock LLM: recall returns no queries, consolidation returns classification
-        mock_llm.complete_json.side_effect = [
+        mock_llm.complete_json.side_effect = [  # type: ignore[attr-defined]
             # RecallAgent.recall -> generate queries
             {"queries": ["user preference"]},
             # ConsolidationAgent -> classify memory
@@ -71,12 +87,18 @@ class TestConsolidationAgent:
 
     @pytest.mark.asyncio
     async def test_session_consolidation_preserves_turn_and_timestamp(
-        self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path
-    ):
+        self,
+        mock_llm: LLMClient,
+        memory_store: SQLiteMemoryStore,
+        partition_store: SQLitePartitionStore,
+        noop_embedder: NoopEmbedder,
+        shared_lock: asyncio.Lock,
+        tmp_path: Path,
+    ) -> None:
         """Session consolidation must carry the source turns' turn span and
         earliest timestamp onto the consolidated memory (so turn-window
         expansion and temporal_boost still work on consolidated output)."""
-        kg = KnowledgeGraph(tmp_path / "kg.json")
+        kg = KnowledgeGraph(tmp_path / "kg.json", lock=shared_lock)
 
         m1 = await memory_store.create(
             MemoryCreate(
@@ -97,7 +119,7 @@ class TestConsolidationAgent:
             )
         )
 
-        mock_llm.complete_json.side_effect = [
+        mock_llm.complete_json.side_effect = [  # type: ignore[attr-defined]
             {"queries": ["sweden book"]},  # RecallAgent
             {
                 "memories": [
@@ -135,7 +157,7 @@ class TestConsolidationAgent:
         assert meta["turn_pair"] == [0, 1]
         assert meta["timestamp"] == "2023-08-01T10:00:00+00:00"
 
-    async def _session_pair(self, memory_store):
+    async def _session_pair(self, memory_store: SQLiteMemoryStore) -> tuple[Memory, Memory]:
         m1 = await memory_store.create(
             MemoryCreate(
                 content="turn one",
@@ -152,7 +174,15 @@ class TestConsolidationAgent:
         )
         return m1, m2
 
-    def _agent(self, mock_llm, memory_store, partition_store, noop_embedder, kg, settings=None):
+    def _agent(
+        self,
+        mock_llm: LLMClient,
+        memory_store: SQLiteMemoryStore,
+        partition_store: SQLitePartitionStore,
+        noop_embedder: NoopEmbedder,
+        kg: KnowledgeGraph,
+        settings: Settings | None = None,
+    ) -> ConsolidationAgent:
         recall_agent = RecallAgent(
             llm=mock_llm,
             searcher=MemorySearcher(store=memory_store, embedder=noop_embedder),
@@ -169,14 +199,20 @@ class TestConsolidationAgent:
 
     @pytest.mark.asyncio
     async def test_session_wellformed_empty_drains_sources(
-        self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path
-    ):
+        self,
+        mock_llm: LLMClient,
+        memory_store: SQLiteMemoryStore,
+        partition_store: SQLitePartitionStore,
+        noop_embedder: NoopEmbedder,
+        shared_lock: asyncio.Lock,
+        tmp_path: Path,
+    ) -> None:
         """A well-formed empty result ({"memories": []}) = the LLM deliberately
         judged the turns low-value, so the sources are drained from the inbox
         (default behavior) — otherwise they replay to the LLM forever."""
-        kg = KnowledgeGraph(tmp_path / "kg.json")
+        kg = KnowledgeGraph(tmp_path / "kg.json", lock=shared_lock)
         m1, m2 = await self._session_pair(memory_store)
-        mock_llm.complete_json.side_effect = [
+        mock_llm.complete_json.side_effect = [  # type: ignore[attr-defined]
             {"queries": []},  # RecallAgent
             {"memories": []},  # well-formed empty: nothing worth keeping
         ]
@@ -194,15 +230,22 @@ class TestConsolidationAgent:
 
     @pytest.mark.asyncio
     async def test_session_wellformed_empty_kept_when_flag_off(
-        self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path
-    ):
+        self,
+        mock_llm: LLMClient,
+        memory_store: SQLiteMemoryStore,
+        partition_store: SQLitePartitionStore,
+        noop_embedder: NoopEmbedder,
+        shared_lock: asyncio.Lock,
+        tmp_path: Path,
+    ) -> None:
         """With consolidation_drain_empty_sources=False, a well-formed empty
         result keeps the sources (legacy behavior, opt-out)."""
         from hebb.config.settings import Settings
 
-        kg = KnowledgeGraph(tmp_path / "kg.json")
+
+        kg = KnowledgeGraph(tmp_path / "kg.json", lock=shared_lock)
         m1, m2 = await self._session_pair(memory_store)
-        mock_llm.complete_json.side_effect = [
+        mock_llm.complete_json.side_effect = [  # type: ignore[attr-defined]
             {"queries": []},
             {"memories": []},
         ]
@@ -219,14 +262,20 @@ class TestConsolidationAgent:
 
     @pytest.mark.asyncio
     async def test_session_parse_failure_keeps_sources(
-        self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path
-    ):
+        self,
+        mock_llm: LLMClient,
+        memory_store: SQLiteMemoryStore,
+        partition_store: SQLitePartitionStore,
+        noop_embedder: NoopEmbedder,
+        shared_lock: asyncio.Lock,
+        tmp_path: Path,
+    ) -> None:
         """A garbled/unparseable LLM response (complete_json -> {}) must NEVER
         drain — it has no "memories" key, so the sources are kept for retry.
         Guards against deleting data on a transient/parse failure (F4)."""
-        kg = KnowledgeGraph(tmp_path / "kg.json")
+        kg = KnowledgeGraph(tmp_path / "kg.json", lock=shared_lock)
         m1, m2 = await self._session_pair(memory_store)
-        mock_llm.complete_json.side_effect = [
+        mock_llm.complete_json.side_effect = [  # type: ignore[attr-defined]
             {"queries": []},
             {},  # parse failure: _parse_json returns {} on unparseable output
         ]
@@ -239,9 +288,17 @@ class TestConsolidationAgent:
         assert await memory_store.get(m2.id) is not None
 
     @pytest.mark.asyncio
-    async def test_consolidate_batch_empty(self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path):
+    async def test_consolidate_batch_empty(
+        self,
+        mock_llm: LLMClient,
+        memory_store: SQLiteMemoryStore,
+        partition_store: SQLitePartitionStore,
+        noop_embedder: NoopEmbedder,
+        shared_lock: asyncio.Lock,
+        tmp_path: Path,
+    ) -> None:
         """Batch consolidation with no hebb memories returns empty list."""
-        kg = KnowledgeGraph(tmp_path / "kg.json")
+        kg = KnowledgeGraph(tmp_path / "kg.json", lock=shared_lock)
 
         recall_agent = RecallAgent(
             llm=mock_llm,
@@ -261,16 +318,22 @@ class TestConsolidationAgent:
 
     @pytest.mark.asyncio
     async def test_consolidate_handles_conflict_discard(
-        self, mock_llm, memory_store, partition_store, noop_embedder, tmp_path
-    ):
+        self,
+        mock_llm: LLMClient,
+        memory_store: SQLiteMemoryStore,
+        partition_store: SQLitePartitionStore,
+        noop_embedder: NoopEmbedder,
+        shared_lock: asyncio.Lock,
+        tmp_path: Path,
+    ) -> None:
         """When LLM says discard, the memory is deleted without creating a new one."""
-        kg = KnowledgeGraph(tmp_path / "kg.json")
+        kg = KnowledgeGraph(tmp_path / "kg.json", lock=shared_lock)
 
         mem = await memory_store.create(
             MemoryCreate(content="redundant info", partition_id="mem_hippocampus"),
         )
 
-        mock_llm.complete_json.side_effect = [
+        mock_llm.complete_json.side_effect = [  # type: ignore[attr-defined]
             {"queries": []},
             {
                 "target_partition": "mem_semantic",

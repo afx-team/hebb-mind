@@ -26,15 +26,17 @@ _TOKEN_RE = re.compile(r"[a-z0-9]+")
 class KnowledgeGraph:
     """Tag-based knowledge graph with file-backed persistence."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, lock: asyncio.Lock | None = None) -> None:
         self.path = path
         self.graph: nx.Graph = nx.Graph()
-        # Single shared lock for read-modify-write + save sequences. Both the
-        # consolidation and forgetting paths mutate the in-memory graph and
-        # persist it; serialising through this one lock keeps concurrent
-        # background tasks from interleaving a mutation with another task's
-        # save (which would write out a partially-updated graph).
-        self.lock = asyncio.Lock()
+        # Shared process-level write lock (Issue #36). When provided by the
+        # factory, this is the *same* ``asyncio.Lock`` instance used by
+        # ``SQLiteMemoryStore`` and ``SQLitePartitionStore``, so a SQL write
+        # and its corresponding graph mutation share a single critical section
+        # and cannot interleave with another coroutine's half-finished
+        # transaction. When ``None`` (tests, SDK, PG backend) a standalone
+        # lock is created.
+        self.lock = lock or asyncio.Lock()
         self._load()
 
     def _load(self) -> None:

@@ -32,7 +32,7 @@ from hebb.server.dependencies import (
 )
 from hebb.server.forgetting_tracker import record_run as record_forget_run
 from hebb.storage.base import MemoryStore, PartitionStore
-from hebb.storage.purge import purge_memory
+from hebb.storage.sqlite_store import SQLiteMemoryStore
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +49,17 @@ async def trigger_consolidation(
     settings: Settings = Depends(get_settings),
     scheduler: SchedulerManager = Depends(get_scheduler),
 ) -> dict[str, Any]:
-    # Optional body: {"partition_ids": [...], "keep_partition": bool}.
-    # When ``partition_ids`` is given, each is consolidated in turn; with
-    # ``keep_partition`` the consolidated memories stay in their source
-    # partition (per-scenario benches). Empty body → default global
-    # HIPPOCAMPUS→long-term consolidation (production / LoCoMo).
+    """Manually trigger a consolidation pass and return the per-memory results.
+
+    Optional body (``{"partition_ids": [...], "keep_partition": bool}``) scopes
+    the run; with ``keep_partition`` the consolidated memories stay in their
+    source partition (per-scenario benches). An empty body triggers the default
+    HIPPOCAMPUS→long-term consolidation (production flow).
+
+    The call is routed through the scheduler's lock-protected
+    ``run_consolidation`` (INT-7) so a manual ``/consolidate`` cannot overlap
+    the daily cron job (which would double-delete / double-graph sources).
+    """
     body = body or {}
     partition_ids = body.get("partition_ids") or None
     keep_partition = bool(body.get("keep_partition", False))
@@ -173,6 +179,8 @@ async def trigger_forgetting(
             partitions_swept += 1
             memories = await memory_store.get_by_partition(partition.id)
             scanned += len(memories)
+            # Collect deletes to batch under the KG lock (Issue #36).
+            to_delete: list[str] = []
             for memory in memories:
                 # Recompute expiry from current access state so strengthened
                 # (recently recalled) memories survive, then persist for visibility.
@@ -186,10 +194,32 @@ async def trigger_forgetting(
                 )
                 await memory_store.update_expiry(memory.id, expires_at.isoformat())
                 if expires_at < now:
-                    await purge_memory(memory_store, kg, memory.id, save=False)
-                    deleted += 1
-        if deleted > 0:
-            kg.save()
+                    to_delete.append(memory.id)
+            if to_delete:
+                async with kg.lock:
+                    if isinstance(memory_store, SQLiteMemoryStore):
+                        await memory_store._begin()
+                        try:
+                            for mid in to_delete:
+                                await memory_store._delete_impl(mid, skip_tx=True)
+                            await memory_store.db.commit()
+                        except BaseException:
+                            await memory_store.db.rollback()
+                            raise
+                        # Commit succeeded — mutate the in-memory graph and bump
+                        # deleted afterwards so a SQL rollback can never diverge the
+                        # graph or inflate the count (Issue #36; Gemini review).
+                        # The narrow commit → save() crash window may leave a KG→SQL
+                        # orphan that reconcile() sweeps on the next start.
+                        for mid in to_delete:
+                            kg.remove_memory_from_tags(mid)
+                            deleted += 1
+                    else:
+                        for mid in to_delete:
+                            await memory_store.delete(mid)
+                            kg.remove_memory_from_tags(mid)
+                            deleted += 1
+                    kg.save()
     except Exception as exc:
         # Record the failed sweep (mirrors the scheduled job) before surfacing
         # the error, so a manual run that errors mid-way still leaves a record.
@@ -326,6 +356,12 @@ async def get_stats(
     kg: KnowledgeGraph = Depends(get_knowledge_graph),
     scheduler: SchedulerManager = Depends(get_scheduler),
 ) -> dict[str, Any]:
+    """Return an aggregate health snapshot for the Web Console dashboard.
+
+    Reports per-partition memory counts, the total memory count, an export of
+    the knowledge graph (tags + edges), and the scheduler's run status so the
+    console can render progress and signal scheduler health.
+    """
     partitions = await partition_store.list()
     partition_stats = [
         {"id": p.id, "name": p.name, "memory_count": p.memory_count, "enabled": p.enabled} for p in partitions

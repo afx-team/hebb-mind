@@ -8,15 +8,19 @@ stubs); layer- or module-specific helpers stay next to their tests.
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import AsyncMock
 
+import aiosqlite
 import pytest
 import pytest_asyncio
 
 from hebb.agents.llm_client import LLMClient
 from hebb.config.settings import Settings
 from hebb.embedding.local import NoopEmbedder
+from hebb.graph.knowledge_graph import KnowledgeGraph
 from hebb.storage.migrations import get_connection, initialize_schema
 from hebb.storage.partition_store import SQLitePartitionStore
 from hebb.storage.sqlite_store import SQLiteMemoryStore
@@ -42,8 +46,14 @@ def settings(tmp_path: Path) -> Settings:
     )
 
 
+@pytest.fixture
+def shared_lock() -> asyncio.Lock:
+    """Process-level write lock shared between store and KG (Issue #36)."""
+    return asyncio.Lock()
+
+
 @pytest_asyncio.fixture
-async def db(settings: Settings):
+async def db(settings: Settings, shared_lock: asyncio.Lock) -> AsyncIterator[aiosqlite.Connection]:
     conn = await get_connection(settings.db_path)
     await initialize_schema(conn, settings.embedding_dim)
     yield conn
@@ -51,12 +61,22 @@ async def db(settings: Settings):
 
 
 @pytest_asyncio.fixture
-async def memory_store(db) -> SQLiteMemoryStore:
-    return SQLiteMemoryStore(db)
+async def memory_store(
+    db: aiosqlite.Connection, shared_lock: asyncio.Lock
+) -> SQLiteMemoryStore:
+    return SQLiteMemoryStore(db, write_lock=shared_lock)
 
 
 @pytest_asyncio.fixture
-async def partition_store(db) -> SQLitePartitionStore:
-    store = SQLitePartitionStore(db)
+async def partition_store(
+    db: aiosqlite.Connection, shared_lock: asyncio.Lock
+) -> SQLitePartitionStore:
+    store = SQLitePartitionStore(db, write_lock=shared_lock)
     await store.ensure_defaults()
     return store
+
+
+@pytest_asyncio.fixture
+async def knowledge_graph(tmp_path: Path, shared_lock: asyncio.Lock) -> KnowledgeGraph:
+    """Knowledge graph sharing the process-level write lock (Issue #36)."""
+    return KnowledgeGraph(tmp_path / "kg.json", lock=shared_lock)

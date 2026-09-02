@@ -13,6 +13,7 @@ Covers the safety fixes from the 2026-06-07 core system audit:
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -20,6 +21,8 @@ import pytest
 
 from hebb.agents.consolidation_agent import ConsolidationAgent
 from hebb.agents.recall_agent import RecallAgent
+from hebb.config.settings import Settings
+from hebb.embedding.local import NoopEmbedder
 from hebb.graph.knowledge_graph import KnowledgeGraph
 from hebb.models.memory import Memory, MemoryCreate
 from hebb.retrieval.searcher import MemorySearcher
@@ -29,6 +32,8 @@ from hebb.scheduler.forgetting_job import (
     compute_expires_at,
     forget_idle_days,
 )
+from hebb.storage.partition_store import SQLitePartitionStore
+from hebb.storage.sqlite_store import SQLiteMemoryStore
 
 # Representative parameter set (the global user-partition defaults).
 _PARAMS = dict(half_life_days=60.0, k_importance=2.0, k_access=1.5, threshold=0.3)
@@ -119,7 +124,9 @@ class TestSearchTagsTokenization:
 def _make_agent(
     mock_llm, memory_store, partition_store, embedder, tmp_path
 ) -> tuple[ConsolidationAgent, KnowledgeGraph]:
-    kg = KnowledgeGraph(tmp_path / "kg.json")
+    # Reuse the store's shared lock so KG and store share one critical section (Issue #36).
+    shared_lock = getattr(memory_store, "_write_lock", None)
+    kg = KnowledgeGraph(tmp_path / "kg.json", lock=shared_lock)
     recall_agent = RecallAgent(
         llm=mock_llm,
         searcher=MemorySearcher(store=memory_store, embedder=embedder),
@@ -207,15 +214,16 @@ class TestConflictUpdateReembeds:
             MemoryCreate(content="Actually user prefers coffee now", partition_id="mem_hippocampus"),
         )
 
-        # Spy on update_embedding to confirm the re-embed fires for the right id.
+        # Spy on _update_content_and_embedding_impl to confirm the re-embed
+        # fires for the right id (this is the single-transaction path, Issue #36).
         reembedded: list[str] = []
-        original_update_embedding = memory_store.update_embedding
+        original_impl = memory_store._update_content_and_embedding_impl
 
-        async def _spy(memory_id: str, embedding: list[float]) -> None:
+        async def _spy(memory_id: str, data, embedding: list[float]) -> None:
             reembedded.append(memory_id)
-            await original_update_embedding(memory_id, embedding)
+            await original_impl(memory_id, data, embedding)
 
-        memory_store.update_embedding = _spy  # type: ignore[method-assign]
+        memory_store._update_content_and_embedding_impl = _spy
 
         mock_llm.complete_json.side_effect = [
             # RecallAgent.recall -> query generation (returns the existing mem)
@@ -250,11 +258,17 @@ class TestConflictUpdateReembeds:
 class TestConsolidationLLMModelGuard:
     @pytest.mark.asyncio
     async def test_run_consolidation_skips_without_llm_model(
-        self, settings, memory_store, partition_store, noop_embedder, tmp_path
+        self,
+        settings: Settings,
+        memory_store: SQLiteMemoryStore,
+        partition_store: SQLitePartitionStore,
+        noop_embedder: NoopEmbedder,
+        shared_lock: asyncio.Lock,
+        tmp_path: Path,
     ) -> None:
         """No llm_model -> run_consolidation returns [] without calling litellm."""
         settings.llm_model = None
-        kg = KnowledgeGraph(tmp_path / "kg.json")
+        kg = KnowledgeGraph(tmp_path / "kg.json", lock=shared_lock)
 
         # Seed a memory so an unguarded path would actually try to consolidate.
         await memory_store.create(

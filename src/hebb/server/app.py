@@ -39,6 +39,12 @@ class NoCacheStaticFiles(StaticFiles):
     """
 
     async def get_response(self, path: str, scope: Scope) -> Response:
+        """Like ``StaticFiles.get_response`` but force ``Cache-Control: no-cache``.
+
+        The Web Console ships hashed asset names but the HTML entry points must
+        always be reloaded after an upgrade, so we override the default cache
+        header here.
+        """
         response = await super().get_response(path, scope)
         response.headers["Cache-Control"] = "no-cache"
         return response
@@ -79,8 +85,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Ensure default partitions
     await ctx.partition_store.ensure_defaults()
 
-    # Knowledge graph
-    kg = KnowledgeGraph(Path(settings.kg_path))  # kg_path already resolved to absolute
+    # Knowledge graph — shares the process-level write lock (Issue #36) so
+    # SQL mutations and graph mutations cannot interleave.
+    kg = KnowledgeGraph(Path(settings.kg_path), lock=ctx.write_lock)  # kg_path already resolved to absolute
     app.state.knowledge_graph = kg
 
     # Optional cross-encoder reranker (None when settings.rerank_enabled=False).

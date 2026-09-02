@@ -271,6 +271,7 @@ class TestLibrarySizesVecFromEmbedderDim:
         class FakeCtx:
             memory_store = object()
             partition_store = FakePartitionStore()
+            write_lock = None  # SQLite backend would pass a shared lock (Issue #36)
 
             async def close(self) -> None:
                 return None
@@ -281,7 +282,7 @@ class TestLibrarySizesVecFromEmbedderDim:
             return FakeCtx()
 
         class FakeKG:
-            def __init__(self, path: Any) -> None:
+            def __init__(self, path: Any, lock: Any = None) -> None:
                 pass
 
             def save(self) -> None:

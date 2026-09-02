@@ -7,16 +7,24 @@ sync. These tests assert SQL and graph agree after a purge.
 
 from __future__ import annotations
 
+import asyncio
+from pathlib import Path
+
 import pytest
 
 from hebb.graph.knowledge_graph import KnowledgeGraph
 from hebb.models.memory import MemoryCreate
 from hebb.storage.purge import purge_memory
+from hebb.storage.sqlite_store import SQLiteMemoryStore
 
 
 @pytest.mark.asyncio
-async def test_purge_removes_sql_row_and_graph_node(memory_store, tmp_path):
-    kg = KnowledgeGraph(tmp_path / "kg.json")
+async def test_purge_removes_sql_row_and_graph_node(
+    memory_store: SQLiteMemoryStore,
+    shared_lock: asyncio.Lock,
+    tmp_path: Path,
+) -> None:
+    kg = KnowledgeGraph(tmp_path / "kg.json", lock=shared_lock)
     mem = await memory_store.create(
         MemoryCreate(content="graphed memory", partition_id="mem_hippocampus")
     )
@@ -32,10 +40,14 @@ async def test_purge_removes_sql_row_and_graph_node(memory_store, tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_purge_cleans_graph_even_when_row_absent(memory_store, tmp_path):
+async def test_purge_cleans_graph_even_when_row_absent(
+    memory_store: SQLiteMemoryStore,
+    shared_lock: asyncio.Lock,
+    tmp_path: Path,
+) -> None:
     """Graph cleanup runs regardless of the row's existence, so a stale
     reference is swept rather than left dangling."""
-    kg = KnowledgeGraph(tmp_path / "kg.json")
+    kg = KnowledgeGraph(tmp_path / "kg.json", lock=shared_lock)
     kg.update_from_tags(["ghost"], "missing-id")
     assert kg.get_tag("ghost") is not None
 

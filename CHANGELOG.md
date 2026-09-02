@@ -13,6 +13,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      3. Merge to main — publish.yml ships to PyPI on the pyproject.toml change
         and tags the release. -->
 
+## [Unreleased]
+
+### Fixed
+
+- **In-memory knowledge-graph divergence on SQL rollback**: across every
+  composite write path (`consolidate_memory`, `_consolidate_session_chunk`,
+  `_consolidate_one`'s `discard` branch, scheduled forgetting, manual
+  forgetting, and `purge_memory`), `KnowledgeGraph.update_from_tags` /
+  `remove_memory_from_tags` now run **after** `db.commit()` succeeds — still under
+  the shared lock. A SQL rollback therefore can never leave the NetworkX graph
+  pointing at memories that still exist (a divergence `reconcile()` cannot
+  self-heal). The narrow commit → `kg.save()` crash window may still leave a
+  KG→SQL orphan that `reconcile()` sweeps on the next start; this is the safer
+  trade-off because KG→SQL orphans are self-healing and SQL→KG lost forward refs
+  are not. (Issue #36; Gemini / CodeRabbit review.)
+- **`purge_memory` lock discipline**: acquire `kg.lock` explicitly even when the
+  store exposes a different `_write_lock`, and handle the non-reentrant
+  same-lock case (no second `async with`) so SDK / test wiring cannot race the
+  graph mutation. (Issue #36; Copilot review.)
+- **PG fallback graph mutation**: guard `self.kg.update_from_tags` with
+  `self.kg.lock` on the non-SQLite consolidation fast-path so concurrent
+  forgetting / consolidation cannot mutate the NetworkX graph unserialized.
+  (CodeRabbit review.)
+
+### Changed
+
+- **Composite fast-path typing**: replace the `getattr(store, "_create_impl",
+  None)` + `callable()` duck-type probe with `isinstance(self.memory_store,
+  SQLiteMemoryStore)` across `consolidation_agent`, `scheduler.manager`,
+  `server.routers.admin`, and `storage.purge`. Pylance / mypy now narrow
+  `.db` / `._create_impl` / `._delete_impl` / `._begin` /
+  `._update_content_and_embedding_impl` to the concrete store type, removing
+  the 20 `await … not awaitable` and `MemoryStore has no attribute db` red
+  flags the previous duck-type probe caused (no behavior change: same SQLite
+  vs. PG split, same lock composition).
+
+### Tests
+
+- **`test_audit_storage` concurrent regression**: rewrite
+  `test_no_orphans_after_concurrent_operations` to exercise one transaction per
+  operation (`BEGIN` + `skip_tx=True` + commit/rollback once) under the shared
+  lock — previously the simulated consolidation / forgetting committed each
+  `_impl` independently and released the lock between SQL and graph updates, so
+  the test passed even when the split-lock / partial-commit failure modes
+  regressed. Add a new `test_rollback_on_injected_failure_in_consolidation`
+  that injects a failure mid-transaction and asserts both SQLite and the
+  reloaded on-disk KnowledgeGraph remain unchanged after rollback.
+- **Strict typing across audit + integration tests**: complete type annotations
+  (fixture parameters + `-> None` / `AsyncIterator[...]` returns) for
+  `tests/conftest.py`, `tests/integration/agents/test_consolidation_agent.py`,
+  `tests/integration/scheduler/test_scheduler_manager.py`,
+  `tests/integration/storage/test_purge.py`,
+  `tests/unit/test_audit_consolidation.py`, and
+  `tests/unit/test_audit_storage.py` so `mypy` strict is clean across the PR's
+  test footprint.
+- **Removed two `type: ignore` comments** that mypy 2.1 now reports as unused.
+
+### Documentation
+
+- **Docstring coverage**: every public callable in the PR-touched source files
+  (`consolidation_agent`, `scheduler.manager`, `server.app`, `server.routers.admin`,
+  `storage.factory`, `storage.partition_store`, `storage.sqlite_store`) now
+  carries a docstring with `Args`/`Returns`/`Raises` where the signature
+  warrants it. PR-touched file coverage 70% → 100%; `src/hebb` overall
+  68.44% → 72.52%.
+
 ## [0.3.0] - 2026-06-29
 
 ### Added

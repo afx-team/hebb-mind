@@ -35,7 +35,7 @@ from hebb.server.consolidation_tracker import (
 )
 from hebb.server.forgetting_tracker import record_run as record_forget_run
 from hebb.storage.base import MemoryStore, PartitionStore
-from hebb.storage.purge import purge_memory
+from hebb.storage.sqlite_store import SQLiteMemoryStore
 from hebb.upgrade import state as upgrade_state
 from hebb.upgrade.checker import run_check as run_upgrade_check
 from hebb.upgrade.helper import spawn_detached
@@ -69,6 +69,11 @@ class SchedulerManager:
         self._consolidation_lock = asyncio.Lock()
 
     def start(self) -> None:
+        """Register the daily consolidation and periodic forgetting jobs and start the scheduler.
+
+        Idempotent: reuses the existing job ids via ``replace_existing=True`` so a
+        second ``start()`` reschedules rather than duplicating jobs.
+        """
         hour, minute = self._parse_consolidation_time()
         self.scheduler.add_job(
             func=self._run_consolidation,
@@ -107,6 +112,7 @@ class SchedulerManager:
         )
 
     def shutdown(self) -> None:
+        """Stop the scheduler without waiting for in-flight jobs (idempotent)."""
         self.scheduler.shutdown(wait=False)
         logger.info("Scheduler stopped")
 
@@ -336,14 +342,34 @@ class SchedulerManager:
                         await self.memory_store.update_expiry(mid, iso)
 
             # Batch-delete expired memories, then strip them from the graph and
-            # persist the graph once — all under the graph's shared lock so a
-            # concurrent consolidation can't interleave a save (C1).
+            # persist the graph once — all under the shared write lock so a
+            # concurrent consolidation can't interleave (Issue #36, C1).
+            # Multiple deletes are wrapped in a single BEGIN IMMEDIATE … COMMIT
+            # so the batch is atomic: either all sources are removed or none.
             if to_delete:
                 async with self.knowledge_graph.lock:
-                    for mid in to_delete:
-                        # save=False: the graph is persisted once after the loop.
-                        await purge_memory(self.memory_store, self.knowledge_graph, mid, save=False)
-                        total_deleted += 1
+                    if isinstance(self.memory_store, SQLiteMemoryStore):
+                        await self.memory_store._begin()
+                        try:
+                            for mid in to_delete:
+                                await self.memory_store._delete_impl(mid, skip_tx=True)
+                            await self.memory_store.db.commit()
+                        except BaseException:
+                            await self.memory_store.db.rollback()
+                            raise
+                        # Commit succeeded — mutate the in-memory graph and bump the
+                        # counter afterwards so a SQL rollback can never diverge the
+                        # graph or inflate total_deleted (Issue #36; Gemini review).
+                        # The narrow commit → save() crash window may leave a KG→SQL
+                        # orphan that reconcile() sweeps on the next start.
+                        for mid in to_delete:
+                            self.knowledge_graph.remove_memory_from_tags(mid)
+                            total_deleted += 1
+                    else:
+                        for mid in to_delete:
+                            await self.memory_store.delete(mid)
+                            self.knowledge_graph.remove_memory_from_tags(mid)
+                            total_deleted += 1
                     self.knowledge_graph.save()
 
             logger.info("Forgetting job complete: %d memories deleted", total_deleted)
