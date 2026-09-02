@@ -28,6 +28,7 @@ from hebb.server.routers import memories as memories_router
 from hebb.server.routers import search as search_router
 from hebb.storage.migrations import (
     EmbeddingDimensionMismatchError,
+    EmbeddingSchemaMigrationError,
     _ensure_vec_table,
     get_connection,
     initialize_schema,
@@ -354,23 +355,281 @@ async def test_same_dim_reinit_preserves_embeddings(tmp_path: Any) -> None:
     """Re-initializing at the SAME dim must not drop existing embeddings.
 
     Invariant guard for the vec0-unavailable fallback path: the BLOB fallback
-    table must survive a same-dim re-init (e.g. a service restart) regardless of
-    SQLite build behavior. When ``CREATE VIRTUAL TABLE IF NOT EXISTS`` short-
-    circuits (table already exists), the probe returns early; when a build
-    resolves the vec0 module before the existence check and raises, control
-    falls through to the fallback — which must still leave a same-dim table
-    intact. Either way no embedding may be lost.
+    table must survive a same-dim re-init (e.g. a service restart). The second
+    connection also has extension loading disabled, so this exercises the real
+    fallback path rather than relying on host-specific sqlite-vec behavior.
     """
     db_path = str(tmp_path / "hebb.db")
-    conn = await get_connection(db_path)
+    conn = await get_connection(db_path, load_vec=False)
+    try:
+        await initialize_schema(conn, embedding_dim=384)
+        schema_cursor = await conn.execute("SELECT sql FROM sqlite_master WHERE name = 'memory_embeddings'")
+        schema_row = await schema_cursor.fetchone()
+        assert schema_row is not None
+        assert "USING vec0" not in schema_row[0]
+
+        await _populate_one_vector(conn, 384)
+        assert await _vec_row_count_proxy(conn) == 1
+    finally:
+        await conn.close()
+
+    # Simulate a service restart on another connection where vec0 is still
+    # unavailable: initialization must reuse the populated BLOB fallback.
+    conn = await get_connection(db_path, load_vec=False)
+    try:
+        await initialize_schema(conn, embedding_dim=384)
+        assert await _vec_row_count_proxy(conn) == 1, "same-dim re-init wiped existing embeddings on the fallback path"
+    finally:
+        await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_populated_legacy_fallback_adds_partition_without_data_loss(tmp_path: Any) -> None:
+    """Fallback schema migration is additive even when vec0 is unavailable."""
+    db_path = str(tmp_path / "hebb.db")
+    conn = await get_connection(db_path, load_vec=False)
+    try:
+        await conn.execute("CREATE TABLE memory_embeddings (memory_id TEXT PRIMARY KEY, embedding BLOB)")
+        embedding = np.zeros(384, dtype=np.float32).tobytes()
+        await conn.execute(
+            "INSERT INTO memory_embeddings(memory_id, embedding) VALUES ('legacy', ?)",
+            (embedding,),
+        )
+        await conn.commit()
+
+        await initialize_schema(conn, embedding_dim=384)
+
+        assert await _vec_row_count_proxy(conn) == 1
+        info_cursor = await conn.execute("PRAGMA table_info(memory_embeddings)")
+        columns = {row[1] for row in await info_cursor.fetchall()}
+        assert "partition_id" in columns
+        row_cursor = await conn.execute("SELECT memory_id, partition_id, embedding FROM memory_embeddings")
+        row = await row_cursor.fetchone()
+        assert tuple(row) == ("legacy", "default", embedding)
+    finally:
+        await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_populated_legacy_fallback_infers_dimension_before_writing_meta(tmp_path: Any, monkeypatch: Any) -> None:
+    """Missing fallback metadata must not relabel existing vectors at a new width."""
+    monkeypatch.delenv("HEBB_ALLOW_EMBED_DROP", raising=False)
+    db_path = str(tmp_path / "hebb.db")
+    conn = await get_connection(db_path, load_vec=False)
+    try:
+        await conn.execute(
+            "CREATE TABLE memory_embeddings (memory_id TEXT PRIMARY KEY, partition_id TEXT, embedding BLOB)"
+        )
+        embedding = np.zeros(384, dtype=np.float32).tobytes()
+        await conn.execute(
+            "INSERT INTO memory_embeddings(memory_id, partition_id, embedding) VALUES ('legacy', 'default', ?)",
+            (embedding,),
+        )
+        await conn.commit()
+
+        with pytest.raises(EmbeddingDimensionMismatchError, match="384"):
+            await initialize_schema(conn, embedding_dim=512)
+
+        assert await _vec_row_count_proxy(conn) == 1
+        meta_cursor = await conn.execute("SELECT value FROM schema_meta WHERE key = 'embedding_dim'")
+        assert await meta_cursor.fetchone() is None
+    finally:
+        await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_fallback_metadata_read_error_fails_closed(tmp_path: Any) -> None:
+    """A broken metadata table must not be treated as an absent metadata key."""
+    db_path = str(tmp_path / "hebb.db")
+    conn = await get_connection(db_path, load_vec=False)
+    try:
+        await conn.execute(
+            "CREATE TABLE memory_embeddings (memory_id TEXT PRIMARY KEY, partition_id TEXT, embedding BLOB)"
+        )
+        await conn.execute("CREATE TABLE schema_meta (key TEXT PRIMARY KEY)")
+        embedding = np.zeros(384, dtype=np.float32).tobytes()
+        await conn.execute(
+            "INSERT INTO memory_embeddings(memory_id, partition_id, embedding) VALUES ('legacy', 'default', ?)",
+            (embedding,),
+        )
+        await conn.commit()
+
+        with pytest.raises(EmbeddingSchemaMigrationError, match="metadata"):
+            await _ensure_vec_table(conn, embedding_dim=384)
+
+        assert await _vec_row_count_proxy(conn) == 1
+    finally:
+        await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_embedding_schema_inspection_error_preserves_data_and_meta(tmp_path: Any, monkeypatch: Any) -> None:
+    """A schema-query failure must not fall through to fallback initialization."""
+    db_path = str(tmp_path / "hebb.db")
+    conn = await get_connection(db_path, load_vec=False)
     try:
         await initialize_schema(conn, embedding_dim=384)
         await _populate_one_vector(conn, 384)
-        assert await _vec_row_count_proxy(conn) == 1
+        original_execute = conn.execute
+        failed = False
 
-        # Simulate a service restart: re-init at the same configured dim.
+        async def fail_embedding_schema_query(sql: str, *args: Any) -> Any:
+            nonlocal failed
+            if not failed and "sqlite_master" in sql and "memory_embeddings" in sql:
+                failed = True
+                raise RuntimeError("injected schema inspection failure")
+            return await original_execute(sql, *args)
+
+        monkeypatch.setattr(conn, "execute", fail_embedding_schema_query)
+
+        with pytest.raises(EmbeddingSchemaMigrationError, match="inspect"):
+            await initialize_schema(conn, embedding_dim=512)
+
+        assert await _vec_row_count_proxy(conn) == 1
+        meta_cursor = await conn.execute("SELECT value FROM schema_meta WHERE key = 'embedding_dim'")
+        meta_row = await meta_cursor.fetchone()
+        assert meta_row is not None
+        assert meta_row[0] == "384"
+    finally:
+        await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_opt_in_rebuild_rolls_back_when_metadata_write_fails(tmp_path: Any, monkeypatch: Any) -> None:
+    """A failed destructive rebuild restores the original populated table."""
+    monkeypatch.setenv("HEBB_ALLOW_EMBED_DROP", "1")
+    db_path = str(tmp_path / "hebb.db")
+    conn = await get_connection(db_path, load_vec=False)
+    try:
+        await conn.execute(
+            "CREATE TABLE memory_embeddings (memory_id TEXT PRIMARY KEY, partition_id TEXT, embedding BLOB)"
+        )
+        await conn.execute("CREATE TABLE schema_meta (key TEXT PRIMARY KEY)")
+        embedding = np.zeros(384, dtype=np.float32).tobytes()
+        await conn.execute(
+            "INSERT INTO memory_embeddings(memory_id, partition_id, embedding) VALUES ('legacy', 'default', ?)",
+            (embedding,),
+        )
+        await conn.commit()
+
+        with pytest.raises(EmbeddingSchemaMigrationError, match="rolled back"):
+            await _ensure_vec_table(conn, embedding_dim=512)
+
+        assert await _vec_row_count_proxy(conn) == 1
+        row_cursor = await conn.execute("SELECT memory_id, partition_id, embedding FROM memory_embeddings")
+        row = await row_cursor.fetchone()
+        assert tuple(row) == ("legacy", "default", embedding)
+    finally:
+        await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_opt_in_savepoint_failure_preserves_data_and_meta(tmp_path: Any, monkeypatch: Any) -> None:
+    """Failure to start a destructive rebuild must leave the old index intact."""
+    monkeypatch.setenv("HEBB_ALLOW_EMBED_DROP", "1")
+    db_path = str(tmp_path / "hebb.db")
+    conn = await get_connection(db_path, load_vec=False)
+    try:
         await initialize_schema(conn, embedding_dim=384)
-        assert await _vec_row_count_proxy(conn) == 1, "same-dim re-init wiped existing embeddings on the fallback path"
+        await _populate_one_vector(conn, 384)
+        original_execute = conn.execute
+        failed = False
+
+        async def fail_rebuild_savepoint(sql: str, *args: Any) -> Any:
+            nonlocal failed
+            if not failed and sql == "SAVEPOINT rebuild_memory_embeddings":
+                failed = True
+                raise RuntimeError("injected savepoint failure")
+            return await original_execute(sql, *args)
+
+        monkeypatch.setattr(conn, "execute", fail_rebuild_savepoint)
+
+        with pytest.raises(EmbeddingSchemaMigrationError, match="start"):
+            await initialize_schema(conn, embedding_dim=512)
+
+        assert await _vec_row_count_proxy(conn) == 1
+        meta_cursor = await conn.execute("SELECT value FROM schema_meta WHERE key = 'embedding_dim'")
+        meta_row = await meta_cursor.fetchone()
+        assert meta_row is not None
+        assert meta_row[0] == "384"
+    finally:
+        await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_inconsistent_legacy_fallback_rebuilds_with_opt_in(tmp_path: Any, monkeypatch: Any) -> None:
+    """Explicit opt-in permits rebuilding fallback vectors of unknown width."""
+    monkeypatch.setenv("HEBB_ALLOW_EMBED_DROP", "1")
+    db_path = str(tmp_path / "hebb.db")
+    conn = await get_connection(db_path, load_vec=False)
+    try:
+        await conn.execute(
+            "CREATE TABLE memory_embeddings (memory_id TEXT PRIMARY KEY, partition_id TEXT, embedding BLOB)"
+        )
+        await conn.executemany(
+            "INSERT INTO memory_embeddings(memory_id, partition_id, embedding) VALUES (?, 'default', ?)",
+            [
+                ("legacy-384", np.zeros(384, dtype=np.float32).tobytes()),
+                ("legacy-512", np.zeros(512, dtype=np.float32).tobytes()),
+            ],
+        )
+        await conn.commit()
+
+        await initialize_schema(conn, embedding_dim=768)
+
+        assert await _vec_row_count_proxy(conn) == 0
+        meta_cursor = await conn.execute("SELECT value FROM schema_meta WHERE key = 'embedding_dim'")
+        meta_row = await meta_cursor.fetchone()
+        assert meta_row is not None
+        assert meta_row[0] == "768"
+    finally:
+        await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_populated_legacy_vec_table_without_partition_is_preserved(tmp_path: Any, monkeypatch: Any) -> None:
+    """A failed legacy-schema probe must never silently discard vectors."""
+    monkeypatch.delenv("HEBB_ALLOW_EMBED_DROP", raising=False)
+    db_path = str(tmp_path / "hebb.db")
+    conn = await get_connection(db_path)
+    try:
+        await conn.execute(
+            "CREATE VIRTUAL TABLE memory_embeddings USING vec0(memory_id TEXT PRIMARY KEY, embedding float[384])"
+        )
+        embedding = np.zeros(384, dtype=np.float32).tobytes()
+        await conn.execute(
+            "INSERT INTO memory_embeddings(memory_id, embedding) VALUES ('legacy', ?)",
+            (embedding,),
+        )
+        await conn.commit()
+
+        with pytest.raises(EmbeddingSchemaMigrationError, match="partition_id"):
+            await initialize_schema(conn, embedding_dim=384)
+
+        assert await _vec_row_count_proxy(conn) == 1
+        schema_cursor = await conn.execute("SELECT sql FROM sqlite_master WHERE name = 'memory_embeddings'")
+        schema_row = await schema_cursor.fetchone()
+        assert schema_row is not None
+        assert "partition_id" not in schema_row[0]
+    finally:
+        await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_empty_legacy_vec_table_without_partition_is_rebuilt(tmp_path: Any) -> None:
+    """An incompatible vec0 schema may be rebuilt when it contains no data."""
+    db_path = str(tmp_path / "hebb.db")
+    conn = await get_connection(db_path)
+    try:
+        await conn.execute(
+            "CREATE VIRTUAL TABLE memory_embeddings USING vec0(memory_id TEXT PRIMARY KEY, embedding float[384])"
+        )
+
+        await initialize_schema(conn, embedding_dim=384)
+
+        info_cursor = await conn.execute("PRAGMA table_info(memory_embeddings)")
+        columns = {row[1] for row in await info_cursor.fetchall()}
+        assert "partition_id" in columns
     finally:
         await conn.close()
 
